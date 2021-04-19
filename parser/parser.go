@@ -16,6 +16,7 @@ package parser
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer/stateful"
 	"github.com/golangee/tadl/ast"
@@ -90,7 +91,7 @@ func Parse(fname, src string) (*ast.File, error) {
 		participle.UseLookahead(3),
 	)
 
-	//fmt.Println(parser.String())
+	fmt.Println(parser.String())
 
 	ast := &ast.File{}
 	buf := bytes.NewReader([]byte(src))

@@ -1,0 +1,65 @@
+File = Module* .
+Module = DocTypeBlock "module" Ident "{" "generate" "{" Generate "}" Context* "}" .
+DocTypeBlock = <docsummary> DocTypeElem* .
+DocTypeElem = DocTitle | DocText | DocSee .
+DocTitle = <doctitle> .
+DocText = <doctext> .
+DocSee = <docseeprefix> PathWithMemberAndParam .
+PathWithMemberAndParam = Ident ("::" Ident)* ("." Ident)? ("$" Ident)? .
+Ident = <ident> .
+Generate = ("go" "{" GoGenerate "}")? .
+GoGenerate = ("module" "=" String) ("output" "=" String) ("import" "{" GoStandardImport)? "}" ("require" "{" GoRequire)? "}" .
+String = <string> .
+GoStandardImport = DocTypeBlock Ident String .
+GoRequire = GoMod* .
+GoMod = DocTypeBlock String "@" String "import" "{" GoGlobalImport* "}" .
+GoGlobalImport = Ident String .
+Context = DocTypeBlock "context" Ident "{" "domain" "{" Domain "}" "infrastructure" "{" Infrastructure "}" "presentation" "{" Presentation "}" "}" .
+Domain = "core" "{" Core "}" "usecase" "{" Usecase "}" Subdomain* .
+Core = TypeDef* .
+TypeDef = Struct | Repository | Service .
+Struct = DocTypeBlock "struct" Ident "{" Field* "}" .
+Field = DocTypeBlock Ident Type .
+Type = <pointer>? Path <macrosep>? <optional>? ("<" Type ("," Type)* ">")? .
+Path = Ident ("::" Ident)* .
+Repository = DocTypeBlock "repository" Ident "{" Method* "}" .
+Method = (DocMethodBlock Ident "(" Param?) | (("," Param)* ")" "->" "(" Type? ("," Error)? ")") .
+DocMethodBlock = <docsummary> DocMethodElem* .
+DocMethodElem = DocTitle | DocParameters | DocReturns | DocErrors | DocText | DocSee .
+DocParameters = <docsubtitleparameters> DocParam* .
+DocParam = <doclistlevel0> DocIndentLevel0* .
+DocIndentLevel0 = <docindentlevel0> .
+DocReturns = <docsubtitlereturns> DocText* .
+DocErrors = <docsubtitleerrors> DocParam* .
+Param = Ident Type .
+Error = "error" "<" Ident ("|" Ident)* ">" .
+Service = DocTypeBlock "service" Ident "{" ("configure" "{" FieldWithDefault* "}")? ("inject" "{" Field* "}")? ("private" "{" Field* "}")? Method* "}" .
+FieldWithDefault = Field "=" (String | Int | Bool) .
+Int = <intliteral> .
+Bool = <boollit> .
+Usecase = TypeDef* .
+Subdomain = DocTypeBlock "subdomain" Ident "{" "core" "{" Core "}" "usecase" "{" Usecase "}" "}" .
+Infrastructure = ("mysql" "{" SQL "}")? .
+SQL = "database" "=" String SQLImplementation+ .
+SQLImplementation = "impl" Path "{" ("configure" "{" FieldWithDefault* "}")? ("inject" "{" Field* "}")? ("private" "{" Field* "}")? SQLFunc* "}" .
+SQLFunc = Ident String ("(" SQLFuncInVar ("," SQLFuncInVar)* ")")? ("=>" "(" SQLFuncOutVar ("," SQLFuncOutVar)* ")")? .
+SQLFuncInVar = (LooperIdent ("." LooperIdent)*)? <slicelooper>? .
+LooperIdent = Ident <slicelooper>? .
+SQLFuncOutVar = "." Ident? .
+Presentation = ("rest" "{" Rest "}")? .
+Rest = RestMajorVersion* .
+RestMajorVersion = SemVer "{" JsonObject* RestEndpoint* "}" .
+SemVer = <ident> .
+JsonObject = DocTypeBlock "json" Ident "{" JsonField* "}" .
+JsonField = String TypeWithField .
+TypeWithField = Type "." Ident .
+RestEndpoint = DocSee* URLPath "{" ("HEAD" HttpVerb)? ("OPTIONS" HttpVerb)? ("GET" HttpVerb)? ("POST" HttpVerb)? ("PUT" HttpVerb)? ("PATCH" HttpVerb)? ("DELETE" HttpVerb)? "}" .
+URLPath = IdentOrVar ("/" IdentOrVar)* .
+IdentOrVar = Ident | (":" Ident) .
+HttpVerb = String "{" "in" "{" HttpInParam* "}" "out" "{" HttpOutParam* "errors" "{" HttpOutError* "}" "}" "}" .
+HttpInParam = DocSee Ident Type "=" HttpParam .
+HttpParam = ("HEADER" "[" String "]") | ("PATH" "[" String "]") | ("QUERY" "[" String "]") | "BODY" | "REQUEST" .
+HttpOutParam = DocSee (("HEADER" HttpHeaderAssign) | ("BODY" "=" HttpAssign) | ("RESPONSE" "=" HttpAssign)) .
+HttpHeaderAssign = "[" String "]" "=" Ident Type .
+HttpAssign = Ident Type .
+HttpOutError = Int "for" PathWithMemberAndParam .

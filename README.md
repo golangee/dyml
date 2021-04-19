@@ -1,6 +1,9 @@
 # tadl
 Package tadl contains a technical architecture language.
 
+EBNF:
+![grammar image](grammar.png)
+
 Example:
 
 ```tadl
