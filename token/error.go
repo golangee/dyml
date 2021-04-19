@@ -17,6 +17,8 @@ package token
 import (
 	"errors"
 	"fmt"
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -27,6 +29,13 @@ import (
 type ErrDetail struct {
 	Node    Node
 	Message string
+}
+
+func NewErrDetail(node Node, msg string) ErrDetail {
+	return ErrDetail{
+		Node:    node,
+		Message: msg,
+	}
 }
 
 // PosError represents a very specific positional error with a lot of explaining noise. Use Explain.
@@ -158,7 +167,7 @@ func (p PosError) Explain() string {
 		line := posLine(source, detail.Node.Begin())
 
 		if detail.Node.Begin().File != p.Node.Begin().File {
-			sb.WriteString(p.Node.Begin().String())
+			sb.WriteString(detail.Node.Begin().String())
 			sb.WriteString("\n")
 		}
 
@@ -207,5 +216,26 @@ func Explain(err error) string {
 		return posErr.Explain()
 	}
 
+	var particplePos participle.Error
+	if errors.As(err, &particplePos) {
+		return Explain(NewMsgErr(adapterNode{particplePos.Position()}, particplePos.Error(), particplePos.Message()))
+	}
+
 	return err.Error()
+}
+
+type adapterNode struct {
+	pos lexer.Position
+}
+
+func (a adapterNode) Begin() Pos {
+	return Pos{
+		File: a.pos.Filename,
+		Line: a.pos.Line,
+		Col:  a.pos.Column,
+	}
+}
+
+func (a adapterNode) End() Pos {
+	return Pos{}
 }

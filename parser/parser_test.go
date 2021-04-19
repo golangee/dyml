@@ -33,7 +33,7 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, s := range mustParse {
-		ast, err := Parse("test.tadl", s)
+		ast, err := ParseFile("test.tadl", strings.NewReader(s))
 		if err != nil {
 			fmt.Println(err)
 			t.Fatal(err)

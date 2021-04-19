@@ -15,11 +15,10 @@
 package parser
 
 import (
-	"bytes"
-	"fmt"
 	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer/stateful"
 	"github.com/golangee/tadl/ast"
+	"io"
 )
 
 const (
@@ -40,60 +39,67 @@ const (
 	sIdentifier = `[a-zA-Z]\w*`
 )
 
-func Parse(fname, src string) (*ast.File, error) {
-	lexer := stateful.MustSimple([]stateful.Rule{
-		{"comment", `//.*|/\*.*?\*/`, nil},
+var lexer = stateful.MustSimple([]stateful.Rule{
+	{"comment", `//.*|/\*.*?\*/`, nil},
 
-		// parseable documentation style
-		{"DocTitle", `^[[:blank:]]*# =[^=].*`, nil},
-		{"DocSubTitleParameters", `^[[:blank:]]*# == Parameters`, nil},
-		{"DocSubTitleReturns", `^[[:blank:]]*# == Returns`, nil},
-		{"DocSubTitleErrors", `^[[:blank:]]*# == Errors`, nil},
-		{"DocSection", `^[[:blank:]]*# ==.*`, nil},
-		{"DocSeePrefix", `^[[:blank:]]*# see\s`, nil},
-		{"DocSummary", `^[[:blank:]]*# \.\.\.[a-zA-Z]+.*\.`, nil},
-		{"DocListLevel0", `^[[:blank:]]*# \* [a-zA-Z].*`, nil},
-		{"DocIndentLevel0", `^[[:blank:]]*#\s{3}[a-zA-Z].*`, nil},
-		{"DocText", `^[[:blank:]]*#.*`, nil},
+	// parseable documentation style
+	{"DocTitle", `^[[:blank:]]*# =[^=].*`, nil},
+	{"DocSubTitleParameters", `^[[:blank:]]*# == Parameters`, nil},
+	{"DocSubTitleReturns", `^[[:blank:]]*# == Returns`, nil},
+	{"DocSubTitleErrors", `^[[:blank:]]*# == Errors`, nil},
+	{"DocSection", `^[[:blank:]]*# ==.*`, nil},
+	{"DocSeePrefix", `^[[:blank:]]*# see\s`, nil},
+	{"DocSummary", `^[[:blank:]]*# \.\.\.[a-zA-Z]+.*\.`, nil},
+	{"DocListLevel0", `^[[:blank:]]*# \* [a-zA-Z].*`, nil},
+	{"DocIndentLevel0", `^[[:blank:]]*#\s{3}[a-zA-Z].*`, nil},
+	{"DocText", `^[[:blank:]]*#.*`, nil},
 
-		{"BoolLit", "true|false", nil},
+	{"BoolLit", "true|false", nil},
 
-		// dots is ambiguous in Go and weired in Java, so using rusts :: seems like a good idea
-		{"PkgSep", "::", nil},
-		{"UrlSep", "/", nil},
-		{"UrlVarSep", ":", nil},
-		{"MacroSep", "!", nil},
-		{"Optional", `\?`, nil},
-		{"ParamSep", `\$`, nil},
-		{"Sel", `\.`, nil},
-		{"Keyword", ":claim|=>|->", nil},
-		{"SumType", `\|`, nil},
-		{"TypeParam", `<|>`, nil},
-		{"Pointer", `\*`, nil},
-		//{"LocalSelector", sLocalSelector, nil},
-		//{"Qualifier", sQualifier, nil},
-		{"Ident", `([a-zA-Z_][a-zA-Z0-9_]*)`, nil},
-		{"SliceLooper", sLocalSlice, nil},
-		//{"SliceType", `\[\]`, nil},
-		{"OpenSlice", `\[`, nil},
-		{"CloseSlice", `\]`, nil},
-		{"String", sString, nil},
-		{"IntLiteral", `[0-9]+`, nil},
+	// dots is ambiguous in Go and weired in Java, so using rusts :: seems like a good idea
+	{"PkgSep", "::", nil},
+	{"UrlSep", "/", nil},
+	{"UrlVarSep", ":", nil},
+	{"MacroSep", "!", nil},
+	{"Optional", `\?`, nil},
+	{"ParamSep", `\$`, nil},
+	{"Sel", `\.`, nil},
+	{"Keyword", ":claim|=>|->", nil},
+	{"SumType", `\|`, nil},
+	{"TypeParam", `<|>`, nil},
+	{"Pointer", `\*`, nil},
+	//{"LocalSelector", sLocalSelector, nil},
+	//{"Qualifier", sQualifier, nil},
+	{"Ident", `([a-zA-Z_][a-zA-Z0-9_]*)`, nil},
+	{"SliceLooper", sLocalSlice, nil},
+	//{"SliceType", `\[\]`, nil},
+	{"OpenSlice", `\[`, nil},
+	{"CloseSlice", `\]`, nil},
+	{"String", sString, nil},
+	{"IntLiteral", `[0-9]+`, nil},
 
-		{"Term", `[=,(){}@]`, nil},
-		{"whitespace", `\s+`, nil},
-	})
-	_ = lexer
+	{"Term", `[=,(){}@]`, nil},
+	{"whitespace", `\s+`, nil},
+})
 
-	parser := participle.MustBuild(&ast.File{},
+// ParseFile parses a tadl file.
+func ParseFile(fname string, reader io.Reader) (*ast.File, error) {
+	parser := newParser()
+
+	f := &ast.File{}
+
+	return f, parser.Parse(fname, reader, f)
+}
+
+// EBNF returns the according notation for this grammar.
+func EBNF() string {
+	return newParser().String()
+}
+
+func newParser() *participle.Parser {
+	return participle.MustBuild(&ast.File{},
 		participle.Lexer(lexer),
 		participle.Unquote("String"),
 		participle.UseLookahead(3),
 	)
-
-	fmt.Println(parser.String())
-
-	ast := &ast.File{}
-	buf := bytes.NewReader([]byte(src))
-	return ast, parser.Parse(fname, buf, ast)
 }
