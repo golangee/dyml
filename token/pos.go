@@ -36,3 +36,19 @@ type Pos struct {
 func (p Pos) String() string {
 	return p.File + ":" + strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Col)
 }
+
+type defaultNode struct {
+	begin, end Pos
+}
+
+func (d defaultNode) Begin() Pos {
+	return d.begin
+}
+
+func (d defaultNode) End() Pos {
+	return d.end
+}
+
+func NewNode(begin, end Pos) Node {
+	return defaultNode{begin, end}
+}

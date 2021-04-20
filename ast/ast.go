@@ -20,6 +20,7 @@ import (
 	"github.com/golangee/tadl/token"
 	"golang.org/x/mod/semver"
 	"strconv"
+	"strings"
 )
 
 // String is just anything like sString accepts.
@@ -102,6 +103,18 @@ type Path struct {
 	Elements    []Ident ` @@ ("::" @@)* `
 }
 
+func (n *Path) String() string {
+	sb := &strings.Builder{}
+	for i, element := range n.Elements {
+		sb.WriteString(element.String())
+		if i < len(n.Elements)-1 {
+			sb.WriteString("::")
+		}
+	}
+
+	return sb.String()
+}
+
 func (n *Path) Begin() token.Pos {
 	return wrapPos(n.Pos)
 }
@@ -114,6 +127,19 @@ type PathWithMemberAndParam struct {
 	Path   `@@`
 	Member *Ident `("." @@)?`
 	Param  *Ident `("$" @@)?`
+}
+
+func (n *PathWithMemberAndParam) String() string {
+	tmp := n.Path.String()
+	if n.Member != nil {
+		tmp += "." + n.Member.String()
+	}
+
+	if n.Param != nil {
+		tmp += "$" + n.Param.String()
+	}
+
+	return tmp
 }
 
 type TypeWithField struct {
@@ -154,6 +180,10 @@ func (n *Ident) End() token.Pos {
 	return wrapPos(n.EndPos)
 }
 
+func (n *Ident) String() string {
+	return n.Value
+}
+
 // Qualifier is just anything like sQualifier accepts.
 type Qualifier struct {
 	Pos, EndPos lexer.Position
@@ -172,40 +202,28 @@ func (n *Qualifier) End() token.Pos {
 
 // File represents a source code file.
 type File struct {
-	Modules []*Module `@@*`
-}
-
-// A Module is a distinct unit of generation. Usually it maps only to a single
-// service like a Go microservice but there may be also library modules which may
-// get emitted into different targets.
-type Module struct {
-	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc DocTypeBlock `parser:"@@"`
-	// Name of the module.
-	Name     Ident      `"module" @@ "{" `
-	Generate *Generate  `"generate" "{" @@ "}" `
-	Contexts []*Context `@@* "}"`
+	Modules []*ModFile `@@*`
 }
 
 // A Context describes the top-level grouping structure in DDD.
-type Context struct {
+type Context2 struct {
 	Pos lexer.Position
 	// Doc contains a summary, arbitrary text lines, captions, sections and more.
 	Doc DocTypeBlock `parser:"@@"`
 	// Name of the context package
 	Name Ident `"context" @@ "{" `
 	// Domain with core and application layer
-	Domain         *Domain         `"domain" "{" @@ "}" `
+	Domain         *Domain2        `"domain" "{" @@ "}" `
 	Infrastructure *Infrastructure `"infrastructure" "{" @@ "}" `
 	Presentation   *Presentation   `"presentation" "{" @@ "}" "}"`
 }
 
 // Domain contains the application (use case) and the core layer (packages).
-type Domain struct {
-	Pos        lexer.Position
-	Core       *Core        `"core" "{" @@ "}"`
-	UseCase    *Usecase     `"usecase" "{" @@ "}"`
-	Subdomains []*Subdomain `@@*`
+type Domain2 struct {
+	Pos     lexer.Position
+	Core    *Core    `"core" "{" @@ "}"`
+	UseCase *Usecase `"usecase" "{" @@ "}"`
+	//	Subdomains []*Subdomain `@@*`
 	//Types   []*TypeDef ` @@* "}"`
 }
 
@@ -222,7 +240,7 @@ type Usecase struct {
 }
 
 // Subdomain contains the application (use case) and the core layer (packages).
-type Subdomain struct {
+type Subdomain2 struct {
 	Pos lexer.Position
 	// Doc contains a summary, arbitrary text lines, captions, sections and more.
 	Doc DocTypeBlock `parser:"@@"`
@@ -242,6 +260,19 @@ type TypeDef struct {
 	Struct     *Struct     ` @@`
 	Repository *Repository `| @@`
 	Services   []Service   `| @@`
+}
+
+type DomainType struct {
+	Pos        lexer.Position
+	Struct     *Struct     ` @@`
+	Repository *Repository `| @@`
+	Services   []Service   `| @@`
+}
+
+type UsecaseType struct {
+	Pos      lexer.Position
+	Struct   *Struct   ` @@`
+	Services []Service `| @@`
 }
 
 type Repository struct {

@@ -17,12 +17,22 @@ package ast
 import (
 	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/golangee/tadl/token"
+	"strings"
 )
 
 // DocText is just anything preceeded by #.
 type DocText struct {
 	Pos, EndPos lexer.Position
 	Value       string `@DocText`
+}
+
+// String returns the trimmed text of Value.
+func (n *DocText) String() string {
+	if strings.HasPrefix(n.Value, "# ") {
+		return n.Value[1:]
+	}
+
+	return n.Value
 }
 
 func (n *DocText) Begin() token.Pos {
@@ -39,6 +49,16 @@ type DocTypeBlock struct {
 	Elems       []DocTypeElem `parser:"@@*" json:",omitempty"`
 }
 
+func (n *DocTypeBlock) String() string {
+	sb := &strings.Builder{}
+	sb.WriteString(n.Summary[1:])
+	for _, elem := range n.Elems {
+		sb.WriteString(elem.String())
+	}
+
+	return sb.String()
+}
+
 func (n *DocTypeBlock) Begin() token.Pos {
 	return wrapPos(n.Pos)
 }
@@ -48,9 +68,25 @@ func (n *DocTypeBlock) End() token.Pos {
 }
 
 type DocTypeElem struct {
-	Title     *DocTitle `parser:"@@" json:",omitempty"`
+	Title     *DocTitle `parser:"(@@" json:",omitempty"`
 	Text      *DocText  `parser:"|@@" json:",omitempty"`
-	Reference *DocSee   `parser:"|@@" json:",omitempty"`
+	Reference *DocSee   `parser:"|@@)" json:",omitempty"`
+}
+
+func (n *DocTypeElem) String() string {
+	if n.Title != nil {
+		return n.Title.String()
+	}
+
+	if n.Text != nil {
+		return n.Text.String()
+	}
+
+	if n.Reference != nil {
+		return n.Reference.String()
+	}
+
+	panic("unreachable")
 }
 
 type DocMethodBlock struct {
@@ -82,6 +118,10 @@ type DocTitle struct {
 	Value       string `@DocTitle`
 }
 
+func (n *DocTitle) String() string {
+	return n.Value
+}
+
 func (n *DocTitle) Begin() token.Pos {
 	return wrapPos(n.Pos)
 }
@@ -95,6 +135,10 @@ type DocSee struct {
 	Pos, EndPos lexer.Position
 	Value       string                 `@DocSeePrefix`
 	Path        PathWithMemberAndParam `@@`
+}
+
+func (n *DocSee) String() string {
+	return n.Path.String()
 }
 
 func (n *DocSee) Begin() token.Pos {

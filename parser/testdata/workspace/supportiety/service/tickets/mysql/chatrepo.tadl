@@ -1,0 +1,21 @@
+context worldiety::ApplicationSupport::ErrorTracking::Ticket {
+    infrastructure {
+        mysql "supportiety" {
+
+            impl Repository{
+                configure {
+                    # ...is a directory to save stuff to.
+                    dir string = "."
+
+                    # ...shows a num literal.
+                    max int64! = 42
+                }
+
+                private {
+                    # ...helps to safe for races.
+                    lock sync::mutex
+                }
+            }
+        }
+    }
+}

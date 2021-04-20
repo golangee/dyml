@@ -1,0 +1,100 @@
+context worldiety::ApplicationSupport::ErrorTracking::Ticket {
+    presentation {
+        rest {
+            v1 {
+                # ...shows a rest-only serialization data type.
+                json MyCustomDataType {
+                    "cool-id" Ticket.ID // no complex import, just allowed to use unique types from domain anyway
+                }
+
+                # ...shows a rest-only serialization data type.
+                json MyCustomDataType2 {
+                    "cool-id" Ticket.ID // no complex import, just allowed to use unique types from domain anyway
+                }
+
+                # see tickets::domain::usecase::Tickets.ReadOne
+                # see iam::domain::usecase::Authentication.ValidateSession
+                tickets/:id {
+
+                     HEAD "application/json" {
+                          in{}
+                          out{
+                              errors{}
+                          }
+                     }
+
+                     OPTIONS "application/json" {
+                           in{}
+                           out{
+                               errors{}
+                           }
+                     }
+
+                     GET "application/json" {
+                        in {
+                            # see iam::domain::usecase::Authentication.ValidateSession$id
+                            secretSessionId string! = HEADER["secret-session"]
+
+                            # see tickets::domain::usecase::Tickets.ReadOne$id
+                            ticketId string! = PATH["id"]
+
+                            # see requirements::document::me
+                            weiredOption string!? = QUERY["weired-option"]
+
+                            # see requirements::document::me
+                            complexBodyType rest::v1::MyCustomDataType2 = BODY
+
+                            # see requirements::document::me
+                            request request! = REQUEST
+                        }
+
+                        out {
+                            # see requirements::document::me
+                            HEADER["retry-in"] = retryCount int64!?
+
+                            # see requirements::document::me
+                            BODY = complexBodyType rest::v1::MyCustomDataType2
+
+                            # see requirements::document::me
+                            RESPONSE = myStream response!
+
+                            errors {
+                                500 for tickets::domain::usecase::Tickets.ReadOne$Other
+                                404 for tickets::domain::usecase::Tickets.ReadOne$NotFound
+                                403 for iam::domain::usecase::authentication::Sessions.Check$NotAuthorized //TODO this is tainted with another context
+                            }
+                        }
+                     }
+
+                     POST "application/json" {
+                         in{}
+                         out{
+                             errors{}
+                         }
+                     }
+
+                     PUT "application/json" {
+                          in{}
+                          out{
+                              errors{}
+                          }
+                     }
+
+                     PATCH "application/json" {
+                           in{}
+                           out{
+                               errors{}
+                           }
+                     }
+
+                     DELETE "application/json" {
+                        in{}
+                        out{
+                            errors{}
+                        }
+                     }
+                }
+            }
+        }
+    }
+}

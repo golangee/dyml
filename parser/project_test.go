@@ -1,11 +1,6 @@
 package parser
 
-import (
-	"fmt"
-	"github.com/golangee/tadl/token"
-	"testing"
-)
-
+/*
 func TestParseProject(t *testing.T) {
 	prj, err := ParseProject(".")
 	if err != nil {
@@ -15,3 +10,4 @@ func TestParseProject(t *testing.T) {
 
 	fmt.Println(toString(prj))
 }
+*/

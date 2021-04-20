@@ -1,0 +1,8 @@
+context worldiety::ApplicationSupport::ErrorTracking::Ticket {
+   model {
+         # ...contains
+         package chat {
+
+         }
+   }
+}

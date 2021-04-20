@@ -14,17 +14,7 @@
 
 package parser
 
-import (
-	"bytes"
-	"fmt"
-	"github.com/golangee/tadl/ast"
-	"github.com/golangee/tadl/token"
-	"io/fs"
-	"io/ioutil"
-	"path/filepath"
-	"strings"
-)
-
+/*
 // ParseProject loads all *.tadl files recursively and assembles them into a merged module tree.
 func ParseProject(dir string) (*ast.Project, error) {
 	prj := &ast.Project{Directory: dir}
@@ -84,3 +74,4 @@ func mergeProjectModules(prj *ast.Project) error {
 
 	return nil
 }
+*/
