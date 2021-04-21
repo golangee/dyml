@@ -1,8 +1,12 @@
 context worldiety::ApplicationSupport::ErrorTracking::Ticket {
-   model {
-         # ...contains
-         package chat {
+   core {
+        # ...contains a package which belongs still to core, but has other grouped concepts.
+        # Just for organization and layout.
+        package chat {
+           # ...represents a Ticket chat.
+           struct Chat {
 
-         }
+           }
+        }
    }
 }

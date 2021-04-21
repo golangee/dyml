@@ -1,6 +1,6 @@
 context worldiety::ApplicationSupport::ErrorTracking::Ticket {
     infrastructure {
-        mysql "supportiety" {
+        mysql supportiety {
 
             impl Repository{
                 configure {

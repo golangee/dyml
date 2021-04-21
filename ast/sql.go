@@ -16,8 +16,8 @@ package ast
 
 // SQL contains sql independent declaration, but the generators are dialect specific.
 type SQL struct {
-	Database   String               `"database" "=" @@`
-	Implements []*SQLImplementation `@@+`
+	Database   Ident                `@@ "{"`
+	Implements []*SQLImplementation `@@+ "}"`
 }
 
 type SQLImplementation struct {

@@ -72,13 +72,40 @@ func (n *CtxStereotype) End() token.Pos {
 // A WorkspaceFile represents the top level declaration type. For example, this may represent a company as a whole.
 // It is always named "tadl.ws".
 type WorkspaceFile struct {
+	Pos    lexer.Position
+	EndPos lexer.Position
 	Domain CtxDef `@@`
 }
 
 type CtxDef struct {
+	Pos    lexer.Position
+	EndPos lexer.Position
 	// DocTypeBlock provides at least a summary line.
 	Doc        DocTypeBlock  `@@`
 	Stereotype CtxStereotype `@@`
 	Name       Ident         `@@`
-	Children   []CtxDef      `("{" @@* "}")?`
+	Children   []*CtxDef     `("{" @@* "}")?`
+}
+
+// ChildByName returns the named direct child or nil.
+func (n *CtxDef) ChildByName(name string) *CtxDef {
+	for _, child := range n.Children {
+		if child.Name.String() == name {
+			return child
+		}
+	}
+
+	return nil
+}
+
+func (n *CtxDef) Begin() token.Pos {
+	return wrapPos(n.Pos)
+}
+
+func (n *CtxDef) End() token.Pos {
+	return wrapPos(n.EndPos)
+}
+
+func (n *CtxDef) String() string {
+	return n.Stereotype.String() + " " + n.Name.String()
 }

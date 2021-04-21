@@ -40,8 +40,6 @@ func NewErrDetail(node Node, msg string) ErrDetail {
 
 // PosError represents a very specific positional error with a lot of explaining noise. Use Explain.
 type PosError struct {
-	Node    Node
-	Message string
 	Details []ErrDetail
 	Cause   error
 	Hint    string
@@ -49,27 +47,19 @@ type PosError struct {
 
 // NewPosError creates a new PosError with the given root cause and optional details.
 func NewPosError(node Node, msg string, details ...ErrDetail) *PosError {
-	return &PosError{
+	tmp := append([]ErrDetail{}, ErrDetail{
 		Node:    node,
 		Message: msg,
-		Details: details,
-	}
-}
-
-func NewMsgErr(node Node, msg, details string) *PosError {
-	err := NewPosError(node, msg, ErrDetail{
-		Node:    node,
-		Message: details,
 	})
+	tmp = append(tmp, details...)
 
-	return err
+	return &PosError{
+		Details: tmp,
+	}
 }
 
 func (p *PosError) SetCause(err error) *PosError {
 	p.Cause = err
-	if err != nil {
-		p.Details = append(p.Details, ErrDetail{p.Node, err.Error()})
-	}
 	return p
 }
 
@@ -82,12 +72,20 @@ func (p *PosError) Unwrap() error {
 	return p.Cause
 }
 
-func (p *PosError) Error() string {
-	if p.Cause == nil {
-		return p.Message
+func (p *PosError) firstDetail() ErrDetail {
+	if len(p.Details) > 0 {
+		return p.Details[0]
 	}
 
-	return p.Message + ": " + p.Cause.Error()
+	return ErrDetail{}
+}
+
+func (p *PosError) Error() string {
+	if p.Cause == nil {
+		return p.firstDetail().Message
+	}
+
+	return p.firstDetail().Message + ": " + p.Cause.Error()
 }
 
 // src tries to load the source code based on the given file name. If it fails, the empty string is returned.
@@ -147,10 +145,8 @@ func (p PosError) Explain() string {
 	}
 
 	sb := &strings.Builder{}
-	sb.WriteString("error: ")
-	sb.WriteString(p.Message)
-	sb.WriteString("\n")
-	for i := 0; i < indent; i++ {
+
+	/*for i := 0; i < indent; i++ {
 		sb.WriteByte(' ')
 	}
 	sb.WriteString("--> ")
@@ -160,13 +156,13 @@ func (p PosError) Explain() string {
 	}
 
 	sb.WriteString(p.Node.Begin().String())
-	sb.WriteString("\n")
+	sb.WriteString("\n")*/
 
 	for i, detail := range p.Details {
 		source := docLines(detail.Node)
 		line := posLine(source, detail.Node.Begin())
 
-		if detail.Node.Begin().File != p.Node.Begin().File {
+		if i == 0 || (i > 0 && detail.Node.Begin().File != p.Details[i-1].Node.Begin().File) {
 			sb.WriteString(detail.Node.Begin().String())
 			sb.WriteString("\n")
 		}
@@ -183,7 +179,7 @@ func (p PosError) Explain() string {
 			sb.WriteString("^~~~ ")
 		} else {
 			sb.WriteString(fmt.Sprintf("%"+strconv.Itoa(detail.Node.Begin().Col-1)+"s", ""))
-			for i := 0; i < detail.Node.End().Col-detail.Node.Begin().Col-1; i++ {
+			for i := 0; i < detail.Node.End().Col-detail.Node.Begin().Col; i++ {
 				sb.WriteRune('^')
 			}
 			sb.WriteRune(' ')
@@ -213,12 +209,19 @@ func (p PosError) Explain() string {
 func Explain(err error) string {
 	var posErr *PosError
 	if errors.As(err, &posErr) {
-		return posErr.Explain()
+		sb := &strings.Builder{}
+		sb.WriteString("error: ")
+		sb.WriteString(err.Error())
+		sb.WriteString("\n")
+
+		sb.WriteString(posErr.Explain())
+
+		return sb.String()
 	}
 
 	var particplePos participle.Error
 	if errors.As(err, &particplePos) {
-		return Explain(NewMsgErr(adapterNode{particplePos.Position()}, particplePos.Error(), particplePos.Message()))
+		return Explain(NewPosError(adapterNode{particplePos.Position()}, particplePos.Message()))
 	}
 
 	return err.Error()

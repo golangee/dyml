@@ -15,10 +15,7 @@
 package parser
 
 import (
-	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer/stateful"
-	"github.com/golangee/tadl/ast"
-	"io"
 )
 
 const (
@@ -82,24 +79,3 @@ var lexer = stateful.MustSimple([]stateful.Rule{
 	{"whitespace", `\s+`, nil},
 })
 
-// ParseFile parses a tadl file.
-func ParseFile(fname string, reader io.Reader) (*ast.File, error) {
-	parser := newParser()
-
-	f := &ast.File{}
-
-	return f, parser.Parse(fname, reader, f)
-}
-
-// EBNF returns the according notation for this grammar.
-func EBNF() string {
-	return newParser().String()
-}
-
-func newParser() *participle.Parser {
-	return participle.MustBuild(&ast.File{},
-		participle.Lexer(lexer),
-		participle.Unquote("String"),
-		participle.UseLookahead(3),
-	)
-}

@@ -17,32 +17,12 @@ package parser
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
-	"github.com/golangee/tadl/token"
 	"regexp"
 	"strings"
 	"testing"
 )
 
-//go:embed test.tadl
-var tadl string
 
-func TestParse(t *testing.T) {
-	mustParse := []string{
-		tadl,
-	}
-
-	for _, s := range mustParse {
-		ast, err := ParseFile("test.tadl", strings.NewReader(s))
-		if err != nil {
-			fmt.Println(err)
-			t.Fatal(err)
-		}
-
-		fmt.Println(toString(ast))
-		fmt.Println(token.Explain(token.NewMsgErr(&ast.Modules[0].Name, "looks nice", "make this better here")))
-	}
-}
 
 func toString(i interface{}) string {
 	buf, err := json.MarshalIndent(i, " ", " ")

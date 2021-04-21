@@ -19,7 +19,6 @@ package ast
 // are defined just like in an interface.
 type Service struct {
 	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc       DocTypeBlock        `parser:"@@"`
 	Name      Ident               `"service" @@ "{"`
 	Configure []*FieldWithDefault `("configure" "{" @@* "}")?`
 	Inject    []*Field            `("inject" "{" @@* "}")?`

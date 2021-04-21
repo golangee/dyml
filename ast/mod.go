@@ -14,8 +14,6 @@
 
 package ast
 
-import "github.com/alecthomas/participle/v2/lexer"
-
 // A ModFile is a distinct unit of generation. Usually it maps only to a single
 // service like a Go microservice but there may be also library modules which may
 // get emitted into different targets.
@@ -29,11 +27,3 @@ type ModFile struct {
 
 
 
-// Domain contains the application (use case) and the core layer (packages).
-type Package struct {
-	Pos        lexer.Position
-	Core       *Core        `"core" "{" @@ "}"`
-	UseCase    *Usecase     `"usecase" "{" @@ "}"`
-	Subdomains []*CtxDef `@@*`
-	//Types   []*TypeDef ` @@* "}"`
-}

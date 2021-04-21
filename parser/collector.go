@@ -77,7 +77,6 @@ func searchWorkspaceFiles(dir string, isRootDir bool, dst *collectedWorkspace) e
 		return fmt.Errorf("unable to read %s: %w", dir, err)
 	}
 
-	isATadlModHere := tadlModFile(files) != nil && !isRootDir
 
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), ".") {
@@ -106,8 +105,11 @@ func searchWorkspaceFiles(dir string, isRootDir bool, dst *collectedWorkspace) e
 
 		}
 
-		if !isATadlModHere && file.Mode().IsRegular() && strings.HasSuffix(file.Name(), filenameTadlSuffix) {
-			return newWrongFileLocationError(path, "invalid location of *.tadl file, only allowed in module")
+
+		if file.IsDir() {
+			if err := searchWorkspaceFiles(path, false, dst); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -172,5 +174,5 @@ func newWrongFileLocationError(fname, msg string) error {
 		Col:  1,
 	}, token.Pos{})
 
-	return token.NewMsgErr(dummyNode, msg, msg)
+	return token.NewPosError(dummyNode, msg)
 }

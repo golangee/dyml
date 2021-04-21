@@ -201,30 +201,27 @@ func (n *Qualifier) End() token.Pos {
 }
 
 // File represents a source code file.
-type File struct {
-	Modules []*ModFile `@@*`
+type TadlFile struct {
+	Context Context `"context" @@`
 }
 
 // A Context describes the top-level grouping structure in DDD.
-type Context2 struct {
+type Context struct {
 	Pos lexer.Position
-	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc DocTypeBlock `parser:"@@"`
-	// Name of the context package
-	Name Ident `"context" @@ "{" `
+	// Path of the context, must be fully qualified
+	Path Path `@@ "{" `
 	// Domain with core and application layer
-	Domain         *Domain2        `"domain" "{" @@ "}" `
-	Infrastructure *Infrastructure `"infrastructure" "{" @@ "}" `
-	Presentation   *Presentation   `"presentation" "{" @@ "}" "}"`
+	Core           *Core           `("core" "{" @@ "}")?`
+	Usecase *Usecase `("usecase" "{" @@ "}")?`
+	Infrastructure *Infrastructure `("infrastructure" "{" @@ "}")?`
+	Presentation   *Presentation   `("presentation" "{" @@ "}" )? "}"`
 }
 
-// Domain contains the application (use case) and the core layer (packages).
-type Domain2 struct {
-	Pos     lexer.Position
-	Core    *Core    `"core" "{" @@ "}"`
-	UseCase *Usecase `"usecase" "{" @@ "}"`
-	//	Subdomains []*Subdomain `@@*`
-	//Types   []*TypeDef ` @@* "}"`
+// Package is a language module like grouping feature.
+type Package struct {
+	Pos   lexer.Position
+	Name  Ident      `"package" @@ "{"`
+	Types []*TypeDef `@@* "}"`
 }
 
 // Core is together with any subdomain packages self-containing and creates the
@@ -239,27 +236,20 @@ type Usecase struct {
 	Types []*TypeDef `@@*`
 }
 
-// Subdomain contains the application (use case) and the core layer (packages).
-type Subdomain2 struct {
-	Pos lexer.Position
-	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc DocTypeBlock `parser:"@@"`
-
-	Name    Ident    `"subdomain" @@ "{"`
-	Core    *Core    `"core" "{" @@ "}"`
-	UseCase *Usecase `"usecase" "{" @@ "}" "}"`
-}
 
 // Infrastructure helps with additional hints to generate stuff like SQL or Event adapter.
 type Infrastructure struct {
-	MySQL *SQL `("mysql" "{" @@ "}")?`
+	MySQL *SQL `("mysql" @@)?`
 }
 
 type TypeDef struct {
-	Pos        lexer.Position
-	Struct     *Struct     ` @@`
-	Repository *Repository `| @@`
-	Services   []Service   `| @@`
+	Pos lexer.Position
+	// Doc contains a summary, arbitrary text lines, captions, sections and more.
+	Doc        DocTypeBlock `parser:"@@"`
+	Struct     *Struct      `( @@`
+	Repository *Repository  `| @@`
+	Package    *Package     `| @@`
+	Services   *Service     `| @@)`
 }
 
 type DomainType struct {
@@ -277,8 +267,6 @@ type UsecaseType struct {
 
 type Repository struct {
 	Pos lexer.Position
-	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc     DocTypeBlock `parser:"@@"`
 	Name    Ident        `"repository" @@`
 	Methods []*Method    `"{" @@* "}"`
 }
@@ -304,10 +292,9 @@ type Param struct {
 
 type Struct struct {
 	Pos, EndPos lexer.Position
-	// Doc contains a summary, arbitrary text lines, captions, sections and more.
-	Doc    DocTypeBlock `parser:"@@"`
-	Name   Ident        `"struct" @@`
-	Fields []*Field     `"{" @@* "}"`
+
+	Name   Ident    `"struct" @@`
+	Fields []*Field `"{" @@* "}"`
 }
 
 func (n *Struct) Begin() token.Pos {

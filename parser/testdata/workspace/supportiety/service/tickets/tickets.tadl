@@ -1,5 +1,5 @@
 context worldiety::ApplicationSupport::ErrorTracking::Ticket {
-        model {
+        core {
 
             # ...represents a data entity and this sentence must be in ellipsis summary form.
             # = A Title is actually parsed as AST DocTitle and optional.
@@ -90,6 +90,7 @@ context worldiety::ApplicationSupport::ErrorTracking::Ticket {
             service WithTickets {
                 inject {
                     # ...the core domain service to use. This may be non-interface but may also use repos directly.
+                    # However, only domain core elements are allowed.
                     tickets *tickets::core::TicketService
                 }
             }

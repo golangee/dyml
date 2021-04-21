@@ -22,6 +22,24 @@ import (
 	"os"
 )
 
+// ParseTadlFile tries to parse a *.tadl file.
+func ParseTadlFile(filename string) (*ast.TadlFile, error) {
+	parser := participle.MustBuild(&ast.TadlFile{},
+		participle.Lexer(lexer),
+		participle.Unquote("String"),
+		participle.UseLookahead(1),
+	)
+
+	f := &ast.TadlFile{}
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open: %w", err)
+	}
+
+	defer file.Close()
+
+	return f, parser.Parse(filename, file, f)
+}
 
 // ParseModuleFile tries to parse a tadl.mod file.
 func ParseModuleFile(filename string) (*ast.ModFile, error) {
@@ -86,9 +104,31 @@ func Parse(dir string) (*types.Workspace, error) {
 		mod := &types.Module{}
 		mod.File = modFile
 
+		for _, file := range module.partialFiles {
+			tadl, err := ParseTadlFile(file)
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse tadl file: %w", err)
+			}
+
+			if err:=mergeTadlFile(ws,tadl);err!=nil{
+				return nil,fmt.Errorf("cannot merge tadl files: %w",err)
+			}
+		}
+
 		ws.Mods = append(ws.Mods, mod)
 
 	}
 
 	return ws, nil
 }
+
+
+
+func mergeTadlFile(dst *types.Workspace,src *ast.TadlFile)error{
+	if err:=validateContextPath(dst,&src.Context.Path);err!=nil{
+		return err
+	}
+
+	return nil
+}
+
