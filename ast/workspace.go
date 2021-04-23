@@ -35,6 +35,7 @@ const (
 	//
 	// A context creates the root of existence for any implementation by different modules.
 	StereotypeContext = "context"
+
 )
 
 type CtxStereotype struct {

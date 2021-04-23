@@ -212,63 +212,69 @@ type Context struct {
 	Path Path `@@ "{" `
 	// Domain with core and application layer
 	Core           *Core           `("core" "{" @@ "}")?`
-	Usecase *Usecase `("usecase" "{" @@ "}")?`
+	Usecase        *Usecase        `("usecase" "{" @@ "}")?`
 	Infrastructure *Infrastructure `("infrastructure" "{" @@ "}")?`
 	Presentation   *Presentation   `("presentation" "{" @@ "}" )? "}"`
 }
 
-// Package is a language module like grouping feature.
-type Package struct {
+// CorePackage is a language module like grouping feature.
+type CorePackage struct {
 	Pos   lexer.Position
-	Name  Ident      `"package" @@ "{"`
-	Types []*TypeDef `@@* "}"`
+	Name  Ident          `"package" @@ "{"`
+	Types []*TypeDefCore `@@* "}"`
 }
 
 // Core is together with any subdomain packages self-containing and creates the
 // base for any another layer.
 type Core struct {
 	Pos   lexer.Position
-	Types []*TypeDef `@@*`
+	Types []*TypeDefCore `@@*`
 }
 
 type Usecase struct {
 	Pos   lexer.Position
-	Types []*TypeDef `@@*`
+	Types []*TypeDefUsecase `@@*`
 }
-
 
 // Infrastructure helps with additional hints to generate stuff like SQL or Event adapter.
 type Infrastructure struct {
 	MySQL *SQL `("mysql" @@)?`
 }
 
-type TypeDef struct {
+// TypeDefCore declares the allowed types for domain core declarations.
+type TypeDefCore struct {
 	Pos lexer.Position
 	// Doc contains a summary, arbitrary text lines, captions, sections and more.
 	Doc        DocTypeBlock `parser:"@@"`
-	Struct     *Struct      `( @@`
+	Dto        *DTO         `( @@`
 	Repository *Repository  `| @@`
-	Package    *Package     `| @@`
+	Package    *CorePackage `| @@`
 	Services   *Service     `| @@)`
 }
 
-type DomainType struct {
-	Pos        lexer.Position
-	Struct     *Struct     ` @@`
-	Repository *Repository `| @@`
-	Services   []Service   `| @@`
+// TypeDefUsecase declares the allowed types for domain application/usecase declarations.
+// Similar to TypeDefCore but Repositories are not allowed.
+type TypeDefUsecase struct {
+	Pos lexer.Position
+	// Doc contains a summary, arbitrary text lines, captions, sections and more.
+	Doc      DocTypeBlock    `parser:"@@"`
+	Dto      *DTO            `( @@`
+	Package  *UsecasePackage `| @@`
+	Services *Service        `| @@)`
 }
 
-type UsecaseType struct {
-	Pos      lexer.Position
-	Struct   *Struct   ` @@`
-	Services []Service `| @@`
+// UsecasePackage is a language module like grouping feature.
+type UsecasePackage struct {
+	Pos   lexer.Position
+	Name  Ident             `"package" @@ "{"`
+	Types []*TypeDefUsecase `@@* "}"`
 }
+
 
 type Repository struct {
-	Pos lexer.Position
-	Name    Ident        `"repository" @@`
-	Methods []*Method    `"{" @@* "}"`
+	Pos     lexer.Position
+	Name    Ident     `"repository" @@`
+	Methods []*Method `"{" @@* "}"`
 }
 
 type Method struct {
@@ -290,18 +296,20 @@ type Param struct {
 	Type Type  `@@`
 }
 
-type Struct struct {
+// DTO is a struct without behavior, even if it looks like an entity.
+// In the anemic world, the Entity part is
+type DTO struct {
 	Pos, EndPos lexer.Position
 
-	Name   Ident    `"struct" @@`
+	Name   Ident    `"dto" @@`
 	Fields []*Field `"{" @@* "}"`
 }
 
-func (n *Struct) Begin() token.Pos {
+func (n *DTO) Begin() token.Pos {
 	return wrapPos(n.Pos)
 }
 
-func (n *Struct) End() token.Pos {
+func (n *DTO) End() token.Pos {
 	return wrapPos(n.EndPos)
 }
 

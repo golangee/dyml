@@ -1,0 +1,4 @@
+# ...shows a rest-only serialization data type.
+json MyCustomDataType {
+    "cool-id" Ticket.ID // no complex import, just allowed to use unique types from domain anyway
+}

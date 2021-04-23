@@ -6,6 +6,7 @@ import (
 	"github.com/golangee/tadl/types"
 )
 
+// validateContextPath checks if the given path is defined in the workspace.
 func validateContextPath(ws *types.Workspace, p *ast.Path) error {
 	remainingPath := p.Elements
 
@@ -36,3 +37,4 @@ func validateContextPath(ws *types.Workspace, p *ast.Path) error {
 	}
 	return nil
 }
+

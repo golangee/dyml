@@ -110,8 +110,8 @@ func Parse(dir string) (*types.Workspace, error) {
 				return nil, fmt.Errorf("unable to parse tadl file: %w", err)
 			}
 
-			if err:=mergeTadlFile(ws,tadl);err!=nil{
-				return nil,fmt.Errorf("cannot merge tadl files: %w",err)
+			if err := mergeTadlFile(ws, tadl); err != nil {
+				return nil, fmt.Errorf("cannot merge tadl files: %w", err)
 			}
 		}
 
@@ -122,13 +122,16 @@ func Parse(dir string) (*types.Workspace, error) {
 	return ws, nil
 }
 
-
-
-func mergeTadlFile(dst *types.Workspace,src *ast.TadlFile)error{
-	if err:=validateContextPath(dst,&src.Context.Path);err!=nil{
+func mergeTadlFile(dst *types.Workspace, src *ast.TadlFile) error {
+	if err := validateContextPath(dst, &src.Context.Path); err != nil {
 		return err
 	}
+
 
 	return nil
 }
 
+/*
+func mergeCore(dst *types.)error{
+	return nil
+}*/

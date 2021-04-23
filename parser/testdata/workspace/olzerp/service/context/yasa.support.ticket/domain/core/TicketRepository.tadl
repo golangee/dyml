@@ -1,0 +1,20 @@
+# ...declares a repository interface.
+repository Tickets {
+    # ...searches all the things.
+    # == Parameters
+    # * x ...is a secret.
+    # * b ...is another secret.
+    # * sadly I could lie about everything, must validate later.
+    FindAll(x str, b str) -> (Task)
+
+    # ...searches all the things.
+    # == Returns
+    # A new Task which represents stuff to do.
+    #
+    # == Errors
+    # * NotFound ...is returned if that guy has not been found.
+    # * Other ...is returned if anything else went wrong.
+    #   Totally unspecified.
+    # * RuntimeException ...is not validated either.
+    FindAll2(x str, b str) -> (Task, error<NotFound|Other>)
+}

@@ -1,0 +1,11 @@
+# ...represents a ChatEntry and even though it resides in a folder, its name must be unique in core.
+dto ChatEntry {
+    # ...contains the captured time of post.
+    When time!
+
+    # ...contains the message.
+    Message string!
+
+    # ...is the user id.
+    Author uuid!
+}

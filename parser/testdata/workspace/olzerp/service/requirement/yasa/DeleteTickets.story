@@ -1,0 +1,1 @@
+As YASA, I want unprocessed tickets to be automatically deleted after a period of time, so that I don't accidentally accumulate app user information that is highly unlikely to be relevant.

@@ -1,16 +1,7 @@
-context worldiety::ApplicationSupport::ErrorTracking::Ticket {
-    presentation {
-        rest {
-            v1 {
-                # ...shows a rest-only serialization data type.
-                json MyCustomDataType {
-                    "cool-id" Ticket.ID // no complex import, just allowed to use unique types from domain anyway
-                }
 
-                # ...shows a rest-only serialization data type.
-                json MyCustomDataType2 {
-                    "cool-id" Ticket.ID // no complex import, just allowed to use unique types from domain anyway
-                }
+
+
+
 
                 # see tickets::domain::usecase::Tickets.ReadOne
                 # see iam::domain::usecase::Authentication.ValidateSession
@@ -94,7 +85,3 @@ context worldiety::ApplicationSupport::ErrorTracking::Ticket {
                         }
                      }
                 }
-            }
-        }
-    }
-}

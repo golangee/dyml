@@ -1,0 +1,9 @@
+# ...contains hardware specific information about a device.
+# see csr::DeviceInfo
+dto DeviceInfo {
+    # ...contains the amount of free memory in bytes.
+    Free int64!
+
+    # ...contains the physical amount of total memory in bytes.
+    Physical int64!
+}

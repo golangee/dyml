@@ -1,0 +1,19 @@
+# ...represents a specific ticket projection submitted by a user.
+# see customer::GetHelp
+# see developer::DownloadWorkspace
+dto Ticket {
+
+    # ...is the entity's unique identifier.
+    # However this is neither an Entity in DDD nor in JPA sense.
+    ID uuid!
+
+    # ...contains the applications version information.
+    Version AppVersion
+
+    # ...contains more information about the concrete device.
+    Device DeviceInfo
+
+    # ...contains chat entries added by service employees and developers.
+    ChatEntries slice!<Chat>
+}
+

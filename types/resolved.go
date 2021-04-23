@@ -11,9 +11,8 @@ type Workspace struct {
 	Mods []*Module
 }
 
+
 // Module contains all resolved module files and their unified declarations.
 type Module struct {
 	File     *ast.ModFile
-	Core    []*ast.DomainType
-	Usecase []*ast.UsecaseType
 }
