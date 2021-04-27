@@ -1,0 +1,43 @@
+# see tickets::domain::usecase::Tickets.ReadOne
+# see iam::domain::usecase::Authentication.ValidateSession
+endpoint GetTicketJSON for tickets/:id {
+        match {
+            ("GET" == METHOD) &&
+            (("application/json" == HEADER["content-type"]) || ("x-javascript" == HEADER["content-type"]))
+        }
+
+        in {
+            # see iam::domain::usecase::Authentication.ValidateSession$id
+            secretSessionId string! = HEADER["secret-session"]
+
+            # see tickets::domain::usecase::Tickets.ReadOne$id
+            ticketId string! = PATH["id"]
+
+            # see requirements::document::me
+            weiredOption string!? = QUERY["weired-option"]
+
+            # see requirements::document::me
+            complexBodyType rest::v1::MyCustomDataType2 = BODY
+
+            # see requirements::document::me
+            request request! = REQUEST
+        }
+
+        out {
+            # see requirements::document::me
+            HEADER["retry-in"] = retryCount int64!?
+
+            # see requirements::document::me
+            BODY = complexBodyType rest::v1::MyCustomDataType2
+
+            # see requirements::document::me
+            RESPONSE = myStream response!
+
+            errors {
+                // idea: we always match fuzzy with the name of the error. Same name (independent of technical or layer origin)
+                500 for Other
+                404 for NotFound
+                403 for NotAuthorized, NoSession, NotLoggedIn
+            }
+        }
+}

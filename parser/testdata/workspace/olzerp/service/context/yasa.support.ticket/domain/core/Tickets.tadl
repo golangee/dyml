@@ -16,5 +16,7 @@ repository Tickets {
     # * Other ...is returned if anything else went wrong.
     #   Totally unspecified.
     # * RuntimeException ...is not validated either.
-    FindAll2(x str, b str) -> (Task, error<NotFound|Other>)
+    # * InvalidArgument ...if x is empty or "123".
+    # * InvalidArgument ...if b is empty and x is "456".
+    FindAll2(x str, b str) -> (Task, error<NotFound|Other|InvalidArgument>)
 }

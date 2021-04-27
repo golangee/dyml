@@ -1,0 +1,14 @@
+// Tickets is unique in core and needs no import.
+impl Tickets for mysql {
+      FindAll "SELECT * FROM tickets" => (.ID, .Desc, .Name)
+
+      FindOne "SELECT * FROM tickets where id=?" (id) => (.ID, .Name)
+
+      Insert "INSERT INTO tickets VALUES (?, ?)" (id, id)
+
+      InsertAll "INSERT INTO tickets VALUES (?)" (id[i])
+
+      InsertAll2 "INSERT INTO tickets VALUES (?)" (tickets[i].ID, tickets[i].Name.First)
+
+      Count "SELECT COUNT(*) FROM tickets" => (.)
+}

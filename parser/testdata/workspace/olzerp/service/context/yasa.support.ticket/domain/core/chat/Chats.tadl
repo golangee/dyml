@@ -1,0 +1,4 @@
+# ...declares a repository interface for Chat entities (or DTOs).
+repository Chats {
+
+}

@@ -32,23 +32,60 @@ type Pos struct {
 	Col int
 }
 
+func (p Pos) After(other Pos) bool {
+	if p.Line < other.Line {
+		return false
+	}
+
+	if p.Line > other.Line {
+		return true
+	}
+
+	return p.Col > other.Col
+}
+
 // String returns the content in the "file:line:col" format.
 func (p Pos) String() string {
 	return p.File + ":" + strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Col)
 }
 
-type defaultNode struct {
-	begin, end Pos
+type Position struct {
+	BeginPos, EndPos Pos
 }
 
-func (d defaultNode) Begin() Pos {
-	return d.begin
+// After returns true, if this position end is beyond the other position begin.
+func (d Position) After(other Position) bool {
+	if d.EndPos.Line < other.BeginPos.Line {
+		return false
+	}
+
+	if d.EndPos.Line > other.BeginPos.Line {
+		return true
+	}
+
+	return d.EndPos.Col > other.BeginPos.Col
 }
 
-func (d defaultNode) End() Pos {
-	return d.end
+func (d *Position) SetBegin(filename string, line, col int) {
+	d.BeginPos.File = filename
+	d.BeginPos.Line = line
+	d.BeginPos.Col = col
+}
+
+func (d Position) Begin() Pos {
+	return d.BeginPos
+}
+
+func (d *Position) SetEnd(filename string, line, col int) {
+	d.EndPos.File = filename
+	d.EndPos.Line = line
+	d.EndPos.Col = col
+}
+
+func (d Position) End() Pos {
+	return d.EndPos
 }
 
 func NewNode(begin, end Pos) Node {
-	return defaultNode{begin, end}
+	return Position{begin, end}
 }
