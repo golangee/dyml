@@ -18,15 +18,29 @@ import (
 type Story struct {
 	token.Position
 
-	Src    string // contains the uninterpreted original text in its entirety, the story and any other text.
+	ID     Substring // ID is usually the filename
+	Src    string    // contains the uninterpreted original text in its entirety, the story and any other text.
 	Role   Substring
 	Goal   Substring
 	Reason Substring
-	Other  string // contains uninterpreted text of everything after the first story.
+	Other  string // contains uninterpreted text of everything after the first story sentence.
+
+	Scenarios []Scenario // scenarios are of the form == Scenario: <ID>
 }
 
 // A Substring contains an arbitrary text value.
 type Substring struct {
 	token.Position
 	Value string
+}
+
+// Scenario is of the form Given ... when ... then.
+type Scenario struct {
+	token.Position
+	ID    Substring
+	Src   string      // contains the uninterpreted original text in its entirety.
+	Roles []Substring // a given role is extracted automatically, if possible
+	Given Substring
+	When  Substring
+	Then  Substring
 }

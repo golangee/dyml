@@ -5,6 +5,7 @@ import (
 	"github.com/golangee/tadl/ast"
 	"github.com/golangee/tadl/token"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 )
 
@@ -51,10 +52,14 @@ func parseStoryEN(filename string) (*ast.Story, error) {
 	}
 
 	if !dot.After(soThat.Position) {
-		return nil, token.NewPosError(iWant, "invalid position of '.', expected after 'so that'")
+		return nil, token.NewPosError(dot, "invalid position of '.', expected after 'so that'")
 	}
 
 	story := &ast.Story{}
+	story.ID.Value = filepath.Base(filename)
+	if idx := strings.LastIndex(story.ID.Value, "."); idx >= 0 {
+		story.ID.Value = story.ID.Value[:len(story.ID.Value)-idx]
+	}
 	story.Src = text
 	story.BeginPos = asA.BeginPos
 	story.EndPos = soThat.EndPos
@@ -62,6 +67,13 @@ func parseStoryEN(filename string) (*ast.Story, error) {
 	story.Goal = trimSubstring(textBetween(filename, text, iWant.End(), soThat.Begin()))
 	story.Reason = trimSubstring(textBetween(filename, text, soThat.End(), dot.Begin()))
 	story.Other = strings.TrimSpace(text[indexOfPos(text, dot.End()):])
+
+	scenarios, err := ParseScenarios(filename)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse scenarios: %w", err)
+	}
+
+	story.Scenarios = scenarios
 
 	return story, nil
 }
@@ -114,7 +126,7 @@ func textBetween(fname, text string, a, b token.Pos) ast.Substring {
 		lineNo := i + 1
 		if a.Line >= lineNo && lineNo <= b.Line {
 			if a.Line == lineNo && b.Line == lineNo {
-				sb.WriteString(line[a.Col:b.Col-1])
+				sb.WriteString(line[a.Col : b.Col-1])
 			} else if a.Line == lineNo {
 				sb.WriteString(line[a.Col:])
 			} else if b.Line == lineNo {

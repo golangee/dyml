@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseStory(t *testing.T) {
-	story,err :=ParseStory("testdata/workspace/olzerp/service/requirement/admin/DeleteTicket.story")
+	story,err :=ParseStory("testdata/workspace/olzerp/service/requirement/yasa/DeleteTickets.story")
 	if err != nil{
 		fmt.Println(token.Explain(err))
 		t.Fatal(err)
