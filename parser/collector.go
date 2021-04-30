@@ -27,6 +27,7 @@ const (
 	filenameModule     = "tadl.mod"
 	filenameWorkspace  = "tadl.ws"
 	filenameTadlSuffix = ".tadl"
+	filenameStorySuffix = ".story"
 )
 
 type collectedWorkspace struct {

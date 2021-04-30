@@ -1,6 +1,4 @@
-# ...describes a microservice which implements the serverside of olzerp.
-# Actually it defines the frame for Go service.
-module {
+module OlzerpService{
 
     go {
         module = "github.com/worldiety/supportiety"
@@ -22,5 +20,4 @@ module {
             }
         }
     }
-
 }

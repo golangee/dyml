@@ -1,0 +1,9 @@
+[glossary]
+
+mud:: wet, cold dirt
+[[yasa-support-rain]]Rainy rain::
+water falling from the sky
+
+
+== bla
+It is <<yasa-support-rain>> outside.

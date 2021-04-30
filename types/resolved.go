@@ -16,3 +16,17 @@ type Workspace struct {
 type Module struct {
 	File     *ast.ModFile
 }
+
+type Requirements struct{
+	epics map[string]*Epic
+
+}
+
+type Epic struct {
+	file *ast.Story
+	stories map[string]*Story
+}
+
+type Story struct {
+	scenarios map[string]*ast.Scenario
+}

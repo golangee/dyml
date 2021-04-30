@@ -17,3 +17,24 @@ dto Ticket {
     ChatEntries slice!<Chat>
 }
 
+
+{dto: Ticket
+    {doc:
+        {...represents a specific ticket projection submitted by a user.}
+        {see: customer::GetHelp}
+    }
+
+     {
+        ID: uuid!
+        {doc: ...is the entity's unique identifier. However this is neither an Entity in DDD nor in JPA sense.}
+     }
+
+
+
+    {Version: AppVersion}
+    {ChatEntries: {slice!: Chat}}
+}
+
+<dto>
+    <doc></doc>
+</dto>
