@@ -324,3 +324,83 @@ Transforms to:
     </interface>
 </root>
 ----
+
+
+### Brainstorming 1
+
+Incompatible attribute notation, where the attributes value can contain other nodes as well => attributes is a unique
+section of key=value stuff (the json/yaml compatible part?). The nested node stuff is the xml-only part?
+
+[source]
+----
+#!
+@doc "...is the \"type\" documentation"
+type Person struct {
+    @doc "...is the first name"
+    @param ????
+    Firstname int32
+}
+----
+
+[source,xml]
+----
+<type doc="...is the &quot;type&quot; documentation">
+    <Person>
+        <struct>
+            <Firstname doc="...is the first name">
+                <int32/>
+            </Firstname>
+        </struct>
+    </Person>
+</type>
+----
+
+### Brainstorming 2
+There are no attributes, but a notation to _upsert_ or _merge_ one element into another, instead of appending
+the entire element as new. This can be done using the @ forward declaration in Parser2:
+
+[source]
+----
+#!
+@doc "...is the \"type\" documentation"
+@doc # appends "it"
+type Person struct {
+    @doc "...is the first name"
+    Firstname int32
+
+    @doc "...gets some"
+    @param Firstname # ...is the field of choice
+    func Get(stuff string, other []int)
+}
+----
+
+[source,xml]
+----
+<type doc="...is the &quot;type&quot; documentation">
+    <doc>
+    ...is the "type" documentation
+    appends "it"
+    </doc>
+    <Person>
+        <struct>
+            <Firstname>
+                <doc>...is the first name</doc>
+                <int32/>
+            </Firstname>
+
+            <func>
+                <doc>...gets some</doc>
+                <param>
+                    <Firstname>...is the field of choice</Firstname>
+                </param>
+                <Get>
+                    <stuff><string/></stuff>
+                    <other>
+                        <SLICE><int/></SLICE>
+                    </other>
+                </Get>
+            </func>
+        </struct>
+    </Person>
+</type>
+----
