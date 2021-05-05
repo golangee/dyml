@@ -69,6 +69,7 @@ Lexer 1
 [source,abnf]
 ----
 Comment       =  #?
+Attribute     =  #: <Element> TextNode
 Element       =  #[^(\s|#|{|}|!)]+
 SwitchToLex2  =  #!
 Shift         =  # <Element>
@@ -80,14 +81,15 @@ escape        =  \# | \}
 Lexer 2
 [source,abnf]
 ----
-Comment       =  #?
-Element       =  [^(\s|#|{|}|!)]+
-SwitchToLex1  =  #!
-NoNesting     =  ,
-TextNodeLine  =  #
-Block         =  <Element> ({ (Element|TextNode)* })?
-TextNode      =  "(\\"|[^"])*"
-escape        =  \"
+Comment              =  #?
+Element              =  [^(\s|#|{|}|!)]+
+ForwardAttribute     =  @ Element TextNode | TextNodeLine
+SwitchToLex1         =  #!
+NoNesting            =  ,
+TextNodeLine         =  #
+Block                =  <Element> ({ (Element|TextNode)* })?
+TextNode             =  "(\\"|[^"])*"
+escape               =  \"
 ----
 
 All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
@@ -103,6 +105,7 @@ A comment, an Element and an escaped TextNode.
 #? this is a comment
 #HelloNode
 \#A Text
+#Other #:attribute some random text until next hash
 ----
 
 Transforms to:
@@ -113,6 +116,7 @@ Transforms to:
     <!-- this is a comment -->
     <HelloNode/>
     #A Text
+    <Other attribute="some random text until next hash"/>
 </root>
 ----
 
@@ -247,9 +251,11 @@ Declaring and documenting types.
     }
 
     #! "...switch the parser"
+    @info "this is a forward attribute and never inline block as the other parser does"
     interface Repository2 {
         # ...selects a single entry.
-        FindAll{offset int32, limit int32} -> {[]Ticket, error}
+        param limit "indicates some limit"
+        FindAll{offset int32, @max "5" limit int32} -> {[]Ticket, error}
     }
 
 ----
@@ -297,13 +303,14 @@ Transforms to:
         </Repository>
     </interface>
 
-    <interface>
+    <interface info="this is a forward attribute and never inline block as the other parser does">
         ...switch the parser
         <Repository2>
             ...selects a single entry.
+            <param><limit>indicates some limit</limit></param>
             <FindAll>
                 <offset><int32/></offset>
-                <limit><int32/></offset>
+                <limit max="5"><int32/></limit>
             </FindAll>
 
             <RETURNS> <!-- #-> -->
