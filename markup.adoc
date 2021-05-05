@@ -1,0 +1,225 @@
+= markup
+:source-highlighter: highlight.js
+:highlightjs-languages: asciidoc, abnf
+:toc:
+Torben Schinke
+
+Oh no, not yet another markup.
+
+== Motivation
+
+Common markup languages:
+
+ * SGML
+ ** XML
+ ** HTML
+ * ...
+
+Common lightweight markup languages:
+
+ * Markdown
+ * AsciiDoc
+ * ...
+
+Common Data exchange formats:
+
+ * JSON
+ * YAML
+ * TOML
+ * ...
+
+So what is wrong with that?
+
+ * SGML variants are verbose and hard to read for non-developers. Complex XML with XML-Schemas and self declaring
+   definitions cannot be handwritten anymore, like ReqIF or OpenXML.
+ * lightweight markup languages are underspecified and usually not even properly parseable.
+ * data exchange formats are more or less verbose. Due to missing markup
+  they are generally unsuited for raw text segments and require a lot of escaping and extra
+  notations of elements to express sibling and children nodes.
+
+A good starting point, which explains what is wrong with the omnipresent Markdown is
+here https://docs.asciidoctor.org/asciidoc/latest/asciidoc-vs-markdown/.
+
+A good starting point, which explains what is wrong with AsciiDoc is luckily documented by the project
+itself:
+
+ * https://docs.asciidoctor.org/asciidoc/latest/text/troubleshoot-unconstrained-formatting/
+ * https://github.com/asciidoctor/asciidoctor/issues/61#issuecomment-373576992
+ * https://github.com/asciidoctor/asciidoctor/issues/901
+ * https://github.com/asciidoctor/asciidoctor/issues/61#issuecomment-373554218
+
+== Approach
+
+The idea of XML is good to express markup which can be parsed unambiguously. So copy that but let us
+make XML simpler:
+
+* Remove attribute nodes (x="abc").
+* Remove verbose repetition of closing declaration (</elem>).
+* Remove redundant node closing characters (>).
+* Remove namespaces, different charsets, cdata, preamble, entities, processing directive.
+* Remove redundant document root element.
+* Introduce some rules to automatically express nesting without the need of explicit declaration.
+
+== Specification
+
+The text encoding is always UTF-8. In general, each valid markup can be lossless transformed into XML.
+The lexer grammar is defined as follows:
+
+[source,abnf]
+----
+Comment       =  #?
+CloseElem     =  ## | }
+Element       =  #[^(\s|#|{|}|!)]+
+Shift         =  # <Node>
+Block         =  <Node> ({ (Node|TextNode)* })?
+TextNode      =  !<Node>
+escape        =  \# | \}
+----
+
+All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
+#. All other hashtags must be escaped using backslash. Braces can be omitted and are inserted automatically. The
+closing bracket is either inserted directly before the next element declaration or after a shifted element declaration.
+
+=== Examples
+
+==== Example 1
+A comment, an Element and an escaped TextNode.
+[source,tadl]
+----
+#? this is a comment
+#HelloNode
+\#A Text
+----
+
+Transforms to:
+
+[source,xml]
+----
+<root>
+    <!-- this is a comment -->
+    <HelloNode/>
+    #A Text
+</root>
+----
+
+==== Example 2
+Some nested Elements.
+
+[source,tadl]
+----
+#book {
+  #toc
+  #section {
+    #title {
+        The sections title
+    }
+
+    The sections text.
+  }
+}
+----
+
+Is equal to the following notation with automatic brace insertion rules:
+
+[source,tadl]
+----
+#book ##toc ##section
+
+##title The sections title##
+
+The sections text.
+----
+
+A single # closes the brace before the element and a double ## closes the brace after the element, unless
+another double # is found or closed explicitly with #!:
+
+[listing]
+#book ##toc ##section         => #book{ #toc{ #section{
+##title The sections title##  => #title{The sections title.}
+The sections text.            => The sections text.
+EOF                           => } } }
+
+Transforms to:
+
+[source,xml]
+----
+<root>
+    <book>
+        <toc/>
+        <section>
+            <title>The sections title</title>
+            The sections text.
+        </section>
+    </book>
+</root>
+----
+
+==== Example 3
+Declaring and documenting types.
+
+[source,tadl]
+----
+    A Ticket represents a piece of
+    paper with things to do.
+    #struct ##Ticket {
+        ID is the unique identifier.
+        #ID uuid
+
+        Message contains some text to read.
+        #Message string
+    }
+
+    ... provides CRUD access functions for #ref{Ticket} entities.
+    #interface ##Repository {
+        ...selects a single entry.
+        #FindOne{#id uuid} #-> {#Ticket #error}
+
+        ...searches all the things.
+        #FindAll{#offset int32 #limit int32} #-> {#[]##Ticket #error}
+    }
+----
+
+Transforms to:
+
+[source,xml]
+----
+<root>
+    A Ticket represents a piece of
+    paper with things to do.
+    <struct>
+        <Ticket>
+            ID is the unique identifier.
+            <ID>uuid</ID>
+
+            Message contains some text to read.
+            <Message>string</Message>
+        </Ticket>
+    </struct>
+
+    ... provides CRUD access functions for #ref{Ticket} entities.
+    <interface>
+        <Repository>
+            ...selects a single entry.
+            <FindOne>
+                <id>uuid</id>
+            </FindOne>
+            <RETURNS> <!-- #-> -->
+                <Ticket/>
+                <error/>
+            </RETURNS>
+
+            ...searches all the things.
+            <FindAll>
+                <offset>int32</offset>
+                <limit>int32</limit>
+            </FindAll>
+             <RETURNS> <!-- #-> -->
+                <SLICE> <!-- [] -->
+                    <Ticket/>
+                </SLICE>
+                <error/>
+            </RETURNS>
+        </Repository>
+    </interface>
+</root>
+----
