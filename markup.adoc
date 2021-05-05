@@ -83,6 +83,8 @@ Lexer 2
 Comment       =  #?
 Element       =  [^(\s|#|{|}|!)]+
 SwitchToLex1  =  #!
+NoNesting     =  ,
+TextNodeLine  =  #
 Block         =  <Element> ({ (Element|TextNode)* })?
 TextNode      =  "(\\"|[^"])*"
 escape        =  \"
@@ -214,9 +216,9 @@ is equivalent to
 ----
 #!
 list{
-    item1{key "value"}
-    item2
-    item3
+    item1 key "value",
+    item2,
+    item3,
 }
 ----
 
@@ -244,10 +246,10 @@ Declaring and documenting types.
         #FindAll{#offset int32 #limit int32} #-> {#[]##Ticket #error}
     }
 
-    ...switch
-    #!interface Repository {
-        #!...selects a single entry.
-        #!FindAll{offset int32, limit int32} -> {[]Ticket, error}
+    #! "...switch the parser"
+    interface Repository2 {
+        # ...selects a single entry.
+        FindAll{offset int32, limit int32} -> {[]Ticket, error}
     }
 
 ----
@@ -293,6 +295,25 @@ Transforms to:
                 <error/>
             </RETURNS>
         </Repository>
+    </interface>
+
+    <interface>
+        ...switch the parser
+        <Repository2>
+            ...selects a single entry.
+            <FindAll>
+                <offset><int32/></offset>
+                <limit><int32/></offset>
+            </FindAll>
+
+            <RETURNS> <!-- #-> -->
+                <SLICE> <!-- [] -->
+                    <Ticket/>
+                </SLICE>
+                <error/>
+            </RETURNS>
+
+        </Repository2>
     </interface>
 </root>
 ----
