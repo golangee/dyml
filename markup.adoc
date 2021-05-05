@@ -361,17 +361,18 @@ the entire element as new. This can be done using the @ forward declaration in P
 
 [source]
 ----
-#!
-@doc "...is the \"type\" documentation"
-@doc # appends "it"
-type Person struct {
-    @doc "...is the first name"
-    Firstname int32
+#!(
+    @doc "...is the \"type\" documentation"
+    @doc # appends "it"
+    type Person struct {
+        @doc "...is the first name"
+        Firstname int32
 
-    @doc "...gets some"
-    @param Firstname # ...is the field of choice
-    func Get(stuff string, other []int)
-}
+        @doc "...gets some"
+        @param Firstname # ...is the field of choice
+        func Get{stuff string, other []int}
+    }
+)
 ----
 
 [source,xml]
