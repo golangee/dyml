@@ -63,17 +63,29 @@ make XML simpler:
 == Specification
 
 The text encoding is always UTF-8. In general, each valid markup can be lossless transformed into XML.
-The lexer grammar is defined as follows:
+The lexer grammar is defined as follows and can be toggled between two lexer/parsers:
 
+Lexer 1
 [source,abnf]
 ----
 Comment       =  #?
-CloseElem     =  ## | }
 Element       =  #[^(\s|#|{|}|!)]+
-Shift         =  # <Node>
-Block         =  <Node> ({ (Node|TextNode)* })?
-TextNode      =  !<Node>
+SwitchToLex2  =  #!
+Shift         =  # <Element>
+Block         =  <Element> ({ (Element|TextNode)* })?
+TextNode      =  !<Element>
 escape        =  \# | \}
+----
+
+Lexer 2
+[source,abnf]
+----
+Comment       =  #?
+Element       =  [^(\s|#|{|}|!)]+
+SwitchToLex1  =  #!
+Block         =  <Element> ({ (Element|TextNode)* })?
+TextNode      =  "(\\"|[^"])*"
+escape        =  \"
 ----
 
 All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
@@ -125,7 +137,7 @@ Is equal to the following notation with automatic brace insertion rules:
 ----
 #book ##toc ##section
 
-##title The sections title##
+##title{The sections title}
 
 The sections text.
 ----
@@ -135,7 +147,7 @@ another double # is found or closed explicitly with #!:
 
 [listing]
 #book ##toc ##section         => #book{ #toc{ #section{
-##title The sections title##  => #title{The sections title.}
+##title{The sections title}   => #title{The sections title}
 The sections text.            => The sections text.
 EOF                           => } } }
 
@@ -155,6 +167,60 @@ Transforms to:
 ----
 
 ==== Example 3
+Line and formatting invariance.
+
+[source,tadl]
+----
+#book {
+ #section {
+   #title {
+      hello section
+   }
+   This is the #em{section} text.
+ }
+}
+----
+
+is equivalent to
+
+[source,tadl]
+----
+#book{#section{#title{hello section}This is the #em{section} text.}}
+----
+
+is equivalent to
+
+[source,tadl]
+----
+#book ##section ##title {hello section}
+This is the #em{section} text.
+----
+
+==== Example 4
+The parser can be toggled between two modes (more markup or more text),
+so a writer can decide which reads best in the current context.
+
+[source,tadl]
+----
+#list{
+  #item1{#key value}
+  #item2
+  #item3
+}
+----
+
+is equivalent to
+[source,tadl]
+----
+#!
+list{
+    item1{key "value"}
+    item2
+    item3
+}
+----
+
+==== Example 5
 Declaring and documenting types.
 
 [source,tadl]
@@ -177,6 +243,13 @@ Declaring and documenting types.
         ...searches all the things.
         #FindAll{#offset int32 #limit int32} #-> {#[]##Ticket #error}
     }
+
+    ...switch
+    #!interface Repository {
+        #!...selects a single entry.
+        #!FindAll{offset int32, limit int32} -> {[]Ticket, error}
+    }
+
 ----
 
 Transforms to:
