@@ -4,56 +4,46 @@
 :toc:
 Torben Schinke
 
-Oh no, not yet another markup.
+This article proposes a new general purpose markup language,
+which can be used to write texts but also allows to efficiently express domain specific languages.
 
 == Motivation
 
-Common markup languages:
+=== Why not HTML?
+HTML was neither designed for print nor for building DSLs. Even, as of today and the according print media query,
+there are a lot of shortcomings, like proper typesetting, page breaks or even page numberings.
 
- * SGML
- ** XML
- ** HTML
- * ...
+=== Why not XML (or formats using it, like DocBook)?
+XML as a standard is very complex. Self-contained descriptions like Req-If or OOXML are actually impossible to be
+written by hand. Also, it is very verbose by design. DSLs are impossible to express in a readable way. When
+thinking about it, it is astonishing how successful XML became, despite it is hard to be read by humans and
+even hard and expensive to process.
 
-Common lightweight markup languages:
+=== Why not Markdown?
+The actual Markdown standard is pretty small and does not even contain things like footnotes or tables. Therefore,
+a lot of incompatible flavors have been created. Also, there is an obvious focus on HTML transformation.
 
- * Markdown
- * AsciiDoc
- * ...
+=== Why not AsciiDoc?
+There is no context free grammar, which makes it hard to parse. Besides the reference implementation, there is not
+even a specification. It looks like, that one needs more than https://github.com/asciidoctor/asciidoctor/issues/61#issuecomment-373576992[64 parsers] to build an AST. There are other edge cases
+which cannot be fixed, like proper https://github.com/asciidoctor/asciidoctor/issues/901[escaping]. These bugs
+are unaddressed since more than 8 years now. Others try to create parsers for it, e.g. by using
+https://github.com/bytesparadise/libasciidoc[PEG Parsers], which results in parsers with more than 64 thousand lines
+of code and still fails to support even the most basic https://github.com/bytesparadise/libasciidoc/issues/290[features].
 
-Common Data exchange formats:
+=== Why not another lightweight markup language?
+It looks like that there are more than 20 popular ones. I only did a superficial check of their syntax, but all them seem to fall short, when it comes to arbitrary complexity and unambiguous parsing.
 
- * JSON
- * YAML
- * TOML
- * ...
-
-So what is wrong with that?
-
- * SGML variants are verbose and hard to read for non-developers. Complex XML with XML-Schemas and self declaring
-   definitions cannot be handwritten anymore, like ReqIF or OpenXML.
- * lightweight markup languages are underspecified and usually not even properly parseable.
- * data exchange formats are more or less verbose. Due to missing markup
-  they are generally unsuited for raw text segments and require a lot of escaping and extra
-  notations of elements to express sibling and children nodes.
-
-A good starting point, which explains what is wrong with the omnipresent Markdown is
-here https://docs.asciidoctor.org/asciidoc/latest/asciidoc-vs-markdown/.
-
-A good starting point, which explains what is wrong with AsciiDoc is luckily documented by the project
-itself:
-
- * https://docs.asciidoctor.org/asciidoc/latest/text/troubleshoot-unconstrained-formatting/
- * https://github.com/asciidoctor/asciidoctor/issues/61#issuecomment-373576992
- * https://github.com/asciidoctor/asciidoctor/issues/901
- * https://github.com/asciidoctor/asciidoctor/issues/61#issuecomment-373554218
+=== Why not JSON, YAML, TOML or others?
+Non-markup formats are not suited for mixing text and annotated text fragments (well, markup). If one has to express
+that with an object notation format, you need to create recursive holder objects and a lot of escaping. It is not
+feasible to write this by hand.
 
 == Approach
 
-The idea of XML is good to express markup which can be parsed unambiguously. So copy that but let us
-make XML simpler:
+The core idea of XML, to have text with markup which can be parsed unambiguously, is really great.
+So lets keep that idea but remove complexity:
 
-* Remove attribute nodes (x="abc").
 * Remove verbose repetition of closing declaration (</elem>).
 * Remove redundant node closing characters (>).
 * Remove namespaces, different charsets, cdata, preamble, entities, processing directive.
@@ -62,27 +52,43 @@ make XML simpler:
 
 == Specification
 
-The text encoding is always UTF-8. In general, each valid markup can be lossless transformed into XML.
-The lexer grammar is defined as follows and can be toggled between two lexer/parsers:
+The text encoding is always UTF-8. In general, each valid markup can be lossless transformed into XML
+but not the other way round.
+There are two grammars, which express both the same structures but have both clear tradeoffs.
+The default grammar is suited for _text first_ content, so the writer can focus on his natural
+language and enrich it with markup declarations. The second grammar is _node first_ and avoids
+all # markers for nodes.
 
-Lexer 1
+Grammar 1 (text first)
 [source,abnf]
 ----
-Comment       =  #?
-Attribute     =  #: <Element> TextNode
-Element       =  #[^(\s|#|{|}|!)]+
-SwitchToLex2  =  #!
-Shift         =  # <Element>
-Block         =  <Element> ({ (Element|TextNode)* })?
-TextNode      =  !<Element>
-escape        =  \# | \}
+Char              ::=  \\(#|})|[^(#|})]                     // anything but unescaped # and }
+S                 ::=  \s                                   // any whitespace
+
+CommentNode       ::=  '#?' S* '{' Char* '}'                // multiline
+CommentLine       ::=  '#?' Char* '\n'                      // anything until end of line
+
+Grammar2          ::= '#!' S* '{' .* '}'                    // { } pairs must be balanced inside .*
+
+Element           ::= '#' Identifier S* Attribute* S* '{' (Element|Text)* '}'
+Identifier        ::= [^(\s|#|{|}|!|@)]+                    // anything but #, {, }, !, @, ' ' and at least one char
+
+Attribute         ::= '##' Identifier S* '{' Char '}'       // attributes can only have texts
+AttributeID       ::= '##' S* '{' Char '}'                  // alias
+
+Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}' // fails, if no such element has been declared yet
+
+// Scanner insertion rules:
+// Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before continue
+// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a ##), insert '{' before the #
+// Rule 3: (## S*) is replaced with (##id S*)
 ----
 
 Lexer 2
 [source,abnf]
 ----
 Comment              =  #?
-Element              =  [^(\s|#|{|}|!)]+
+Element              =  [^(\s|#|{|}|!|@)]+
 ForwardAttribute     =  @ Element TextNode | TextNodeLine
 SwitchToLex1         =  #!
 NoNesting            =  ,
@@ -141,10 +147,36 @@ Is equal to the following notation with automatic brace insertion rules:
 
 [source,tadl]
 ----
-#book ##toc ##section
+#book ##{einfaches buch} {
+    #title Ein sehr einfaches buch
+    #chapter ##{einfaches kapitel} {
+        #title Kapitel
+        #para Hallo Welt!
+    }
+}
 
-##title{The sections title}
+#@{einfaches buch}{
+    #chapter ##id{zweites kapitel} {
 
+    }
+}
+
+<book id="einfaches_buch">
+    <title>Ein sehr einfaches Buch</title>
+    <chapter id="einfaches_kapitel">
+        <title>Kapitel</title>
+        <para>Hallo Welt!</para>
+    </chapter>
+</book>
+
+#section{The sections title}
+The sections text.
+#image{#width{0.5} https://worldiety.de/logo.png}
+
+#subsection{The subsections title}
+The #red{sections} text.
+
+##section/title{The sections title}
 The sections text.
 ----
 
