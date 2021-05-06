@@ -52,17 +52,19 @@ So lets keep that idea but remove complexity:
 
 == Specification
 
-The text encoding is always UTF-8. In general, each valid markup can be lossless transformed into XML
-but not the other way round.
+The text encoding is always UTF-8. In general, each valid markup can be lossless transformed (besides exact whitespace)
+into XML but not the other way round.
 There are two grammars, which express both the same structures but have both clear tradeoffs.
 The default grammar is suited for _text first_ content, so the writer can focus on his natural
-language and enrich it with markup declarations. The second grammar is _node first_ and avoids
-all # markers for nodes.
+language and enrich it with markup declarations. All white-spaces within an elements block are
+significant, because their rendering depends on later transformation and styling
+(see also the white-space processing model of https://drafts.csswg.org/css-text-3/#white-space-phase-1[html5/CSS]).
 
 Grammar 1 (text first)
 [source,abnf]
 ----
 Char              ::=  \\(#|})|[^(#|})]                     // anything but unescaped # and }
+Text              ::=  Char*
 S                 ::=  \s                                   // any whitespace
 
 CommentNode       ::=  '#?' S* '{' Char* '}'                // multiline
@@ -71,18 +73,25 @@ CommentLine       ::=  '#?' Char* '\n'                      // anything until en
 Grammar2          ::= '#!' S* '{' .* '}'                    // { } pairs must be balanced inside .*
 
 Element           ::= '#' Identifier S* Attribute* S* '{' (Element|Text)* '}'
+ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*  // until next # or }
 Identifier        ::= [^(\s|#|{|}|!|@)]+                    // anything but #, {, }, !, @, ' ' and at least one char
 
-Attribute         ::= '##' Identifier S* '{' Char '}'       // attributes can only have texts
-AttributeID       ::= '##' S* '{' Char '}'                  // alias
+Attribute         ::= '##' Identifier S* '{' Char '}'       // attributes can only have texts, id-value must be unique
 
-Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}' // fails, if no such element has been declared yet
+Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}' // id must exist and conform to Identifier
 
 // Scanner insertion rules:
-// Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before continue
+// Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before scanning next
 // Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a ##), insert '{' before the #
-// Rule 3: (## S*) is replaced with (##id S*)
+// Rule 3: ('#:' Identifier) is replaced with (##id S*)
+//
+/// Whitespace significance rules:
+// Rule 1: Any whitespace within an Element is significant
+// Rule 2: Whitespace between terminator symbols are insignificant
+
 ----
+
+The second grammar is _node first_ and avoids all # markers for nodes for the price of escaping text content.
 
 Lexer 2
 [source,abnf]
@@ -105,13 +114,13 @@ closing bracket is either inserted directly before the next element declaration 
 === Examples
 
 ==== Example 1
-A comment, an Element and an escaped TextNode.
+A simple hello world
 [source,tadl]
 ----
-#? this is a comment
-#HelloNode
-\#A Text
-#Other #:attribute some random text until next hash
+#? saying
+   hello world
+
+#hello{world}
 ----
 
 Transforms to:
@@ -119,21 +128,22 @@ Transforms to:
 [source,xml]
 ----
 <root>
-    <!-- this is a comment -->
-    <HelloNode/>
-    #A Text
-    <Other attribute="some random text until next hash"/>
+<!-- saying
+     hello world
+
+-->
+<hello>world</hello>
 </root>
 ----
 
 ==== Example 2
-Some nested Elements.
+A book example.
 
 [source,tadl]
 ----
 #book {
-  #toc
-  #section {
+  #toc{}
+  #section #:1 {
     #title {
         The sections title
     }
@@ -143,22 +153,64 @@ Some nested Elements.
 }
 ----
 
-Is equal to the following notation with automatic brace insertion rules:
+Is equal to the following notation (including white space):
 
 [source,tadl]
 ----
-#book ##{einfaches buch} {
-    #title Ein sehr einfaches buch
-    #chapter ##{einfaches kapitel} {
-        #title Kapitel
-        #para Hallo Welt!
+#book {
+  #toc
+  #section #:1 {
+    #title {
+        The sections title
     }
+
+  }
 }
 
-#@{einfaches buch}{
-    #chapter ##id{zweites kapitel} {
+#@1 {
+    The sections text.
+}
+----
 
-    }
+Transforms to (some whitespace indents may vary):
+
+[source,xml]
+----
+<root>
+    <book>
+        <toc/>
+        <section id="1">
+            <title>
+                The sections title
+            </title>
+
+            The sections text.
+        </section>
+    </book>
+</root>
+----
+
+==== Example x
+
+[source,tadl]
+----
+#book ##{my-book} {
+    #title A very simple book
+    #chapter ##{ch1}
+    #chapter ##{ch2}
+}
+
+#@ch1 {
+    #title Chapter One
+    #p Hello paragraph.
+    Still going on.
+}
+
+#@ch2 {
+    #title Chapter Two
+    Some #red{#bold{Text}} text.
+    The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
+    #image ##width{100%} https://worldiety.de/favicon.png
 }
 
 <book id="einfaches_buch">
@@ -189,20 +241,7 @@ another double # is found or closed explicitly with #!:
 The sections text.            => The sections text.
 EOF                           => } } }
 
-Transforms to:
 
-[source,xml]
-----
-<root>
-    <book>
-        <toc/>
-        <section>
-            <title>The sections title</title>
-            The sections text.
-        </section>
-    </book>
-</root>
-----
 
 ==== Example 3
 Line and formatting invariance.
