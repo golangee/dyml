@@ -115,11 +115,11 @@ String              ::=  "(\\"|[^"])*"
 // create new and append element to last Element
 Element             ::= Identifier
 
-// close element, subsequent declared elements are added to prior parent
-CloseElement        ::= ';'
+// variable close element, subsequent declared elements are either added to prior or pre-prior parent.
+// inside {}       -> close only the last element
+// inside () or <> -> close the last and its parent element
+VarCloseElement     ::= ','
 
-// close the prior and pre-prio element
-CloseDoubleElement  ::= ','
 
 // An entire line can be marked as Grammar1 (must not contain recursive Grammar 2)
 Grammar1Line        ::= '# ' .*
@@ -291,9 +291,9 @@ is equivalent to
 ----
 #!{
     list{
-        item1 key "value";
-        item2 @1;
-        item3 @key="value";
+        item1 key "value",
+        item2 @1,
+        item3 @key="value",
     }
 }
 ----
@@ -326,7 +326,7 @@ This shows, how neat the _node first_ DSL is
         ## ...come get some.
         @@stuff ...is the stuff parameter.
         @@other="...os the other parameter."
-        func Get(stuff string, other []int, list Map<X;Y>) // TODO: closing rules awkward
+        func Get(stuff string, other []int, list Map<X,Y>)
     }
 }
 ----
