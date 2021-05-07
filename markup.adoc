@@ -63,27 +63,36 @@ significant, because their rendering depends on later transformation and styling
 Grammar 1 (text first)
 [source,abnf]
 ----
-Char              ::=  \\(#|})|[^(#|})]                     // anything but unescaped # and }
+// anything but unescaped # and }
+Char              ::=  \\(#|})|[^(#|})]
 Text              ::=  Char*
-S                 ::=  \s                                   // any whitespace
+// any whitespace
+S                 ::=  \s
 
-CommentNode       ::=  '#?' S* '{' Char* '}'                // multiline
-CommentLine       ::=  '#?' Char* '\n'                      // anything until end of line
+// multiline
+CommentNode       ::=  '#?' S* '{' Char* '}'
+// anything until end of line
+CommentLine       ::=  '#?' Char* '\n'
 
-Grammar2          ::= '#!' S* '{' .* '}'                    // { } pairs must be balanced inside .*
+// { } pairs must be balanced inside .*, other symbols are ignored
+Grammar2          ::= '#!' S* '{' .* '}'
 
 Element           ::= '#' Identifier S* Attribute* S* '{' (Element|Text)* '}'
-ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*  // until next # or }
-Identifier        ::= [^(\s|#|{|}|!|@)]+                    // anything but #, {, }, !, @, ' ' and at least one char
+// until next # or }
+ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*
+// anything but #, {, }, !, @, ' ' and at least one char
+Identifier        ::= [^(\s|#|{|}|!|@)]+
 
-Attribute         ::= '##' Identifier S* '{' Char '}'       // attributes can only have texts, id-value must be unique
+// attributes can only have texts, id-value must be unique
+Attribute         ::= '##' Identifier S* '{' Char '}'
 
-Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}' // id must exist and conform to Identifier
+// id must exist and conform to Identifier
+Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}'
 
 // Scanner insertion rules:
 // Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before scanning next
-// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a ##), insert '{' before the #
-// Rule 3: ('#:' Identifier) is replaced with (##id S*)
+// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a '##'), insert '{' before the '#'
+// Rule 3: ('#:' Identifier) is replaced with ('##id' S*)
 //
 /// Whitespace significance rules:
 // Rule 1: Any whitespace within an Element is significant
@@ -92,19 +101,35 @@ Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}' /
 ----
 
 The second grammar is _node first_ and avoids all # markers for nodes for the price of escaping text content.
+It must be declared within '#! {' '}'.
 
-Lexer 2
+Grammar 2 (node first):
 [source,abnf]
 ----
-Comment              =  #?
-Element              =  [^(\s|#|{|}|!|@)]+
-ForwardAttribute     =  @ Element TextNode | TextNodeLine
-SwitchToLex1         =  #!
-NoNesting            =  ,
-TextNodeLine         =  #
-Block                =  <Element> ({ (Element|TextNode)* })?
-TextNode             =  "(\\"|[^"])*"
-escape               =  \"
+// anything but #, {, }, !, @, ' ' and at least one char
+Identifier          ::= [^(\s|#|{|}|!|@)]+
+
+// uninterpreted string enclosed in "
+String              ::=  "(\\"|[^"])*"
+
+// create new and append element to last Element
+Element             ::= Identifier
+
+// close element, subsequent declared elements are added to prior parent
+CloseElement        ::= ','
+
+// An entire line can be marked as Grammar1 (must not contain recursive Grammar 2)
+Grammar1Line        ::= '# ' .*
+
+// Like Grammar1Line but the Text is inserted into the next declared element, instead the current position.
+ForwardGrammar1Line ::= '#@ ' .* '\n' S* Element
+
+// Attribute to set on the enclosing Element
+Attribute           ::= '@' Identifier S* '=' S* String
+
+// Attribute to set on the next declared element, instead the current one.
+ForwardAttribute     =  '@' Identifier S* '=' S* String
+
 ----
 
 All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
@@ -190,14 +215,15 @@ Transforms to (some whitespace indents may vary):
 </root>
 ----
 
-==== Example x
+==== Example 3
+A more complex book example, could be a DocBook.
 
 [source,tadl]
 ----
-#book ##{my-book} {
+#book #:my-book ##author Torben {
     #title A very simple book
-    #chapter ##{ch1}
-    #chapter ##{ch2}
+    #chapter #:ch1
+    #chapter #:ch2
 }
 
 #@ch1 {
@@ -208,70 +234,36 @@ Transforms to (some whitespace indents may vary):
 
 #@ch2 {
     #title Chapter Two
-    Some #red{#bold{Text}} text.
+    Some #red{#bold Text} text.
     The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
     #image ##width{100%} https://worldiety.de/favicon.png
 }
-
-<book id="einfaches_buch">
-    <title>Ein sehr einfaches Buch</title>
-    <chapter id="einfaches_kapitel">
-        <title>Kapitel</title>
-        <para>Hallo Welt!</para>
-    </chapter>
-</book>
-
-#section{The sections title}
-The sections text.
-#image{#width{0.5} https://worldiety.de/logo.png}
-
-#subsection{The subsections title}
-The #red{sections} text.
-
-##section/title{The sections title}
-The sections text.
 ----
 
-A single # closes the brace before the element and a double ## closes the brace after the element, unless
-another double # is found or closed explicitly with #!:
+Transforms to (some whitespace indents may vary):
 
-[listing]
-#book ##toc ##section         => #book{ #toc{ #section{
-##title{The sections title}   => #title{The sections title}
-The sections text.            => The sections text.
-EOF                           => } } }
-
-
-
-==== Example 3
-Line and formatting invariance.
-
-[source,tadl]
+[source,xml]
 ----
-#book {
- #section {
-   #title {
-      hello section
-   }
-   This is the #em{section} text.
- }
-}
+<root>
+    <book id="my-book" author="Torben">
+        <title>A very simple book</title>
+        <chapter id="ch1">
+            <title>Chapter One</title>
+            <p>Hello paragraph.
+            Still going on.</p>
+        </chapter>
+
+        <chapter id="ch2">
+            <title>Chapter Two</title>
+            Some <red><bold>Text</bold></red> text.
+            The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
+            <image width="100%">https://worldiety.de/favicon.png</image>
+        </chapter>
+    </book>
+</root>
 ----
 
-is equivalent to
 
-[source,tadl]
-----
-#book{#section{#title{hello section}This is the #em{section} text.}}
-----
-
-is equivalent to
-
-[source,tadl]
-----
-#book ##section ##title {hello section}
-This is the #em{section} text.
-----
 
 ==== Example 4
 The parser can be toggled between two modes (more markup or more text),
@@ -289,13 +281,82 @@ so a writer can decide which reads best in the current context.
 is equivalent to
 [source,tadl]
 ----
-#!
-list{
-    item1 key "value",
-    item2,
-    item3,
+#!{
+    list{
+        item1 key "value",
+        item2 @1,
+        item3 @key="value",
+    }
 }
 ----
+
+Transforms to (some whitespace indents may vary):
+[source,xml]
+----
+<root>
+   <list>
+        <item1><key>value</key></item1>
+        <item2 id="1"/>
+        <item3 key="value"/>
+   </list>
+</root>
+----
+
+### Brainstorming 2
+There are no attributes, but a notation to _upsert_ or _merge_ one element into another, instead of appending
+the entire element as new. This can be done using the @ forward declaration in Parser2:
+
+[source]
+----
+#!(
+    #@ This is a forward #ref{someid} text node on type with non-recursive grammar 1.
+    @@doc "...is a forward attribute \"type\" documentation"
+    type Person struct {
+        # this is #bold{another} non-recursive grammar 1 line
+        @@field "...is the first name"
+        Firstname int32
+
+        #@ ...gets some
+        @@stuff "go for it"
+        @@other "is the field of choice"
+        func Get{stuff string, other []int}
+    }
+)
+----
+
+[source,xml]
+----
+<type doc="...is the &quot;type&quot; documentation">
+    <doc>
+    ...is the "type" documentation
+    appends "it"
+    </doc>
+    <Person>
+        <struct>
+            <Firstname>
+                <doc>...is the first name</doc>
+                <int32/>
+            </Firstname>
+
+            <func>
+                <doc>...gets some</doc>
+                <param>
+                    <Firstname>...is the field of choice</Firstname>
+                </param>
+                <Get>
+                    <stuff><string/></stuff>
+                    <other>
+                        <SLICE><int/></SLICE>
+                    </other>
+                </Get>
+            </func>
+        </struct>
+    </Person>
+</type>
+----
+
+
+
 
 ==== Example 5
 Declaring and documenting types.
@@ -426,53 +487,3 @@ type Person struct {
 </type>
 ----
 
-### Brainstorming 2
-There are no attributes, but a notation to _upsert_ or _merge_ one element into another, instead of appending
-the entire element as new. This can be done using the @ forward declaration in Parser2:
-
-[source]
-----
-#!(
-    @doc "...is the \"type\" documentation"
-    @doc # appends "it"
-    type Person struct {
-        @doc "...is the first name"
-        Firstname int32
-
-        @doc "...gets some"
-        @param Firstname # ...is the field of choice
-        func Get{stuff string, other []int}
-    }
-)
-----
-
-[source,xml]
-----
-<type doc="...is the &quot;type&quot; documentation">
-    <doc>
-    ...is the "type" documentation
-    appends "it"
-    </doc>
-    <Person>
-        <struct>
-            <Firstname>
-                <doc>...is the first name</doc>
-                <int32/>
-            </Firstname>
-
-            <func>
-                <doc>...gets some</doc>
-                <param>
-                    <Firstname>...is the field of choice</Firstname>
-                </param>
-                <Get>
-                    <stuff><string/></stuff>
-                    <other>
-                        <SLICE><int/></SLICE>
-                    </other>
-                </Get>
-            </func>
-        </struct>
-    </Person>
-</type>
-----
