@@ -118,8 +118,8 @@ String              ::=  "(\\"|[^"])*"
 Element             ::= Identifier
 
 // variable close element, subsequent declared elements are either added to prior or pre-prior parent.
-// inside {}       -> close only the last element
-// inside () or <> -> close the last and its parent element
+// inside {} or <> -> close only the last element
+// inside ()       -> close the last and its parent element
 VarCloseElement     ::= ','
 
 
