@@ -109,7 +109,7 @@ Grammar 2 (node first):
 // anything but #, {, }, !, @, ' ' and at least one char
 Identifier          ::= [^(\s|#|{|}|!|@)]+
 
-// uninterpreted string enclosed in "
+// uninterpreted string enclosed in " "
 String              ::=  "(\\"|[^"])*"
 
 // create new and append element to last Element
@@ -122,14 +122,19 @@ CloseElement        ::= ','
 Grammar1Line        ::= '# ' .*
 
 // Like Grammar1Line but the Text is inserted into the next declared element, instead the current position.
-ForwardGrammar1Line ::= '#@ ' .* '\n' S* Element
+ForwardGrammar1Line ::= '## ' .* '\n' S* Element
 
 // Attribute to set on the enclosing Element
-Attribute           ::= '@' Identifier S* '=' S* String
+Attribute           ::= '@' Identifier S* '='? S* String
 
 // Attribute to set on the next declared element, instead the current one.
-ForwardAttribute     =  '@' Identifier S* '=' S* String
+ForwardAttribute    ::=  '@' Identifier S* '='? S* String
 
+Declaration        ::= Element | CloseElement? | Attribute | ForwardGrammar1Line | Attribute
+
+Block              ::= '{' S* Declaration* S* '}'
+GroupBlock         ::= '(' S* Declaration* S* ')'
+GenericBlock       ::= '<' S* Declaration* S* '>'
 ----
 
 All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
@@ -302,188 +307,104 @@ Transforms to (some whitespace indents may vary):
 </root>
 ----
 
-### Brainstorming 2
+==== Example 5
 There are no attributes, but a notation to _upsert_ or _merge_ one element into another, instead of appending
 the entire element as new. This can be done using the @ forward declaration in Parser2:
 
 [source]
 ----
-#!(
-    #@ This is a forward #ref{someid} text node on type with non-recursive grammar 1.
-    @@doc "...is a forward attribute \"type\" documentation"
+#!{
+    # just a text line
+
+    ## This is a forward text node. It contains a non-recursive grammar 1, so e.g. #ref{id} is possible.
     type Person struct {
-        # this is #bold{another} non-recursive grammar 1 line
-        @@field "...is the first name"
+        ## ...is the first name
         Firstname int32
 
-        #@ ...gets some
-        @@stuff "go for it"
-        @@other "is the field of choice"
-        func Get{stuff string, other []int}
+        ## ...come get some.
+        @@stuff ...is the stuff parameter.
+        @@other="...os the other parameter."
+        func Get(stuff string, other []int, list Map<X,Y>)
     }
-)
-----
-
-[source,xml]
-----
-<type doc="...is the &quot;type&quot; documentation">
-    <doc>
-    ...is the "type" documentation
-    appends "it"
-    </doc>
-    <Person>
-        <struct>
-            <Firstname>
-                <doc>...is the first name</doc>
-                <int32/>
-            </Firstname>
-
-            <func>
-                <doc>...gets some</doc>
-                <param>
-                    <Firstname>...is the field of choice</Firstname>
-                </param>
-                <Get>
-                    <stuff><string/></stuff>
-                    <other>
-                        <SLICE><int/></SLICE>
-                    </other>
-                </Get>
-            </func>
-        </struct>
-    </Person>
-</type>
-----
-
-
-
-
-==== Example 5
-Declaring and documenting types.
-
-[source,tadl]
-----
-    A Ticket represents a piece of
-    paper with things to do.
-    #struct ##Ticket {
-        ID is the unique identifier.
-        #ID uuid
-
-        Message contains some text to read.
-        #Message string
-    }
-
-    ... provides CRUD access functions for #ref{Ticket} entities.
-    #interface ##Repository {
-        ...selects a single entry.
-        #FindOne{#id uuid} #-> {#Ticket #error}
-
-        ...searches all the things.
-        #FindAll{#offset int32 #limit int32} #-> {#[]##Ticket #error}
-    }
-
-    #! "...switch the parser"
-    @info "this is a forward attribute and never inline block as the other parser does"
-    interface Repository2 {
-        # ...selects a single entry.
-        param limit "indicates some limit"
-        FindAll{offset int32, @max "5" limit int32} -> {[]Ticket, error}
-    }
-
-----
-
-Transforms to:
-
-[source,xml]
-----
-<root>
-    A Ticket represents a piece of
-    paper with things to do.
-    <struct>
-        <Ticket>
-            ID is the unique identifier.
-            <ID>uuid</ID>
-
-            Message contains some text to read.
-            <Message>string</Message>
-        </Ticket>
-    </struct>
-
-    ... provides CRUD access functions for #ref{Ticket} entities.
-    <interface>
-        <Repository>
-            ...selects a single entry.
-            <FindOne>
-                <id>uuid</id>
-            </FindOne>
-            <RETURNS> <!-- #-> -->
-                <Ticket/>
-                <error/>
-            </RETURNS>
-
-            ...searches all the things.
-            <FindAll>
-                <offset>int32</offset>
-                <limit>int32</limit>
-            </FindAll>
-             <RETURNS> <!-- #-> -->
-                <SLICE> <!-- [] -->
-                    <Ticket/>
-                </SLICE>
-                <error/>
-            </RETURNS>
-        </Repository>
-    </interface>
-
-    <interface info="this is a forward attribute and never inline block as the other parser does">
-        ...switch the parser
-        <Repository2>
-            ...selects a single entry.
-            <param><limit>indicates some limit</limit></param>
-            <FindAll>
-                <offset><int32/></offset>
-                <limit max="5"><int32/></limit>
-            </FindAll>
-
-            <RETURNS> <!-- #-> -->
-                <SLICE> <!-- [] -->
-                    <Ticket/>
-                </SLICE>
-                <error/>
-            </RETURNS>
-
-        </Repository2>
-    </interface>
-</root>
-----
-
-
-### Brainstorming 1
-
-Incompatible attribute notation, where the attributes value can contain other nodes as well => attributes is a unique
-section of key=value stuff (the json/yaml compatible part?). The nested node stuff is the xml-only part?
-
-[source]
-----
-#!
-@doc "...is the \"type\" documentation"
-type Person struct {
-    @doc "...is the first name"
-    @param ????
-    Firstname int32
 }
 ----
 
 [source,xml]
 ----
-<type doc="...is the &quot;type&quot; documentation">
-    <Person>
-        <struct>
-            <Firstname doc="...is the first name">
-                <int32/>
-            </Firstname>
-        </struct>
-    </Person>
-</type>
+<root>
+    just a text line
+    <type>
+        This is a forward text node. It contains a non-recursive grammar 1, so e.g. <ref>id</ref> is possible.
+        <Person>
+            <struct _groupType="{}">
+                <Firstname>
+                    ...is the first name
+                    <int32/>
+                </Firstname>
+
+                <func stuff="...is the stuff parameter." other="...is the other parameter.">
+                    ...come get some.
+                    <Get _groupType="()">
+                        <stuff><string/></stuff>
+                        <other>
+                            <SLICE><int/></SLICE>
+                        </other>
+                        <list><Map _groupType="<>"><X/><Y/></List></list>
+                    </Get>
+                </func>
+            </struct>
+        </Person>
+    </type>
+
+</root>
 ----
+
+== Lightweight markup specification
+Nesting is no fun, so a linear structure makes reading easier.
+
+=== Documents
+Just plain text, is a valid document.
+[source]
+----
+This is a basic Tadl document.
+----
+
+[source]
+----
+This is a basic Tadl document.
+
+This document contains two paragraphs (depends on the actual renderer).
+----
+
+[source]
+----
+#{title} Document Title
+
+This is a basic Tadl document.
+----
+
+=== Blocks
+
+[source]
+----
+#{title} Document Title
+
+#{section} A section title
+This is the sections content.
+
+Everything until the next section block or the subsection or subsubsection (etc.).
+
+#{subsection} Inside the section
+
+#{section} Subsection done, next sibling section
+Just like latex, AsciiDoc or Markdown.
+----
+
+
+== Schema Validation
+TODO: Notation is complex and arbitrary, but for many DSLs a schema validation would be a useful thing.
+
+* Parser may validate the structure and also various types like bool, int, date, regex etc.
+* a complex document may expect different schemas for each part.
+
 
