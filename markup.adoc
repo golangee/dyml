@@ -326,7 +326,7 @@ This shows, how neat the _node first_ DSL is
         ## ...come get some.
         @@stuff ...is the stuff parameter.
         @@other="...os the other parameter."
-        func Get(stuff string, other []int, list Map<X,Y>)
+        func Get(stuff string, other []int, list Map<X;Y>) // TODO: closing rules awkward
     }
 }
 ----
