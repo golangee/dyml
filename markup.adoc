@@ -106,6 +106,8 @@ It must be declared within '#! {' '}'.
 Grammar 2 (node first):
 [source,abnf]
 ----
+LineComment         ::=  '//' .*
+
 // anything but #, {, }, !, @, ' ' and at least one char
 Identifier          ::= [^(\s|#|{|}|!|@)]+
 
@@ -326,7 +328,7 @@ This shows, how neat the _node first_ DSL is
         ## ...come get some.
         @@stuff ...is the stuff parameter.
         @@other="...os the other parameter."
-        func Get(stuff string, other []int, list Map<X,Y>)
+        func Get(stuff string, other []int, list Map<X,Y>) // note the different closing rules here
     }
 }
 ----
@@ -353,7 +355,7 @@ This shows, how neat the _node first_ DSL is
                         </other>
                         <list><Map _groupType="<>"><X/><Y/></List></list>
                     </Get>
-                </func>
+                </func> <!-- note the different closing rules here-->
             </struct>
         </Person>
     </type>
