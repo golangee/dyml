@@ -109,7 +109,7 @@ Grammar 2 (node first):
 // anything but #, {, }, !, @, ' ' and at least one char
 Identifier          ::= [^(\s|#|{|}|!|@)]+
 
-// uninterpreted string enclosed in " "
+// uninterpreted string enclosed in " ", may contain line breaks
 String              ::=  "(\\"|[^"])*"
 
 // create new and append element to last Element
@@ -125,16 +125,16 @@ Grammar1Line        ::= '# ' .*
 ForwardGrammar1Line ::= '## ' .* '\n' S* Element
 
 // Attribute to set on the enclosing Element
-Attribute           ::= '@' Identifier S* '='? S* String
+Attribute           ::= '@' Identifier S* '='? S* String|Char*
 
 // Attribute to set on the next declared element, instead the current one.
-ForwardAttribute    ::=  '@' Identifier S* '='? S* String
+ForwardAttribute    ::=  '@' Identifier S* '='? S* String|Char*
 
-Declaration        ::= Element | CloseElement? | Attribute | ForwardGrammar1Line | Attribute
+Declaration         ::= Element | CloseElement? | Attribute | ForwardGrammar1Line | Attribute
 
-Block              ::= '{' S* Declaration* S* '}'
-GroupBlock         ::= '(' S* Declaration* S* ')'
-GenericBlock       ::= '<' S* Declaration* S* '>'
+Block               ::= '{' S* Declaration* S* '}'
+GroupBlock          ::= '(' S* Declaration* S* ')'
+GenericBlock        ::= '<' S* Declaration* S* '>'
 ----
 
 All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
@@ -278,8 +278,8 @@ so a writer can decide which reads best in the current context.
 ----
 #list{
   #item1{#key value}
-  #item2
-  #item3
+  #item2 #:1
+  #item3 ##key{value}
 }
 ----
 
@@ -308,8 +308,7 @@ Transforms to (some whitespace indents may vary):
 ----
 
 ==== Example 5
-There are no attributes, but a notation to _upsert_ or _merge_ one element into another, instead of appending
-the entire element as new. This can be done using the @ forward declaration in Parser2:
+This shows, how neat the _node first_ DSL is
 
 [source]
 ----
@@ -397,7 +396,9 @@ Everything until the next section block or the subsection or subsubsection (etc.
 #{subsection} Inside the section
 
 #{section} Subsection done, next sibling section
-Just like latex, AsciiDoc or Markdown.
+Just like latex, AsciiDoc or Markdown. Even though this can never
+be parsed immediately as a block, a post-parser will derive the correct
+nesting logic.
 ----
 
 
