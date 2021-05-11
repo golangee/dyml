@@ -101,7 +101,8 @@ Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}'
 ----
 
 The second grammar is _node first_ and avoids all # markers for nodes for the price of escaping text content.
-It must be declared within '#! {' '}'.
+It must be declared within '#! {' '}'. Think of the front matter pattern (yaml, json) in Markdown files, but
+integrated directly in the specification.
 
 Grammar 2 (node first):
 [source,abnf]
@@ -136,7 +137,7 @@ ForwardGrammar1Line ::= '## ' .* '\n' S* Element
 Attribute           ::= '@' Identifier S* '='? S* String|Char*
 
 // Attribute to set on the next declared element, instead the current one.
-ForwardAttribute    ::=  '@' Identifier S* '='? S* String|Char*
+ForwardAttribute    ::=  '@@' Identifier S* '='? S* String|Char*
 
 Declaration         ::= Element | CloseElement? | Attribute | ForwardGrammar1Line | Attribute
 
@@ -389,7 +390,7 @@ This document contains two paragraphs (depends on the actual renderer).
 
 [source]
 ----
-#{title} Document Title
+#title{Document Title}
 
 This is a basic Tadl document.
 ----
@@ -398,16 +399,16 @@ This is a basic Tadl document.
 
 [source]
 ----
-#{title} Document Title
+#title{Document Title}
 
-#{section} A section title
+#section{A section title}
 This is the sections content.
 
 Everything until the next section block or the subsection or subsubsection (etc.).
 
-#{subsection} Inside the section
+#subsection{Inside the section}
 
-#{section} Subsection done, next sibling section
+#section{Subsection done, next sibling section}
 Just like latex, AsciiDoc or Markdown. Even though this can never
 be parsed immediately as a block, a post-parser will derive the correct
 nesting logic.

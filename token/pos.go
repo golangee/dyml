@@ -14,7 +14,11 @@
 
 package token
 
-import "strconv"
+import (
+	"os"
+	"path/filepath"
+	"strconv"
+)
 
 // Node contains access to the start and end positions of a token.
 type Node interface {
@@ -30,6 +34,8 @@ type Pos struct {
 	Line int
 	// Col denotes the one-based column number in the denoted Line.
 	Col int
+	// Offset in bytes
+	Offset int
 }
 
 func (p Pos) After(other Pos) bool {
@@ -88,4 +94,23 @@ func (d Position) End() Pos {
 
 func NewNode(begin, end Pos) Node {
 	return Position{begin, end}
+}
+
+// NewFileNode returns a fake node which just points to 1:1 of the file, whatever that is.
+func NewFileNode(filename string) Node {
+	cwd, _ := os.Getwd()
+	fname := filepath.Join(cwd, filename)
+
+	return Position{
+		BeginPos: Pos{
+			File: fname,
+			Line: 1,
+			Col:  1,
+		},
+		EndPos: Pos{
+			File: fname,
+			Line: 1,
+			Col:  1,
+		},
+	}
 }
