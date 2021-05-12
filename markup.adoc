@@ -84,15 +84,12 @@ ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*
 Identifier        ::= [^(\s|#|{|}|!|@)]+
 
 // attributes can only have texts, id-value must be unique
-Attribute         ::= '##' Identifier S* '{' Char '}'
+Attribute         ::= ':' Identifier S* '{' Char '}'
 
-// id must exist and conform to Identifier
-Accessor          ::= '#@' Identifier S* Attribute* S* '{' (Element|Text)* '}'
 
 // Scanner insertion rules:
 // Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before scanning next
-// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a '##'), insert '{' before the '#'
-// Rule 3: ('#:' Identifier) is replaced with ('##id' S*)
+// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a ':'), insert '{' before the '#'
 //
 /// Whitespace significance rules:
 // Rule 1: Any whitespace within an Element is significant
@@ -192,24 +189,6 @@ A book example.
 }
 ----
 
-Is equal to the following notation (including white space):
-
-[source,tadl]
-----
-#book {
-  #toc
-  #section #:1 {
-    #title {
-        The sections title
-    }
-
-  }
-}
-
-#@1 {
-    The sections text.
-}
-----
 
 Transforms to (some whitespace indents may vary):
 
@@ -236,21 +215,18 @@ A more complex book example, could be a DocBook.
 ----
 #book #:my-book ##author Torben {
     #title A very simple book
-    #chapter #:ch1
-    #chapter #:ch2
-}
+    #chapter :id{ch1} {
+        #title Chapter One
+        #p Hello paragraph.
+        Still going on.
+    }
 
-#@ch1 {
-    #title Chapter One
-    #p Hello paragraph.
-    Still going on.
-}
-
-#@ch2 {
-    #title Chapter Two
-    Some #red{#bold Text} text.
-    The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
-    #image ##width{100%} https://worldiety.de/favicon.png
+    #chapter :id{ch2} {
+        #title Chapter Two
+        Some #red{#bold Text} text.
+        The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
+        #image ##width{100%} https://worldiety.de/favicon.png
+    }
 }
 ----
 
@@ -287,8 +263,8 @@ so a writer can decide which reads best in the current context.
 ----
 #list{
   #item1{#key value}
-  #item2 #:1
-  #item3 ##key{value}
+  #item2 :id{1}
+  #item3 :key{value}
 }
 ----
 
@@ -298,7 +274,8 @@ is equivalent to
 #!{
     list{
         item1 key "value",
-        item2 @1,
+        @@1
+        item2,
         item3 @key="value",
     }
 }

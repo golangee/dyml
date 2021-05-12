@@ -26,6 +26,7 @@ type Decoder struct {
 	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
 	bufPos int
 	pos    token.Pos // current position
+	lastToken Token
 }
 
 // NewDecoder creates a new instance, ready to start parsing

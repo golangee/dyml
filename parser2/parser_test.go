@@ -18,6 +18,18 @@ func TestParser(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "empty",
+			text: "",
+			want: NewTestSet(),
+		},
+
+		{
+			name: "space",
+			text: " ",
+			want: NewTestSet().CharData(" "),
+		},
+
+		{
 			name: "simple text",
 			text: "hello world",
 			want: NewTestSet().
