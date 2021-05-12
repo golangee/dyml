@@ -35,7 +35,51 @@ func TestParser(t *testing.T) {
 			name: "simple element",
 			text: `#hello`,
 			want: NewTestSet().
-				StartElement("hello"),
+				Element("hello"),
+		},
+
+		{
+			name: "simple element with attribute and no spaces",
+			text: `#hello:id{world}`,
+			want: NewTestSet().
+				Element("hello").
+				Attribute("id", "world"),
+		},
+
+		{
+			name: "simple element with attribute",
+			text: `#hello 	:id 	{world}`,
+			want: NewTestSet().
+				Element("hello").
+				Attribute("id", "world"),
+		},
+
+		{
+			name: "more attribs",
+			text: `#img :id{5} 	:alt{an image}    :href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
+			want: NewTestSet().
+				Element("img").
+				Attribute("id", "5").
+				Attribute("alt", "an image").
+				Attribute("href", "https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D"),
+		},
+
+		{
+			name: "more attribs without spaces",
+			text: `#img:id{5}:alt{an image}:href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
+			want: NewTestSet().
+				Element("img").
+				Attribute("id", "5").
+				Attribute("alt", "an image").
+				Attribute("href", "https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D"),
+		},
+
+		{
+			name: "simple element with attribute and line break",
+			text: "#hello :id{split\nworld}",
+			want: NewTestSet().
+				Element("hello").
+				Attribute("id", "split\nworld"),
 		},
 	}
 
@@ -83,25 +127,50 @@ func (ts *TestSet) CharData(value string) *TestSet {
 	return ts
 }
 
-func (ts *TestSet) StartElement(value string) *TestSet {
+func (ts *TestSet) Element(value string) *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
-		if cd, ok := t.(*StartElement); ok {
-			if cd.Value != value {
-				return fmt.Errorf("StartElement: expected '%s' but got '%s': %s", value, cd.Value, toString(cd))
+		if cd, ok := t.(*Element); ok {
+			if cd.Value.String() != value {
+				return fmt.Errorf("element: expected '%s' but got '%s': %s", value, cd.Value.String(), toString(cd))
 			}
 
 			return nil
 		}
 
-		return fmt.Errorf("StartElement: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("element: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) Attribute(key, value string) *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if cd, ok := t.(*Attr); ok {
+			if cd.Key.String() != key || cd.Value.String() != value {
+				return fmt.Errorf("attr: expected '%s' = '%s' but got '%s' = '%s': %s", key, value, cd.Key.String(), cd.Value.String(), toString(cd))
+			}
+
+			return nil
+		}
+
+		return fmt.Errorf("attr: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
 }
 
 func (ts *TestSet) Assert(tokens []Token, t *testing.T) {
+	t.Helper()
+
 	if len(ts.checker) != len(tokens) {
-		t.Fatalf("expected %d parsed tokens but got %d: %s", len(ts.checker), len(tokens), toString(tokens))
+		tokenTypesOverview := "["
+		for _, token := range tokens {
+			tokenTypesOverview += reflect.TypeOf(token).String() + ", "
+		}
+
+		tokenTypesOverview += "]"
+
+		t.Fatalf("expected %d parsed tokens but got %d: %s\n%s", len(ts.checker), len(tokens), tokenTypesOverview, toString(tokens))
 	}
 
 	for i, token := range tokens {

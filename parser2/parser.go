@@ -7,8 +7,9 @@ import (
 	"unicode"
 )
 
+
 // A Token is an interface holding one of the token types:
-// StartElement, EndElement, Comment
+// Element, EndElement, Comment
 type Token interface {
 	assertToken()
 }
@@ -41,18 +42,22 @@ func NewDecoder(filename string, r io.Reader) *Decoder {
 // Token returns the next TADL token in the input stream.
 // At the end of the input stream, Token returns nil, io.EOF.
 func (d *Decoder) Token() (Token, error) {
+
 	r, err := d.nextR()
 	if err != nil {
 		return nil, err
 	}
 
-	if r == '#' {
-		return d.g1StartElement()
+	d.prevR()
+
+	switch r {
+	case '#':
+		return d.g1Element()
+	case ':':
+		return d.g1Attribute()
+	default:
+		return d.g1Text(true)
 	}
-
-	d.prevR() // revert consumed char
-
-	return d.g1Text()
 }
 
 // nextR reads the next rune and updates the position.
