@@ -93,6 +93,12 @@ func TestParser(t *testing.T) {
 				Element("hello").
 				Attribute("id", "split\nworld"),
 		},
+
+		{
+			name: "empty g2",
+			text: "#!{}",
+			want: NewTestSet(),
+		},
 	}
 
 	for _, tt := range tests {

@@ -2,11 +2,11 @@ package parser2
 
 import (
 	"bufio"
-	"github.com/golangee/tadl/token"
 	"io"
 	"unicode"
-)
 
+	"github.com/golangee/tadl/token"
+)
 
 // A Token is an interface holding one of the token types:
 // Element, EndElement, Comment
@@ -22,11 +22,13 @@ type runeWithPos struct {
 
 // Decoder implements a TADL stream parser.
 type Decoder struct {
-	r      *bufio.Reader
-	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
-	bufPos int
-	pos    token.Pos // current position
+	r         *bufio.Reader
+	buf       []runeWithPos //TODO truncate to avoid streaming memory leak
+	bufPos    int
+	pos       token.Pos // current position
 	lastToken Token
+	// g2Mode is true if the decoder has been set to node first mode with #!{...}
+	g2Mode bool
 }
 
 // NewDecoder creates a new instance, ready to start parsing
@@ -44,21 +46,45 @@ func NewDecoder(filename string, r io.Reader) *Decoder {
 // At the end of the input stream, Token returns nil, io.EOF.
 func (d *Decoder) Token() (Token, error) {
 
-	r, err := d.nextR()
+	// Read the first two runes, but don't really care about the second one.
+	r1, err := d.nextR()
 	if err != nil {
 		return nil, err
 	}
-
+	r2, err := d.nextR()
+	if err == nil {
+		d.prevR()
+	}
 	d.prevR()
 
-	switch r {
-	case '#':
-		return d.g1Element()
-	case ':':
-		return d.g1Attribute()
-	default:
-		return d.g1Text(true)
+	if d.lastToken == nil {
+		// No previous token means we just started lexing.
+		// Find out if we should switch to g2 by checking if the first two runes are '#!'
+		if r1 == '#' && r2 == '!' {
+			d.g2Mode = true
+		}
 	}
+
+	var token Token
+
+	if d.g2Mode {
+		return d.g2Root() // TODO
+	} else {
+		switch r1 {
+		case '#':
+			token, err = d.g1Element()
+		case ':':
+			token, err = d.g1Attribute()
+		default:
+			token, err = d.g1Text(true)
+		}
+	}
+
+	if token != nil {
+		d.lastToken = token
+	}
+
+	return token, err
 }
 
 // nextR reads the next rune and updates the position.
