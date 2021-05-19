@@ -32,16 +32,23 @@ type Attr struct {
 
 func (t *Attr) assertToken() {}
 
-
-type BlockStart struct{
+// BlockStart is a '{' that is the start of a block.
+type BlockStart struct {
 	token.Position
 }
 
 func (t *BlockStart) assertToken() {}
 
-
-type BlockEnd struct{
+// BlockEnd is a '}' that is the end of a block.
+type BlockEnd struct {
 	token.Position
 }
 
 func (t *BlockEnd) assertToken() {}
+
+// G2Preambel is the '#!' preambel for a G2 grammar.
+type G2Preambel struct {
+	token.Position
+}
+
+func (t *G2Preambel) assertToken() {}

@@ -3,12 +3,13 @@ package parser2
 import (
 	"bytes"
 	"errors"
-	"github.com/golangee/tadl/token"
 	"io"
 	"strconv"
+
+	"github.com/golangee/tadl/token"
 )
 
-// g1IsEscaped checks if the last read rune is a '/'.
+// g1IsEscaped checks if the last read rune is a '\'.
 func (d *Decoder) g1IsEscaped() bool {
 	if r, ok := d.lastRune(-2); ok {
 		return r == '\\'

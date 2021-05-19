@@ -2,6 +2,7 @@ package parser2
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"unicode"
 
@@ -46,7 +47,8 @@ func NewDecoder(filename string, r io.Reader) *Decoder {
 // At the end of the input stream, Token returns nil, io.EOF.
 func (d *Decoder) Token() (Token, error) {
 
-	// Read the first two runes, but don't really care about the second one.
+	// Peek the first two runes.
+	// The second one is only used to detect the g2 grammar.
 	r1, err := d.nextR()
 	if err != nil {
 		return nil, err
@@ -57,18 +59,36 @@ func (d *Decoder) Token() (Token, error) {
 	}
 	d.prevR()
 
+	var token Token
+
 	if d.lastToken == nil {
 		// No previous token means we just started lexing.
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
 			d.g2Mode = true
+			token, err = d.g2Preambel()
+			d.lastToken = token
+			return token, err
 		}
 	}
 
-	var token Token
-
 	if d.g2Mode {
-		return d.g2Root() // TODO
+		r, err := d.g2SkipWhitespace()
+		if err != nil {
+			return nil, err
+		}
+		d.prevR()
+
+		switch r {
+		case '{':
+			token, err = d.g2BlockStart()
+		case '}':
+			token, err = d.g2BlockEnd()
+		case '"':
+			token, err = d.g2CharData()
+		default:
+			token, err = d.g2Element()
+		}
 	} else {
 		switch r1 {
 		case '#':
@@ -80,11 +100,24 @@ func (d *Decoder) Token() (Token, error) {
 		}
 	}
 
+	// An EOF might occur while reading a token.
+	// If we got a token while reading, we do not want to return EOF just yet.
+	// That will then happen in the next call to Token().
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			if token == nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
 	if token != nil {
 		d.lastToken = token
 	}
 
-	return token, err
+	return token, nil
 }
 
 // nextR reads the next rune and updates the position.

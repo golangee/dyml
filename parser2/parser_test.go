@@ -97,7 +97,41 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty g2",
 			text: "#!{}",
-			want: NewTestSet(),
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				BlockEnd(),
+		},
+
+		{
+			name: "basic g2 with a single element",
+			text: "#!{hello }",
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				Element("hello").
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with a multiple elements",
+			text: "#!{ list another}",
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				Element("list").
+				Element("another").
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with a string",
+			text: `#!{"hello\"\n"}`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				CharData(`hello\"\n`).
+				BlockEnd(),
 		},
 	}
 
@@ -172,6 +206,42 @@ func (ts *TestSet) Attribute(key, value string) *TestSet {
 		}
 
 		return fmt.Errorf("attr: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) BlockStart() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*BlockStart); ok {
+			return nil
+		}
+
+		return fmt.Errorf("blockstart: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) BlockEnd() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*BlockEnd); ok {
+			return nil
+		}
+
+		return fmt.Errorf("blockend: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) G2Preambel() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*G2Preambel); ok {
+			return nil
+		}
+
+		return fmt.Errorf("blockend: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
