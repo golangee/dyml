@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestParser(t *testing.T) {
+func TestTokenizer(t *testing.T) {
 	tests := []struct {
 		name    string
 		text    string
@@ -47,51 +47,93 @@ func TestParser(t *testing.T) {
 			name: "simple element",
 			text: `#hello`,
 			want: NewTestSet().
-				Element("hello"),
+				DefineElement().
+				Identifier("hello"),
 		},
 
 		{
 			name: "simple element with attribute and no spaces",
-			text: `#hello:id{world}`,
+			text: `#hello@id{world}`,
 			want: NewTestSet().
-				Element("hello").
-				Attribute("id", "world"),
+				DefineElement().
+				Identifier("hello").
+				DefineAttribute(false).
+				Identifier("id").
+				BlockStart().
+				CharData("world").
+				BlockEnd(),
 		},
 
 		{
 			name: "simple element with attribute",
-			text: `#hello 	:id 	{world}`,
+			text: `#hello 	@id 	{world}`,
 			want: NewTestSet().
-				Element("hello").
-				Attribute("id", "world"),
+				DefineElement().
+				Identifier("hello").
+				DefineAttribute(false).
+				Identifier("id").
+				BlockStart().
+				CharData("world").
+				BlockEnd(),
 		},
 
 		{
 			name: "more attribs",
-			text: `#img :id{5} 	:alt{an image}    :href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
+			text: `#img @id{5} 	@alt{an image}    @href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
 			want: NewTestSet().
-				Element("img").
-				Attribute("id", "5").
-				Attribute("alt", "an image").
-				Attribute("href", "https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D"),
+				DefineElement().
+				Identifier("img").
+				DefineAttribute(false).
+				Identifier("id").
+				BlockStart().
+				CharData("5").
+				BlockEnd().
+				DefineAttribute(false).
+				Identifier("alt").
+				BlockStart().
+				CharData("an image").
+				BlockEnd().
+				DefineAttribute(false).
+				Identifier("href").
+				BlockStart().
+				CharData(`https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D`).
+				BlockEnd(),
 		},
 
 		{
 			name: "more attribs without spaces",
-			text: `#img:id{5}:alt{an image}:href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
+			text: `#img@id{5}@alt{an image}@href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
 			want: NewTestSet().
-				Element("img").
-				Attribute("id", "5").
-				Attribute("alt", "an image").
-				Attribute("href", "https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D"),
+				DefineElement().
+				Identifier("img").
+				DefineAttribute(false).
+				Identifier("id").
+				BlockStart().
+				CharData("5").
+				BlockEnd().
+				DefineAttribute(false).
+				Identifier("alt").
+				BlockStart().
+				CharData("an image").
+				BlockEnd().
+				DefineAttribute(false).
+				Identifier("href").
+				BlockStart().
+				CharData(`https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D`).
+				BlockEnd(),
 		},
 
 		{
 			name: "simple element with attribute and line break",
-			text: "#hello :id{split\nworld}",
+			text: "#hello @id{split\nworld}",
 			want: NewTestSet().
-				Element("hello").
-				Attribute("id", "split\nworld"),
+				DefineElement().
+				Identifier("hello").
+				DefineAttribute(false).
+				Identifier("id").
+				BlockStart().
+				CharData("split\nworld").
+				BlockEnd(),
 		},
 
 		{
@@ -109,7 +151,7 @@ func TestParser(t *testing.T) {
 			want: NewTestSet().
 				G2Preambel().
 				BlockStart().
-				Element("hello").
+				Identifier("hello").
 				BlockEnd(),
 		},
 
@@ -119,8 +161,8 @@ func TestParser(t *testing.T) {
 			want: NewTestSet().
 				G2Preambel().
 				BlockStart().
-				Element("list").
-				Element("another").
+				Identifier("list").
+				Identifier("another").
 				BlockEnd(),
 		},
 
@@ -131,6 +173,25 @@ func TestParser(t *testing.T) {
 				G2Preambel().
 				BlockStart().
 				CharData(`hello\"\n`).
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with attributes",
+			text: `#!{x @key="value" @@num="5" y}`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				Identifier("x").
+				DefineAttribute(false).
+				Identifier("key").
+				Assign().
+				CharData("value").
+				DefineAttribute(true).
+				Identifier("num").
+				Assign().
+				CharData("5").
+				Identifier("y").
 				BlockEnd(),
 		},
 	}
@@ -179,33 +240,17 @@ func (ts *TestSet) CharData(value string) *TestSet {
 	return ts
 }
 
-func (ts *TestSet) Element(value string) *TestSet {
+func (ts *TestSet) Identifier(value string) *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
-		if cd, ok := t.(*Element); ok {
-			if cd.Value.String() != value {
-				return fmt.Errorf("element: expected '%s' but got '%s': %s", value, cd.Value.String(), toString(cd))
+		if cd, ok := t.(*Identifier); ok {
+			if cd.Value != value {
+				return fmt.Errorf("Identifier: expected '%s' but got '%s'", value, cd.Value)
 			}
 
 			return nil
 		}
 
-		return fmt.Errorf("element: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
-	})
-
-	return ts
-}
-
-func (ts *TestSet) Attribute(key, value string) *TestSet {
-	ts.checker = append(ts.checker, func(t Token) error {
-		if cd, ok := t.(*Attr); ok {
-			if cd.Key.String() != key || cd.Value.String() != value {
-				return fmt.Errorf("attr: expected '%s' = '%s' but got '%s' = '%s': %s", key, value, cd.Key.String(), cd.Value.String(), toString(cd))
-			}
-
-			return nil
-		}
-
-		return fmt.Errorf("attr: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("Identifier: unexpected type '%v'", reflect.TypeOf(t))
 	})
 
 	return ts
@@ -217,7 +262,7 @@ func (ts *TestSet) BlockStart() *TestSet {
 			return nil
 		}
 
-		return fmt.Errorf("blockstart: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("BlockStart: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
@@ -229,7 +274,7 @@ func (ts *TestSet) BlockEnd() *TestSet {
 			return nil
 		}
 
-		return fmt.Errorf("blockend: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("BlockEnd: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
@@ -241,7 +286,46 @@ func (ts *TestSet) G2Preambel() *TestSet {
 			return nil
 		}
 
-		return fmt.Errorf("blockend: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("G2Preambel: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) DefineElement() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*DefineElement); ok {
+			return nil
+		}
+
+		return fmt.Errorf("DefineElement: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) DefineAttribute(forward bool) *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if attr, ok := t.(*DefineAttribute); ok {
+			if attr.Forward != forward {
+				return fmt.Errorf("DefineAttribute: expected forward=%v but got %v", forward, attr.Forward)
+			}
+			return nil
+		}
+
+		return fmt.Errorf("DefineAttribute: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) Assign() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*Assign); ok {
+			return nil
+		}
+
+		return fmt.Errorf("Assign: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

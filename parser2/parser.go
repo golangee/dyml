@@ -3,6 +3,7 @@ package parser2
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"unicode"
 
@@ -46,7 +47,6 @@ func NewDecoder(filename string, r io.Reader) *Decoder {
 // Token returns the next TADL token in the input stream.
 // At the end of the input stream, Token returns nil, io.EOF.
 func (d *Decoder) Token() (Token, error) {
-
 	// Peek the first two runes.
 	// The second one is only used to detect the g2 grammar.
 	r1, err := d.nextR()
@@ -59,44 +59,61 @@ func (d *Decoder) Token() (Token, error) {
 	}
 	d.prevR()
 
-	var token Token
+	var tok Token
 
 	if d.lastToken == nil {
 		// No previous token means we just started lexing.
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
 			d.g2Mode = true
-			token, err = d.g2Preambel()
-			d.lastToken = token
-			return token, err
+			tok, err = d.g2Preambel()
+			d.gSkipWhitespace()
+			d.lastToken = tok
+			return tok, err
 		}
 	}
 
 	if d.g2Mode {
-		r, err := d.g2SkipWhitespace()
-		if err != nil {
-			return nil, err
-		}
-		d.prevR()
+		// G2 grammar rules
 
-		switch r {
-		case '{':
-			token, err = d.g2BlockStart()
-		case '}':
-			token, err = d.g2BlockEnd()
-		case '"':
-			token, err = d.g2CharData()
-		default:
-			token, err = d.g2Element()
+		if r1 == '{' {
+			tok, err = d.gBlockStart()
+		} else if r1 == '}' {
+			tok, err = d.gBlockEnd()
+		} else if r1 == '"' {
+			tok, err = d.g2CharData()
+		} else if r1 == '@' {
+			tok, err = d.gDefineAttribute()
+		} else if r1 == '#' {
+			tok, err = d.gDefineElement()
+		} else if r1 == '=' {
+			tok, err = d.g2Assign()
+		} else if d.gIdentChar(r1) {
+			tok, err = d.gIdent()
+		} else {
+			return nil, token.NewPosError(d.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
+		d.gSkipWhitespace()
 	} else {
-		switch r1 {
-		case '#':
-			token, err = d.g1Element()
-		case ':':
-			token, err = d.g1Attribute()
-		default:
-			token, err = d.g1Text(true)
+		// G1 grammar rules
+
+		if _, ok := d.lastToken.(*DefineElement); ok {
+			tok, err = d.gIdent()
+			d.gSkipWhitespace()
+		} else if _, ok := d.lastToken.(*DefineAttribute); ok {
+			tok, err = d.gIdent()
+			d.gSkipWhitespace()
+		} else if r1 == '#' {
+			tok, err = d.gDefineElement()
+		} else if r1 == '@' {
+			tok, err = d.gDefineAttribute()
+		} else if r1 == '{' {
+			tok, err = d.gBlockStart()
+		} else if r1 == '}' {
+			tok, err = d.gBlockEnd()
+			d.gSkipWhitespace()
+		} else {
+			tok, err = d.g1Text()
 		}
 	}
 
@@ -105,7 +122,7 @@ func (d *Decoder) Token() (Token, error) {
 	// That will then happen in the next call to Token().
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			if token == nil {
+			if tok == nil {
 				return nil, err
 			}
 		} else {
@@ -113,11 +130,11 @@ func (d *Decoder) Token() (Token, error) {
 		}
 	}
 
-	if token != nil {
-		d.lastToken = token
+	if tok != nil {
+		d.lastToken = tok
 	}
 
-	return token, nil
+	return tok, nil
 }
 
 // nextR reads the next rune and updates the position.

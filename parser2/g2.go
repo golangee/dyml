@@ -8,24 +8,7 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
-// Skip whitespace characters and returns the last read rune which is not a whitespace.
-func (d *Decoder) g2SkipWhitespace() (rune, error) {
-
-	for {
-		r, err := d.nextR()
-		if err != nil {
-			return r, err
-		}
-
-		switch r {
-		case ' ', '\t', '\n':
-			continue
-		default:
-			return r, nil
-		}
-	}
-}
-
+// g2Preambel reads the '#!' preambel of G2 grammars.
 func (d *Decoder) g2Preambel() (*G2Preambel, error) {
 	startPos := d.Pos()
 
@@ -46,39 +29,7 @@ func (d *Decoder) g2Preambel() (*G2Preambel, error) {
 	return preambel, nil
 }
 
-func (d *Decoder) g2Element() (*Element, error) {
-	startPos := d.Pos()
-
-	var tmp bytes.Buffer
-	for {
-		r, err := d.nextR()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		if !d.g1IdentChar(r) {
-			d.prevR() // revert last read char
-			break
-		}
-
-		tmp.WriteRune(r)
-	}
-
-	if tmp.Len() == 0 {
-		return nil, token.NewPosError(token.NewNode(startPos, d.Pos()), "empty element name not allowed")
-	}
-
-	element := &Element{}
-	element.Position.BeginPos = startPos
-	element.Position.EndPos = d.pos
-	element.Value = CharData{
-		Position: element.Position,
-		Value:    tmp.String(),
-	}
-
-	return element, nil
-}
-
+// g2CharData reads a "quoted string".
 func (d *Decoder) g2CharData() (*CharData, error) {
 	startPos := d.Pos()
 
@@ -95,57 +46,37 @@ func (d *Decoder) g2CharData() (*CharData, error) {
 			break
 		}
 
-		if r == '"' && !d.g1IsEscaped() {
+		if r == '"' && !d.gIsEscaped() {
 			break
 		}
 
 		tmp.WriteRune(r)
 	}
 
-	element := &CharData{}
-	element.Position.BeginPos = startPos
-	element.Position.EndPos = d.pos
-	element.Value = tmp.String()
+	chardata := &CharData{}
+	chardata.Position.BeginPos = startPos
+	chardata.Position.EndPos = d.pos
+	chardata.Value = tmp.String()
 
-	return element, nil
+	return chardata, nil
 }
 
-func (d *Decoder) g2BlockStart() (*BlockStart, error) {
+// g2Assign reads the '=' in an attribute definition.
+func (d *Decoder) g2Assign() (*Assign, error) {
 	startPos := d.Pos()
 
 	r, err := d.nextR()
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil {
 		return nil, err
 	}
 
-	if r != '{' {
-		return nil, token.NewPosError(d.node(), "expected '{'")
+	if r != '=' {
+		return nil, token.NewPosError(d.node(), "expected '=' (attribute definition)")
 	}
 
-	blockStart := &BlockStart{}
-	blockStart.Position.BeginPos = startPos
-	blockStart.Position.EndPos = d.pos
+	assign := &Assign{}
+	assign.Position.BeginPos = startPos
+	assign.Position.EndPos = d.pos
 
-	return blockStart, nil
-
-}
-
-func (d *Decoder) g2BlockEnd() (*BlockEnd, error) {
-	startPos := d.Pos()
-
-	r, err := d.nextR()
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
-	}
-
-	if r != '}' {
-		return nil, token.NewPosError(d.node(), "expected '}'")
-	}
-
-	blockEnd := &BlockEnd{}
-	blockEnd.Position.BeginPos = startPos
-	blockEnd.Position.EndPos = d.pos
-
-	return blockEnd, nil
-
+	return assign, nil
 }
