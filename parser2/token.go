@@ -14,34 +14,54 @@ func (t *CharData) String() string {
 
 func (t *CharData) assertToken() {}
 
-// Element represents the declaration of a new element to insert at the current position.
-// Positions marks the beginning of the element (including #) until the last element.
-type Element struct {
+// Identifier is an identifier as you would expect from a programming language: [0-9a-zA-Z_]+
+type Identifier struct {
 	token.Position
-	Value CharData
+	Value string
 }
 
-func (t *Element) assertToken() {}
+func (t *Identifier) assertToken() {}
 
-// Attr describes an attribute, which must have a unique Key and a an optional string Value.
-type Attr struct {
-	token.Position
-	Key   CharData
-	Value CharData
-}
-
-func (t *Attr) assertToken() {}
-
-
-type BlockStart struct{
+// BlockStart is a '{' that is the start of a block.
+type BlockStart struct {
 	token.Position
 }
 
 func (t *BlockStart) assertToken() {}
 
-
-type BlockEnd struct{
+// BlockEnd is a '}' that is the end of a block.
+type BlockEnd struct {
 	token.Position
 }
 
 func (t *BlockEnd) assertToken() {}
+
+// G2Preambel is the '#!' preambel for a G2 grammar.
+type G2Preambel struct {
+	token.Position
+}
+
+func (t *G2Preambel) assertToken() {}
+
+// DefineElement is the '#' before the name of an element.
+type DefineElement struct {
+	token.Position
+	Forward bool
+}
+
+func (t *DefineElement) assertToken() {}
+
+// DefineAttribute is the '@' before the name of an attribute.
+type DefineAttribute struct {
+	token.Position
+	Forward bool
+}
+
+func (t *DefineAttribute) assertToken() {}
+
+// Assign is the '=' in G2 attribute definitions.
+type Assign struct {
+	token.Position
+}
+
+func (t *Assign) assertToken() {}
