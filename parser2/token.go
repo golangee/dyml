@@ -65,3 +65,17 @@ type Assign struct {
 }
 
 func (t *Assign) assertToken() {}
+
+// G1LineEnd is a special newline, that is only emitted when a G1Line ends.
+type G1LineEnd struct {
+	token.Position
+}
+
+func (t *G1LineEnd) assertToken() {}
+
+// Comma is used as a separator in G2.
+type Comma struct {
+	token.Position
+}
+
+func (t *Comma) assertToken() {}

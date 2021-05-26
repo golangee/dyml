@@ -47,7 +47,7 @@ func TestTokenizer(t *testing.T) {
 			name: "simple element",
 			text: `#hello`,
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("hello"),
 		},
 
@@ -55,7 +55,7 @@ func TestTokenizer(t *testing.T) {
 			name: "simple element with attribute and no spaces",
 			text: `#hello@id{world}`,
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("hello").
 				DefineAttribute(false).
 				Identifier("id").
@@ -68,7 +68,7 @@ func TestTokenizer(t *testing.T) {
 			name: "simple element with attribute",
 			text: `#hello 	@id 	{world}`,
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("hello").
 				DefineAttribute(false).
 				Identifier("id").
@@ -81,7 +81,7 @@ func TestTokenizer(t *testing.T) {
 			name: "more attribs",
 			text: `#img @id{5} 	@alt{an image}    @href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("img").
 				DefineAttribute(false).
 				Identifier("id").
@@ -104,7 +104,7 @@ func TestTokenizer(t *testing.T) {
 			name: "more attribs without spaces",
 			text: `#img@id{5}@alt{an image}@href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("img").
 				DefineAttribute(false).
 				Identifier("id").
@@ -127,7 +127,7 @@ func TestTokenizer(t *testing.T) {
 			name: "simple element with attribute and line break",
 			text: "#hello @id{split\nworld}",
 			want: NewTestSet().
-				DefineElement().
+				DefineElement(false).
 				Identifier("hello").
 				DefineAttribute(false).
 				Identifier("id").
@@ -192,6 +192,79 @@ func TestTokenizer(t *testing.T) {
 				Assign().
 				CharData("5").
 				Identifier("y").
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with g1 line",
+			text: `#!{# here is another #item @color{blue}}`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				DefineElement(false).
+				CharData("here is another ").
+				DefineElement(false).
+				Identifier("item").
+				DefineAttribute(false).
+				Identifier("color").
+				BlockStart().
+				CharData("blue").
+				BlockEnd().
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 mixed with multiple g1 lines",
+			text: `#!{
+				## This is a list with some items
+				list {
+					item
+					## This item likes the #color @format{hex} {\#00FF00}, which is nice.
+					item
+				}
+			}
+			`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				DefineElement(true).
+				CharData("This is a list with some items").
+				G1LineEnd().
+				Identifier("list").
+				BlockStart().
+				Identifier("item").
+				DefineElement(true).
+				CharData("This item likes the ").
+				DefineElement(false).
+				Identifier("color").
+				DefineAttribute(false).
+				Identifier("format").
+				BlockStart().
+				CharData("hex").
+				BlockEnd().
+				BlockStart().
+				CharData("#00FF00").
+				BlockEnd().
+				CharData(", which is nice.").
+				G1LineEnd().
+				Identifier("item").
+				BlockEnd().
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with separated elements",
+			text: `#!{item, item ,item , item}`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				Identifier("item").
+				Comma().
+				Identifier("item").
+				Comma().
+				Identifier("item").
+				Comma().
+				Identifier("item").
 				BlockEnd(),
 		},
 	}
@@ -292,9 +365,12 @@ func (ts *TestSet) G2Preambel() *TestSet {
 	return ts
 }
 
-func (ts *TestSet) DefineElement() *TestSet {
+func (ts *TestSet) DefineElement(forward bool) *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
-		if _, ok := t.(*DefineElement); ok {
+		if def, ok := t.(*DefineElement); ok {
+			if def.Forward != forward {
+				return fmt.Errorf("DefineElement: expected forward=%v but got %v", forward, def.Forward)
+			}
 			return nil
 		}
 
@@ -326,6 +402,30 @@ func (ts *TestSet) Assign() *TestSet {
 		}
 
 		return fmt.Errorf("Assign: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) G1LineEnd() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*G1LineEnd); ok {
+			return nil
+		}
+
+		return fmt.Errorf("G1LineEnd: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) Comma() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*Comma); ok {
+			return nil
+		}
+
+		return fmt.Errorf("Comma: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

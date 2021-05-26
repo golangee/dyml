@@ -80,3 +80,23 @@ func (d *Decoder) g2Assign() (*Assign, error) {
 
 	return assign, nil
 }
+
+// g2Comma reads ',' which separates elements.
+func (d *Decoder) g2Comma() (*Comma, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil {
+		return nil, err
+	}
+
+	if r != ',' {
+		return nil, token.NewPosError(d.node(), "expected ','")
+	}
+
+	comma := &Comma{}
+	comma.Position.BeginPos = startPos
+	comma.Position.EndPos = d.pos
+
+	return comma, nil
+}

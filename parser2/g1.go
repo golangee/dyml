@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"strconv"
+
+	"github.com/golangee/tadl/token"
 )
 
 func debugStrOfRune(r rune) string {
@@ -12,7 +14,8 @@ func debugStrOfRune(r rune) string {
 }
 
 // g1Text parses a text sequence until next control char # or } or EOF.
-func (d *Decoder) g1Text() (*CharData, error) {
+// If stopAtNewline is set, we will stop the parser before the newline rune.
+func (d *Decoder) g1Text(stopAtNewline bool) (*CharData, error) {
 	startPos := d.Pos()
 	var tmp bytes.Buffer
 	for {
@@ -27,6 +30,11 @@ func (d *Decoder) g1Text() (*CharData, error) {
 
 		if err != nil {
 			return nil, err
+		}
+
+		if stopAtNewline && r == '\n' {
+			d.prevR()
+			break
 		}
 
 		if r == '#' || r == '}' {
@@ -48,4 +56,19 @@ func (d *Decoder) g1Text() (*CharData, error) {
 	text.Position.EndPos = d.pos
 
 	return text, nil
+}
+
+func (d *Decoder) g1LineEnd() (*G1LineEnd, error) {
+	startPos := d.Pos()
+
+	r, _ := d.nextR()
+	if r != '\n' {
+		return nil, token.NewPosError(d.node(), "expected newline")
+	}
+
+	lineEnd := &G1LineEnd{}
+	lineEnd.Position.BeginPos = startPos
+	lineEnd.Position.EndPos = d.pos
+
+	return lineEnd, nil
 }

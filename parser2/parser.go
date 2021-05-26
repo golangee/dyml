@@ -10,6 +10,16 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
+// LexerMode is used to identify if the lexer is
+// in grammar 1, grammar 2, or parsing a single line in grammar 1.
+type LexerMode int
+
+const (
+	G1 LexerMode = iota
+	G2
+	G1Line
+)
+
 // A Token is an interface holding one of the token types:
 // Element, EndElement, Comment
 type Token interface {
@@ -29,8 +39,9 @@ type Decoder struct {
 	bufPos    int
 	pos       token.Pos // current position
 	lastToken Token
-	// g2Mode is true if the decoder has been set to node first mode with #!{...}
-	g2Mode bool
+	mode      LexerMode
+	// wantIdentifier is true if the next token should be parsed as an identifier.
+	wantIdentifier bool
 }
 
 // NewDecoder creates a new instance, ready to start parsing
@@ -65,7 +76,7 @@ func (d *Decoder) Token() (Token, error) {
 		// No previous token means we just started lexing.
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
-			d.g2Mode = true
+			d.mode = G2
 			tok, err = d.g2Preambel()
 			d.gSkipWhitespace()
 			d.lastToken = tok
@@ -73,9 +84,51 @@ func (d *Decoder) Token() (Token, error) {
 		}
 	}
 
-	if d.g2Mode {
-		// G2 grammar rules
-
+	switch d.mode {
+	case G1:
+		if d.wantIdentifier {
+			tok, err = d.gIdent()
+			d.gSkipWhitespace()
+			d.wantIdentifier = false
+		} else if r1 == '#' {
+			tok, err = d.gDefineElement()
+			d.wantIdentifier = true
+		} else if r1 == '@' {
+			tok, err = d.gDefineAttribute()
+			d.wantIdentifier = true
+		} else if r1 == '{' {
+			tok, err = d.gBlockStart()
+		} else if r1 == '}' {
+			tok, err = d.gBlockEnd()
+			d.gSkipWhitespace()
+		} else {
+			tok, err = d.g1Text(false)
+		}
+	case G1Line:
+		if r1 == '\n' {
+			// Newline marks the end of this G1Line. Switch back to G2.
+			tok, err = d.g1LineEnd()
+			d.mode = G2
+			d.gSkipWhitespace()
+		} else if d.wantIdentifier {
+			tok, err = d.gIdent()
+			d.wantIdentifier = false
+			d.gSkipWhitespace()
+		} else if r1 == '#' {
+			tok, err = d.gDefineElement()
+			d.wantIdentifier = true
+		} else if r1 == '@' {
+			tok, err = d.gDefineAttribute()
+			d.wantIdentifier = true
+		} else if r1 == '{' {
+			tok, err = d.gBlockStart()
+		} else if r1 == '}' {
+			tok, err = d.gBlockEnd()
+			d.gSkipWhitespace()
+		} else {
+			tok, err = d.g1Text(true)
+		}
+	case G2:
 		if r1 == '{' {
 			tok, err = d.gBlockStart()
 		} else if r1 == '}' {
@@ -86,35 +139,19 @@ func (d *Decoder) Token() (Token, error) {
 			tok, err = d.gDefineAttribute()
 		} else if r1 == '#' {
 			tok, err = d.gDefineElement()
+			d.mode = G1Line
 		} else if r1 == '=' {
 			tok, err = d.g2Assign()
+		} else if r1 == ',' {
+			tok, err = d.g2Comma()
 		} else if d.gIdentChar(r1) {
 			tok, err = d.gIdent()
 		} else {
 			return nil, token.NewPosError(d.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
 		d.gSkipWhitespace()
-	} else {
-		// G1 grammar rules
-
-		if _, ok := d.lastToken.(*DefineElement); ok {
-			tok, err = d.gIdent()
-			d.gSkipWhitespace()
-		} else if _, ok := d.lastToken.(*DefineAttribute); ok {
-			tok, err = d.gIdent()
-			d.gSkipWhitespace()
-		} else if r1 == '#' {
-			tok, err = d.gDefineElement()
-		} else if r1 == '@' {
-			tok, err = d.gDefineAttribute()
-		} else if r1 == '{' {
-			tok, err = d.gBlockStart()
-		} else if r1 == '}' {
-			tok, err = d.gBlockEnd()
-			d.gSkipWhitespace()
-		} else {
-			tok, err = d.g1Text()
-		}
+	default:
+		return nil, errors.New("lexer in unknown mode")
 	}
 
 	// An EOF might occur while reading a token.

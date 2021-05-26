@@ -154,7 +154,7 @@ func (d *Decoder) gDefineElement() (*DefineElement, error) {
 
 	define := &DefineElement{}
 
-	// Check if this is a forwarding attribute
+	// Check if this is a forwarding element
 	r, err = d.nextR()
 	if r == '#' {
 		define.Forward = true
