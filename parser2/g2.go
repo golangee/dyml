@@ -101,6 +101,26 @@ func (d *Decoder) g2Comma() (*Comma, error) {
 	return comma, nil
 }
 
+// g2Pipe reads '|' which separates elements.
+func (d *Decoder) g2Pipe() (*Pipe, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil {
+		return nil, err
+	}
+
+	if r != '|' {
+		return nil, token.NewPosError(d.node(), "expected '|'")
+	}
+
+	pipe := &Pipe{}
+	pipe.Position.BeginPos = startPos
+	pipe.Position.EndPos = d.pos
+
+	return pipe, nil
+}
+
 // g2GroupStart reads the '(' that marks the start of a group.
 func (d *Decoder) g2GroupStart() (*GroupStart, error) {
 	startPos := d.Pos()

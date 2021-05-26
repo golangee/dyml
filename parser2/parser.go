@@ -152,6 +152,8 @@ func (d *Decoder) Token() (Token, error) {
 			tok, err = d.g2Assign()
 		} else if r1 == ',' {
 			tok, err = d.g2Comma()
+		} else if r1 == '|' {
+			tok, err = d.g2Pipe()
 		} else if d.gIdentChar(r1) {
 			tok, err = d.gIdent()
 		} else {
