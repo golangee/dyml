@@ -137,6 +137,15 @@ func TestTokenizer(t *testing.T) {
 		},
 
 		{
+			name: "g1 line comment",
+			text: "#? This is a comment.\nThis is not.",
+			want: NewTestSet().
+				G1Comment().
+				CharData("This is a comment.").
+				CharData("This is not."),
+		},
+
+		{
 			name: "empty g2",
 			text: "#!{}",
 			want: NewTestSet().
@@ -309,6 +318,23 @@ func TestTokenizer(t *testing.T) {
 				BlockStart().
 				DefineElement(false),
 		},
+
+		{
+			name: "g2 comment",
+			text: `#!{
+				// This is a comment
+				item // Another } comment # with { special characters
+			}`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				G2Comment().
+				CharData("This is a comment").
+				Identifier("item").
+				G2Comment().
+				CharData("Another } comment # with { special characters").
+				BlockEnd(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -450,6 +476,30 @@ func (ts *TestSet) G2Preambel() *TestSet {
 		}
 
 		return fmt.Errorf("G2Preambel: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) G2Comment() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*G2Comment); ok {
+			return nil
+		}
+
+		return fmt.Errorf("G2Comment: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) G1Comment() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*G1Comment); ok {
+			return nil
+		}
+
+		return fmt.Errorf("G1Comment: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

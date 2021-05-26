@@ -114,3 +114,17 @@ type Pipe struct {
 }
 
 func (t *Pipe) assertToken() {}
+
+// G1Comment is a '#?' that indicates a comment in G1.
+type G1Comment struct {
+	token.Position
+}
+
+func (t *G1Comment) assertToken() {}
+
+// G2Comment is a '//' that indicates a comment in G2.
+type G2Comment struct {
+	token.Position
+}
+
+func (t *G2Comment) assertToken() {}

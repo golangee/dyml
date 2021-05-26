@@ -20,6 +20,16 @@ const (
 	G1Line
 )
 
+// WantMode is used to make sure the next token is parsed as a specific thing.
+type WantMode int
+
+const (
+	// Nothing special needs to be expected.
+	WantNothing WantMode = iota
+	WantCommentLine
+	WantIdentifier
+)
+
 // A Token is an interface holding one of the token types:
 // Element, EndElement, Comment
 type Token interface {
@@ -40,8 +50,7 @@ type Decoder struct {
 	pos       token.Pos // current position
 	lastToken Token
 	mode      LexerMode
-	// wantIdentifier is true if the next token should be parsed as an identifier.
-	wantIdentifier bool
+	want      WantMode
 }
 
 // NewDecoder creates a new instance, ready to start parsing
@@ -86,16 +95,23 @@ func (d *Decoder) Token() (Token, error) {
 
 	switch d.mode {
 	case G1:
-		if d.wantIdentifier {
+		if d.want == WantIdentifier {
 			tok, err = d.gIdent()
 			d.gSkipWhitespace()
-			d.wantIdentifier = false
+			d.want = WantNothing
+		} else if d.want == WantCommentLine {
+			tok, err = d.gCommentLine()
+		} else if r1 == '#' && r2 == '?' {
+			// TODO Comment nodes are not yet supported.
+			tok, err = d.g1CommentStart()
+			d.want = WantCommentLine
+			d.gSkipWhitespace()
 		} else if r1 == '#' {
 			tok, err = d.gDefineElement()
-			d.wantIdentifier = true
+			d.want = WantIdentifier
 		} else if r1 == '@' {
 			tok, err = d.gDefineAttribute()
-			d.wantIdentifier = true
+			d.want = WantIdentifier
 		} else if r1 == '{' {
 			tok, err = d.gBlockStart()
 		} else if r1 == '}' {
@@ -109,17 +125,18 @@ func (d *Decoder) Token() (Token, error) {
 			// Newline marks the end of this G1Line. Switch back to G2.
 			tok, err = d.g1LineEnd()
 			d.mode = G2
+			d.want = WantNothing
 			d.gSkipWhitespace()
-		} else if d.wantIdentifier {
+		} else if d.want == WantIdentifier {
 			tok, err = d.gIdent()
-			d.wantIdentifier = false
+			d.want = WantNothing
 			d.gSkipWhitespace()
 		} else if r1 == '#' {
 			tok, err = d.gDefineElement()
-			d.wantIdentifier = true
+			d.want = WantIdentifier
 		} else if r1 == '@' {
 			tok, err = d.gDefineAttribute()
-			d.wantIdentifier = true
+			d.want = WantIdentifier
 		} else if r1 == '{' {
 			tok, err = d.gBlockStart()
 		} else if r1 == '}' {
@@ -129,7 +146,10 @@ func (d *Decoder) Token() (Token, error) {
 			tok, err = d.g1Text(true)
 		}
 	case G2:
-		if r1 == '{' {
+		if d.want == WantCommentLine {
+			tok, err = d.gCommentLine()
+			d.want = WantNothing
+		} else if r1 == '{' {
 			tok, err = d.gBlockStart()
 		} else if r1 == '}' {
 			tok, err = d.gBlockEnd()
@@ -146,6 +166,7 @@ func (d *Decoder) Token() (Token, error) {
 		} else if r1 == '@' {
 			tok, err = d.gDefineAttribute()
 		} else if r1 == '#' {
+			// A '#' marks the start of a G1 line.
 			tok, err = d.gDefineElement()
 			d.mode = G1Line
 		} else if r1 == '=' {
@@ -154,6 +175,10 @@ func (d *Decoder) Token() (Token, error) {
 			tok, err = d.g2Comma()
 		} else if r1 == '|' {
 			tok, err = d.g2Pipe()
+		} else if r1 == '/' {
+			tok, err = d.g2CommentStart()
+			d.gSkipWhitespace()
+			d.want = WantCommentLine
 		} else if d.gIdentChar(r1) {
 			tok, err = d.gIdent()
 		} else {

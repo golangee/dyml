@@ -204,3 +204,23 @@ func (d *Decoder) g2GenericEnd() (*GenericEnd, error) {
 	return genericEnd, nil
 
 }
+
+// g2CommentStart reads a '//' that marks the start of a line comment in G2.
+func (d *Decoder) g2CommentStart() (*G2Comment, error) {
+	startPos := d.Pos()
+
+	// Eat '//' from input
+	for i := 0; i < 2; i++ {
+		r, _ := d.nextR()
+		if r != '/' {
+			return nil, token.NewPosError(d.node(), "expected '//' for line comment")
+		}
+	}
+
+	comment := &G2Comment{}
+	comment.Position.BeginPos = startPos
+	comment.Position.EndPos = d.pos
+
+	return comment, nil
+
+}

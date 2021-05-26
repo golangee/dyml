@@ -176,3 +176,38 @@ func (d *Decoder) gIsEscaped() bool {
 
 	return false
 }
+
+// gCommentLine reads arbitrary text for the rest of the line.
+func (d *Decoder) gCommentLine() (*CharData, error) {
+	startPos := d.Pos()
+
+	var tmp bytes.Buffer
+
+	for {
+		r, err := d.nextR()
+		if errors.Is(err, io.EOF) {
+			if tmp.Len() == 0 {
+				return nil, io.EOF
+			}
+
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if r == '\n' {
+			break
+		}
+
+		tmp.WriteRune(r)
+	}
+
+	text := &CharData{}
+	text.Value = tmp.String()
+	text.Position.BeginPos = startPos
+	text.Position.EndPos = d.pos
+
+	return text, nil
+}

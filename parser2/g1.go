@@ -72,3 +72,25 @@ func (d *Decoder) g1LineEnd() (*G1LineEnd, error) {
 
 	return lineEnd, nil
 }
+
+// g1CommentStart reads a '#?' that marks the start of a comment in G1.
+func (d *Decoder) g1CommentStart() (*G1Comment, error) {
+	startPos := d.Pos()
+
+	// Eat '#?' from input
+	r, _ := d.nextR()
+	if r != '#' {
+		return nil, token.NewPosError(d.node(), "expected '#?' for comment")
+	}
+	r, _ = d.nextR()
+	if r != '?' {
+		return nil, token.NewPosError(d.node(), "expected '#?' for comment")
+	}
+
+	comment := &G1Comment{}
+	comment.Position.BeginPos = startPos
+	comment.Position.EndPos = d.pos
+
+	return comment, nil
+
+}
