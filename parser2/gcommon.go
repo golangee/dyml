@@ -129,7 +129,7 @@ func (d *Decoder) gDefineAttribute() (*DefineAttribute, error) {
 	r, err = d.nextR()
 	if r == '@' {
 		attr.Forward = true
-	} else {
+	} else if err == nil {
 		d.prevR()
 	}
 
@@ -158,7 +158,7 @@ func (d *Decoder) gDefineElement() (*DefineElement, error) {
 	r, err = d.nextR()
 	if r == '#' {
 		define.Forward = true
-	} else {
+	} else if err == nil {
 		d.prevR()
 	}
 

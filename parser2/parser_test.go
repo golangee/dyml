@@ -300,6 +300,15 @@ func TestTokenizer(t *testing.T) {
 				GenericEnd().
 				BlockEnd(),
 		},
+
+		{
+			name: "incomplete g2",
+			text: `#!{#`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				DefineElement(false),
+		},
 	}
 
 	for _, tt := range tests {
