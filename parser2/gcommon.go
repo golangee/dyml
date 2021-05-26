@@ -8,7 +8,7 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
-// gBlockStart reads the '{' that marks the end of a block.
+// gBlockStart reads the '{' that marks the start of a block.
 func (d *Decoder) gBlockStart() (*BlockStart, error) {
 	startPos := d.Pos()
 

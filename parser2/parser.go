@@ -133,6 +133,14 @@ func (d *Decoder) Token() (Token, error) {
 			tok, err = d.gBlockStart()
 		} else if r1 == '}' {
 			tok, err = d.gBlockEnd()
+		} else if r1 == '(' {
+			tok, err = d.g2GroupStart()
+		} else if r1 == ')' {
+			tok, err = d.g2GroupEnd()
+		} else if r1 == '<' {
+			tok, err = d.g2GenericStart()
+		} else if r1 == '>' {
+			tok, err = d.g2GenericEnd()
 		} else if r1 == '"' {
 			tok, err = d.g2CharData()
 		} else if r1 == '@' {

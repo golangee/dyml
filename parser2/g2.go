@@ -100,3 +100,87 @@ func (d *Decoder) g2Comma() (*Comma, error) {
 
 	return comma, nil
 }
+
+// g2GroupStart reads the '(' that marks the start of a group.
+func (d *Decoder) g2GroupStart() (*GroupStart, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	if r != '(' {
+		return nil, token.NewPosError(d.node(), "expected '('")
+	}
+
+	groupStart := &GroupStart{}
+	groupStart.Position.BeginPos = startPos
+	groupStart.Position.EndPos = d.pos
+
+	return groupStart, nil
+
+}
+
+// g2GroupEnd reads the ')' that marks the end of a group.
+func (d *Decoder) g2GroupEnd() (*GroupEnd, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	if r != ')' {
+		return nil, token.NewPosError(d.node(), "expected ')'")
+	}
+
+	groupEnd := &GroupEnd{}
+	groupEnd.Position.BeginPos = startPos
+	groupEnd.Position.EndPos = d.pos
+
+	return groupEnd, nil
+
+}
+
+// g2GenericStart reads the '<' that marks the start of a generic group.
+func (d *Decoder) g2GenericStart() (*GenericStart, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	if r != '<' {
+		return nil, token.NewPosError(d.node(), "expected '<'")
+	}
+
+	genericStart := &GenericStart{}
+	genericStart.Position.BeginPos = startPos
+	genericStart.Position.EndPos = d.pos
+
+	return genericStart, nil
+
+}
+
+// g2GenericEnd reads the '>' that marks the end of a generic group.
+func (d *Decoder) g2GenericEnd() (*GenericEnd, error) {
+	startPos := d.Pos()
+
+	r, err := d.nextR()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	if r != '>' {
+		return nil, token.NewPosError(d.node(), "expected '>'")
+	}
+
+	genericEnd := &GenericEnd{}
+	genericEnd.Position.BeginPos = startPos
+	genericEnd.Position.EndPos = d.pos
+
+	return genericEnd, nil
+
+}

@@ -267,6 +267,23 @@ func TestTokenizer(t *testing.T) {
 				Identifier("item").
 				BlockEnd(),
 		},
+
+		{
+			name: "g2 with simple groups",
+			text: `#!{ ( ) < >()<> }`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				GroupStart().
+				GroupEnd().
+				GenericStart().
+				GenericEnd().
+				GroupStart().
+				GroupEnd().
+				GenericStart().
+				GenericEnd().
+				BlockEnd(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -348,6 +365,54 @@ func (ts *TestSet) BlockEnd() *TestSet {
 		}
 
 		return fmt.Errorf("BlockEnd: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) GroupStart() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*GroupStart); ok {
+			return nil
+		}
+
+		return fmt.Errorf("GroupStart: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) GroupEnd() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*GroupEnd); ok {
+			return nil
+		}
+
+		return fmt.Errorf("GroupEnd: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) GenericStart() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*GenericStart); ok {
+			return nil
+		}
+
+		return fmt.Errorf("GenericStart: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) GenericEnd() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*GenericEnd); ok {
+			return nil
+		}
+
+		return fmt.Errorf("GenericEnd: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
