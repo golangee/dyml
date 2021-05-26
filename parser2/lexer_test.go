@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestTokenizer(t *testing.T) {
+func TestLexer(t *testing.T) {
 	tests := []struct {
 		name    string
 		text    string
@@ -604,8 +604,8 @@ func (ts *TestSet) Assert(tokens []Token, t *testing.T) {
 	}
 }
 
-func newTestDec(text string) *Decoder {
-	return NewDecoder("parser_test.go", bytes.NewBuffer([]byte(text)))
+func newTestDec(text string) *Lexer {
+	return NewLexer("lexer_test.go", bytes.NewBuffer([]byte(text)))
 }
 
 func parseTokens(text string) ([]Token, error) {

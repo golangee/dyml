@@ -15,11 +15,11 @@ func debugStrOfRune(r rune) string {
 
 // g1Text parses a text sequence until next control char # or } or EOF.
 // If stopAtNewline is set, we will stop the parser before the newline rune.
-func (d *Decoder) g1Text(stopAtNewline bool) (*CharData, error) {
-	startPos := d.Pos()
+func (l *Lexer) g1Text(stopAtNewline bool) (*CharData, error) {
+	startPos := l.Pos()
 	var tmp bytes.Buffer
 	for {
-		r, err := d.nextR()
+		r, err := l.nextR()
 		if errors.Is(err, io.EOF) {
 			if tmp.Len() == 0 {
 				return nil, io.EOF
@@ -33,16 +33,16 @@ func (d *Decoder) g1Text(stopAtNewline bool) (*CharData, error) {
 		}
 
 		if stopAtNewline && r == '\n' {
-			d.prevR()
+			l.prevR()
 			break
 		}
 
 		if r == '#' || r == '}' {
-			if d.gIsEscaped() {
+			if l.gIsEscaped() {
 				// Remove previous '\'
 				tmp.Truncate(tmp.Len() - 1)
 			} else {
-				d.prevR() // reset last read char
+				l.prevR() // reset last read char
 				break
 			}
 		}
@@ -53,43 +53,43 @@ func (d *Decoder) g1Text(stopAtNewline bool) (*CharData, error) {
 	text := &CharData{}
 	text.Value = tmp.String()
 	text.Position.BeginPos = startPos
-	text.Position.EndPos = d.pos
+	text.Position.EndPos = l.pos
 
 	return text, nil
 }
 
-func (d *Decoder) g1LineEnd() (*G1LineEnd, error) {
-	startPos := d.Pos()
+func (l *Lexer) g1LineEnd() (*G1LineEnd, error) {
+	startPos := l.Pos()
 
-	r, _ := d.nextR()
+	r, _ := l.nextR()
 	if r != '\n' {
-		return nil, token.NewPosError(d.node(), "expected newline")
+		return nil, token.NewPosError(l.node(), "expected newline")
 	}
 
 	lineEnd := &G1LineEnd{}
 	lineEnd.Position.BeginPos = startPos
-	lineEnd.Position.EndPos = d.pos
+	lineEnd.Position.EndPos = l.pos
 
 	return lineEnd, nil
 }
 
 // g1CommentStart reads a '#?' that marks the start of a comment in G1.
-func (d *Decoder) g1CommentStart() (*G1Comment, error) {
-	startPos := d.Pos()
+func (l *Lexer) g1CommentStart() (*G1Comment, error) {
+	startPos := l.Pos()
 
 	// Eat '#?' from input
-	r, _ := d.nextR()
+	r, _ := l.nextR()
 	if r != '#' {
-		return nil, token.NewPosError(d.node(), "expected '#?' for comment")
+		return nil, token.NewPosError(l.node(), "expected '#?' for comment")
 	}
-	r, _ = d.nextR()
+	r, _ = l.nextR()
 	if r != '?' {
-		return nil, token.NewPosError(d.node(), "expected '#?' for comment")
+		return nil, token.NewPosError(l.node(), "expected '#?' for comment")
 	}
 
 	comment := &G1Comment{}
 	comment.Position.BeginPos = startPos
-	comment.Position.EndPos = d.pos
+	comment.Position.EndPos = l.pos
 
 	return comment, nil
 
