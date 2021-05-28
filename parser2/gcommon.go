@@ -8,53 +8,53 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
-// gBlockStart reads the '{' that marks the end of a block.
-func (d *Decoder) gBlockStart() (*BlockStart, error) {
-	startPos := d.Pos()
+// gBlockStart reads the '{' that marks the start of a block.
+func (l *Lexer) gBlockStart() (*BlockStart, error) {
+	startPos := l.Pos()
 
-	r, err := d.nextR()
+	r, err := l.nextR()
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
 	if r != '{' {
-		return nil, token.NewPosError(d.node(), "expected '{'")
+		return nil, token.NewPosError(l.node(), "expected '{'")
 	}
 
 	blockStart := &BlockStart{}
 	blockStart.Position.BeginPos = startPos
-	blockStart.Position.EndPos = d.pos
+	blockStart.Position.EndPos = l.pos
 
 	return blockStart, nil
 
 }
 
 // gBlockEnd reads the '}' that marks the end of a block.
-func (d *Decoder) gBlockEnd() (*BlockEnd, error) {
-	startPos := d.Pos()
+func (l *Lexer) gBlockEnd() (*BlockEnd, error) {
+	startPos := l.Pos()
 
-	r, err := d.nextR()
+	r, err := l.nextR()
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
 	if r != '}' {
-		return nil, token.NewPosError(d.node(), "expected '}'")
+		return nil, token.NewPosError(l.node(), "expected '}'")
 	}
 
 	blockEnd := &BlockEnd{}
 	blockEnd.Position.BeginPos = startPos
-	blockEnd.Position.EndPos = d.pos
+	blockEnd.Position.EndPos = l.pos
 
 	return blockEnd, nil
 
 }
 
 // Skip whitespace characters
-func (d *Decoder) gSkipWhitespace() error {
+func (l *Lexer) gSkipWhitespace() error {
 
 	for {
-		r, err := d.nextR()
+		r, err := l.nextR()
 		if err != nil {
 			return err
 		}
@@ -64,18 +64,18 @@ func (d *Decoder) gSkipWhitespace() error {
 			continue
 		default:
 			// We got a non-whitespace, rewind and return
-			d.prevR()
+			l.prevR()
 			return nil
 		}
 	}
 }
 
 // gIdent parses a text sequence until next control char # or } or EOF or whitespace.
-func (d *Decoder) gIdent() (*Identifier, error) {
-	startPos := d.Pos()
+func (l *Lexer) gIdent() (*Identifier, error) {
+	startPos := l.Pos()
 	var tmp bytes.Buffer
 	for {
-		r, err := d.nextR()
+		r, err := l.nextR()
 		if errors.Is(err, io.EOF) {
 			if tmp.Len() == 0 {
 				return nil, io.EOF
@@ -88,8 +88,8 @@ func (d *Decoder) gIdent() (*Identifier, error) {
 			return nil, err
 		}
 
-		if !d.gIdentChar(r) {
-			d.prevR() // reset last read char
+		if !l.gIdentChar(r) {
+			l.prevR() // reset last read char
 			break
 		}
 
@@ -100,79 +100,114 @@ func (d *Decoder) gIdent() (*Identifier, error) {
 	ident := &Identifier{}
 	ident.Value = tmp.String()
 	ident.Position.BeginPos = startPos
-	ident.Position.EndPos = d.pos
+	ident.Position.EndPos = l.pos
 
 	return ident, nil
 }
 
 // gIdentChar is [a-zA-Z0-9_]
-func (d *Decoder) gIdentChar(r rune) bool {
+func (l *Lexer) gIdentChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || (r == '_')
 }
 
 // gDefineAttribute reads the '@' that starts an attribute.
-func (d *Decoder) gDefineAttribute() (*DefineAttribute, error) {
-	startPos := d.Pos()
+func (l *Lexer) gDefineAttribute() (*DefineAttribute, error) {
+	startPos := l.Pos()
 
-	r, err := d.nextR()
+	r, err := l.nextR()
 	if err != nil {
 		return nil, err
 	}
 
 	if r != '@' {
-		return nil, token.NewPosError(d.node(), "expected '@' (attribute definition)")
+		return nil, token.NewPosError(l.node(), "expected '@' (attribute definition)")
 	}
 
 	attr := &DefineAttribute{}
 
 	// Check if this is a forwarding attribute
-	r, err = d.nextR()
+	r, err = l.nextR()
 	if r == '@' {
 		attr.Forward = true
-	} else {
-		d.prevR()
+	} else if err == nil {
+		l.prevR()
 	}
 
 	attr.Position.BeginPos = startPos
-	attr.Position.EndPos = d.pos
+	attr.Position.EndPos = l.pos
 
 	return attr, nil
 }
 
 // gDefineElement reads the '#' that starts an element in G1 or switches to a G1-line in G2.
-func (d *Decoder) gDefineElement() (*DefineElement, error) {
-	startPos := d.Pos()
+func (l *Lexer) gDefineElement() (*DefineElement, error) {
+	startPos := l.Pos()
 
-	r, err := d.nextR()
+	r, err := l.nextR()
 	if err != nil {
 		return nil, err
 	}
 
 	if r != '#' {
-		return nil, token.NewPosError(d.node(), "expected '#' (element definition)")
+		return nil, token.NewPosError(l.node(), "expected '#' (element definition)")
 	}
 
 	define := &DefineElement{}
 
-	// Check if this is a forwarding attribute
-	r, err = d.nextR()
+	// Check if this is a forwarding element
+	r, err = l.nextR()
 	if r == '#' {
 		define.Forward = true
-	} else {
-		d.prevR()
+	} else if err == nil {
+		l.prevR()
 	}
 
 	define.Position.BeginPos = startPos
-	define.Position.EndPos = d.pos
+	define.Position.EndPos = l.pos
 
 	return define, nil
 }
 
 // gIsEscaped checks if the last read rune is a '\'.
-func (d *Decoder) gIsEscaped() bool {
-	if r, ok := d.lastRune(-2); ok {
+func (l *Lexer) gIsEscaped() bool {
+	if r, ok := l.lastRune(-2); ok {
 		return r == '\\'
 	}
 
 	return false
+}
+
+// gCommentLine reads arbitrary text for the rest of the line.
+func (l *Lexer) gCommentLine() (*CharData, error) {
+	startPos := l.Pos()
+
+	var tmp bytes.Buffer
+
+	for {
+		r, err := l.nextR()
+		if errors.Is(err, io.EOF) {
+			if tmp.Len() == 0 {
+				return nil, io.EOF
+			}
+
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if r == '\n' {
+			break
+		}
+
+		tmp.WriteRune(r)
+	}
+
+	text := &CharData{}
+	text.Value = tmp.String()
+	text.Position.BeginPos = startPos
+	text.Position.EndPos = l.pos
+
+	return text, nil
 }
