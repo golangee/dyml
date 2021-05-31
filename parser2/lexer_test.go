@@ -79,7 +79,7 @@ func TestLexer(t *testing.T) {
 
 		{
 			name: "more attribs",
-			text: `#img @id{5} 	@alt{an image}    @href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
+			text: `#img @id{5} 	@alt{an image}    @href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}   	`,
 			want: NewTestSet().
 				DefineElement(false).
 				Identifier("img").
@@ -102,7 +102,7 @@ func TestLexer(t *testing.T) {
 
 		{
 			name: "more attribs without spaces",
-			text: `#img@id{5}@alt{an image}@href{https://worldiety.de/yada?a=b&c=d\#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
+			text: `#img@id{5}@alt{an image}@href{https://worldiety.de/yada?a=b&c=d#anchor-in-string-special-case&%20%C3%A4%23%265%3C%7B%7D}`,
 			want: NewTestSet().
 				DefineElement(false).
 				Identifier("img").
