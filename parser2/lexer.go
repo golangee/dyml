@@ -102,6 +102,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantNothing
 		} else if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
+			l.want = WantNothing
 		} else if r1 == '#' && r2 == '?' {
 			// TODO Comment nodes are not yet supported.
 			tok, err = l.g1CommentStart()
@@ -115,6 +116,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantIdentifier
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
+			l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
 			l.gSkipWhitespace()
@@ -140,6 +142,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantIdentifier
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
+			l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
 			l.gSkipWhitespace()
