@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/golangee/tadl/token"
 )
@@ -13,9 +14,8 @@ func debugStrOfRune(r rune) string {
 	return "'" + string(r) + "' (0x" + strconv.FormatInt(int64(r), 16) + ")"
 }
 
-// g1Text parses a text sequence until next control char # or } or EOF.
-// If stopAtNewline is set, we will stop the parser before the newline rune.
-func (l *Lexer) g1Text(stopAtNewline bool) (*CharData, error) {
+// g1Text parses a text sequence until next rune is in stopAt or EOF.
+func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 	startPos := l.Pos()
 	var tmp bytes.Buffer
 	for {
@@ -32,12 +32,7 @@ func (l *Lexer) g1Text(stopAtNewline bool) (*CharData, error) {
 			return nil, err
 		}
 
-		if stopAtNewline && r == '\n' {
-			l.prevR()
-			break
-		}
-
-		if r == '#' || r == '}' {
+		if strings.ContainsRune(stopAt, r) {
 			if l.gIsEscaped() {
 				// Remove previous '\'
 				tmp.Truncate(tmp.Len() - 1)

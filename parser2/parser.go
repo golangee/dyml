@@ -12,15 +12,17 @@ import (
 // For terminal text nodes Children and Name will be empty and Text will be set.
 // TODO The positions from the lexer need to be saved in the nodes.
 type TreeNode struct {
-	Name     string
-	Text     *string
-	Children []*TreeNode
+	Name       string
+	Text       *string
+	Attributes map[string]string
+	Children   []*TreeNode
 }
 
 // NewNode creates a new node for the parse tree.
 func NewNode(name string) *TreeNode {
 	return &TreeNode{
-		Name: name,
+		Name:       name,
+		Attributes: make(map[string]string),
 	}
 }
 
@@ -39,7 +41,8 @@ func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
-	panic("AddAttribute not implemented")
+	t.Attributes[key] = value
+	return t
 }
 
 // tokenWithError is a struct that wraps a Token and an error that may
@@ -175,7 +178,50 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
 	}
 
-	// TODO Attributes
+	// Process all attributes
+	// TODO Forwarded attributes
+	for {
+		tok, _ = p.peek()
+		if tok.tokenType() != TokenDefineAttribute {
+			break
+		}
+
+		p.next() // Pop the token since we know it's a DefineAttribute
+
+		// Read attribute key
+		attrKey := ""
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if ident, ok := tok.(*Identifier); ok {
+			attrKey = ident.Value
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+		}
+
+		// Read CharData enclosed in brackets as attribute value
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockStart {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
+		}
+
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if cd, ok := tok.(*CharData); ok {
+			node.AddAttribute(attrKey, cd.Value)
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenCharData)
+		}
+
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockEnd {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+		}
+
+	}
 
 	// Optional children enclosed in brackets
 	tok, _ = p.peek()

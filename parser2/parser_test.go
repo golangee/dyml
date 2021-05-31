@@ -54,6 +54,25 @@ func TestParser(t *testing.T) {
 				NewNode("F"),
 			),
 		},
+		{
+			name: "attributes",
+			text: `#item @id{5} @hello{world} @complex{attribute "with" #special 'chars}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("id", "5").
+					AddAttribute("hello", "world").
+					AddAttribute("complex", `attribute "with" #special 'chars`),
+			),
+		},
+		{
+			name: "attribute in nested element",
+			text: "#item { #subitem @hello{world} }",
+			want: NewNode("root").AddChildren(
+				NewNode("item").AddChildren(
+					NewNode("subitem").AddAttribute("hello", "world"),
+				),
+			),
+		},
 	}
 
 	for _, tt := range tests {

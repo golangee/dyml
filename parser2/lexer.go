@@ -21,13 +21,20 @@ const (
 )
 
 // WantMode is used to make sure the next token is lexed as a specific thing.
-type WantMode int
+type WantMode string
 
 const (
 	// Nothing special needs to be expected.
-	WantNothing WantMode = iota
-	WantCommentLine
-	WantIdentifier
+	WantNothing     WantMode = "Nothing"
+	WantCommentLine WantMode = "CommentLine"
+	WantIdentifier  WantMode = "Identifier"
+	// G1 attributes are special, as the whole text inside the brackets has
+	// to be lexed as one CharData token. We need several new WantModes to
+	// properly expect all tokens in "@key{value}" after a "@" appeared.
+	WantG1AttributeIdent    WantMode = "G1AttributeIdent"
+	WantG1AttributeStart    WantMode = "G1AttributeStart"
+	WantG1AttributeCharData WantMode = "G1AttributeCharData"
+	WantG1AttributeEnd      WantMode = "G1AttributeEnd"
 )
 
 // A Token is an interface for all possible token types.
@@ -45,24 +52,26 @@ type runeWithPos struct {
 
 // Lexer can be used to get individual tokens.
 type Lexer struct {
-	r         *bufio.Reader
-	buf       []runeWithPos //TODO truncate to avoid streaming memory leak
-	bufPos    int
-	pos       token.Pos // current position
-	lastToken Token
-	mode      GrammarMode
-	want      WantMode
+	r      *bufio.Reader
+	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
+	bufPos int
+	pos    token.Pos // current position
+	// started is only used to detect if the first token is the G2Preambel
+	started bool
+	mode    GrammarMode
+	want    WantMode
 }
 
 // NewLexer creates a new instance, ready to start parsing
 func NewLexer(filename string, r io.Reader) *Lexer {
-	d := &Lexer{}
-	d.r = bufio.NewReader(r)
-	d.pos.File = filename
-	d.pos.Line = 1
-	d.pos.Col = 1
+	l := &Lexer{}
+	l.r = bufio.NewReader(r)
+	l.pos.File = filename
+	l.pos.Line = 1
+	l.pos.Col = 1
+	l.want = WantNothing
 
-	return d
+	return l
 }
 
 // Token returns the next TADL token in the input stream.
@@ -82,16 +91,49 @@ func (l *Lexer) Token() (Token, error) {
 
 	var tok Token
 
-	if l.lastToken == nil {
-		// No previous token means we just started lexing.
+	if !l.started {
+		l.started = true
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
 			l.mode = G2
 			tok, err = l.g2Preambel()
 			l.gSkipWhitespace()
-			l.lastToken = tok
 			return tok, err
 		}
+	}
+
+	// Special handling for G1 attributes
+	switch l.want {
+	case WantG1AttributeIdent:
+		tok, err = l.gIdent()
+		if err != nil {
+			return nil, err
+		}
+		l.gSkipWhitespace()
+		l.want = WantG1AttributeStart
+		return tok, err
+	case WantG1AttributeStart:
+		tok, err = l.gBlockStart()
+		if err != nil {
+			return nil, err
+		}
+		l.want = WantG1AttributeCharData
+		return tok, err
+	case WantG1AttributeCharData:
+		tok, err = l.g1Text("}")
+		if err != nil {
+			return nil, err
+		}
+		l.want = WantG1AttributeEnd
+		return tok, err
+	case WantG1AttributeEnd:
+		tok, err = l.gBlockEnd()
+		if err != nil {
+			return nil, err
+		}
+		l.want = WantNothing
+		l.gSkipWhitespace()
+		return tok, err
 	}
 
 	switch l.mode {
@@ -113,7 +155,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantIdentifier
 		} else if r1 == '@' {
 			tok, err = l.gDefineAttribute()
-			l.want = WantIdentifier
+			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
 			l.gSkipWhitespace()
@@ -121,7 +163,7 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.gBlockEnd()
 			l.gSkipWhitespace()
 		} else {
-			tok, err = l.g1Text(false)
+			tok, err = l.g1Text("#}")
 		}
 	case G1Line:
 		if r1 == '\n' {
@@ -139,7 +181,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantIdentifier
 		} else if r1 == '@' {
 			tok, err = l.gDefineAttribute()
-			l.want = WantIdentifier
+			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
 			l.gSkipWhitespace()
@@ -147,7 +189,7 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.gBlockEnd()
 			l.gSkipWhitespace()
 		} else {
-			tok, err = l.g1Text(true)
+			tok, err = l.g1Text("#}\n")
 		}
 	case G2:
 		if l.want == WantCommentLine {
@@ -204,10 +246,6 @@ func (l *Lexer) Token() (Token, error) {
 		} else {
 			return nil, err
 		}
-	}
-
-	if tok != nil {
-		l.lastToken = tok
 	}
 
 	return tok, nil
