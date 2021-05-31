@@ -32,8 +32,10 @@ const (
 
 // A Token is an interface for all possible token types.
 type Token interface {
-	assertToken()
+	tokenType() TokenType
 }
+
+type TokenType string
 
 type runeWithPos struct {
 	r    rune
