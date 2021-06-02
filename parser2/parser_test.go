@@ -96,6 +96,53 @@ func TestParser(t *testing.T) {
 				NewNode("G"),
 			),
 		},
+		{
+			name:    "invalid dangling forward element",
+			text:    `##item`,
+			wantErr: true,
+		},
+		{
+			name: "forwarded attributes",
+			text: `#A
+					@simple{attribute}
+					@@forwarded{attribute}
+					@@another{forwarded}
+					#B
+					@simple{attribute}
+					#C`,
+			want: NewNode("root").AddChildren(
+				NewNode("A").
+					AddAttribute("simple", "attribute"),
+				NewNode("B").
+					AddAttribute("forwarded", "attribute").
+					AddAttribute("another", "forwarded").
+					AddAttribute("simple", "attribute"),
+				NewNode("C"),
+			),
+		},
+		{
+			name: "mixed forwarded attributes and elements",
+			text: `##subA @@key{value} ##subB @@another_key{more_value} #item`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("another_key", "more_value").
+					AddChildren(
+						NewNode("subA"),
+						NewNode("subB").
+							AddAttribute("key", "value"),
+					),
+			),
+		},
+		{
+			name:    "invalid simple attribute",
+			text:    `@key{value} #item`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid dangling forward attribute",
+			text:    `@@key{value}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -14,7 +14,7 @@ import (
 type TreeNode struct {
 	Name       string
 	Text       *string
-	Attributes map[string]string
+	Attributes AttributeMap
 	Children   []*TreeNode
 }
 
@@ -22,7 +22,7 @@ type TreeNode struct {
 func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
-		Attributes: make(map[string]string),
+		Attributes: NewAttributeMap(),
 	}
 }
 
@@ -41,8 +41,33 @@ func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
-	t.Attributes[key] = value
+	t.Attributes.Set(key, value)
 	return t
+}
+
+// AttributeMap is a simple wrapper around a map[string]string to make the
+// handling of attributes easier.
+type AttributeMap map[string]string
+
+func NewAttributeMap() AttributeMap {
+	return make(map[string]string)
+}
+
+// Set sets a key to a value in this map.
+func (a AttributeMap) Set(key, value string) {
+	a[key] = value
+}
+
+// Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
+func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
+	result := NewAttributeMap()
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, v := range other {
+		result[k] = v
+	}
+	return result
 }
 
 // tokenWithError is a struct that wraps a Token and an error that may
@@ -78,7 +103,7 @@ func NewParser(filename string, r io.Reader) *Parser {
 }
 
 // next returns the next token or (nil, io.EOF) if there are no more tokens.
-// Repeately calling this can be used to get all tokens by advancing the lexer.
+// Repeatedly calling this can be used to get all tokens by advancing the lexer.
 func (p *Parser) next() (Token, error) {
 
 	// Check the buffer for tokens
@@ -157,6 +182,12 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 
 	forwardingNode := false
 
+	// Parse forwarding attributes
+	forwardedAttributes, err := p.parseAttributes(true)
+	if err != nil {
+		return nil, err
+	}
+
 	// Expect ElementDefinition or CharData
 	tok, err := p.next()
 	if err != nil {
@@ -189,50 +220,13 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		p.forwardingNodes = nil
 	}
 
-	// Process all attributes
-	// TODO Forwarded attributes
-	for {
-		tok, _ = p.peek()
-		if tok.tokenType() != TokenDefineAttribute {
-			break
-		}
-
-		p.next() // Pop the token since we know it's a DefineAttribute
-
-		// Read attribute key
-		attrKey := ""
-		tok, err = p.next()
-		if err != nil {
-			return nil, err
-		}
-		if ident, ok := tok.(*Identifier); ok {
-			attrKey = ident.Value
-		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
-		}
-
-		// Read CharData enclosed in brackets as attribute value
-		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockStart {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
-		}
-
-		tok, err = p.next()
-		if err != nil {
-			return nil, err
-		}
-		if cd, ok := tok.(*CharData); ok {
-			node.AddAttribute(attrKey, cd.Value)
-		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenCharData)
-		}
-
-		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockEnd {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
-		}
-
+	// Process non-forwarding attributes.
+	attributes, err := p.parseAttributes(false)
+	if err != nil {
+		return nil, err
 	}
+
+	node.Attributes = forwardedAttributes.Merge(attributes)
 
 	// Optional children enclosed in brackets
 	tok, _ = p.peek()
@@ -272,6 +266,83 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	}
 
 	return node, nil
+}
+
+// parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.
+// forwarding specifies if regular or forwarding attributes should be parsed.
+// The function returns when a non-attribute is encountered. Should an attribute be parsed
+// that is the wrong type of forwarding, it will return an error.
+func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
+	result := NewAttributeMap()
+
+	for {
+
+		tok, err := p.peek()
+		if err != nil {
+			break
+		}
+
+		if attr, ok := tok.(*DefineAttribute); ok {
+			if wantForward && !attr.Forward {
+				// TODO More user friendly error message
+				return nil, fmt.Errorf("expected a forwarding attribute")
+			}
+			if !wantForward && attr.Forward {
+				// The next forwarding attribute is not for us, but for the next element.
+				// Stop parsing attributes here.
+				break
+			}
+
+			if wantForward != attr.Forward {
+				// Should never happen, as the two if-blocks make this impossible.
+				panic("Sanity check failed, wantForward != attr.Forward")
+			}
+
+			p.next() // pop DefineAttribute
+		} else {
+			break
+		}
+
+		attrKey := ""
+		attrValue := ""
+
+		// Read attribute key
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if ident, ok := tok.(*Identifier); ok {
+			attrKey = ident.Value
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+		}
+
+		// Read CharData enclosed in brackets as attribute value
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockStart {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
+		}
+
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if cd, ok := tok.(*CharData); ok {
+			attrValue = cd.Value
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenCharData)
+		}
+
+		result.Set(attrKey, attrValue)
+
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockEnd {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+		}
+
+	}
+
+	return result, nil
 }
 
 func NewUnexpectedTokenError(tok Token, wanted ...TokenType) error {
