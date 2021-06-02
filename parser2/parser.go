@@ -78,6 +78,34 @@ type tokenWithError struct {
 	err error
 }
 
+// UnexpectedTokenError is returned when a token appeared that the parser did not expect.
+// It provides expected alternatives for tokens that were expected instead.
+type UnexpectedTokenError struct {
+	tok      Token
+	expected []TokenType
+}
+
+func NewUnexpectedTokenError(tok Token, expected ...TokenType) error {
+	return UnexpectedTokenError{
+		tok:      tok,
+		expected: expected,
+	}
+}
+
+func (u UnexpectedTokenError) Error() string {
+	// Build a pretty string with expected tokens
+	expectedStrings := []string{}
+	for _, tt := range u.expected {
+		expectedStrings = append(expectedStrings, string(tt))
+	}
+	expected := strings.Join(expectedStrings, ", ")
+	return fmt.Sprintf(
+		"unexpected %s at %s, expected %s",
+		u.tok.tokenType(),
+		u.tok.position().Begin(),
+		expected)
+}
+
 // Parser is used to get a tree representation from Tadl input.
 type Parser struct {
 	lexer *Lexer
@@ -120,6 +148,15 @@ func (p *Parser) next() (Token, error) {
 		if len(p.tokenTailBuffer) > 0 {
 			twe := p.tokenTailBuffer[0]
 			p.tokenTailBuffer = p.tokenTailBuffer[1:] // pop token
+
+			// Tail tokens are generated and have no positional information associated.
+			// We fix that here, so that potential errors point to the right place.
+			if twe.tok != nil {
+				lexPos := p.lexer.Pos()
+				twe.tok.position().SetBegin(lexPos.File, lexPos.Line, lexPos.Col)
+				twe.tok.position().SetEnd(lexPos.File, lexPos.Line, lexPos.Col)
+			}
+
 			return twe.tok, twe.err
 		}
 	}
@@ -138,15 +175,7 @@ func (p *Parser) peek() (Token, error) {
 		return twe.tok, twe.err
 	}
 
-	tok, err := p.lexer.Token()
-
-	if errors.Is(err, io.EOF) {
-		// Check tail buffer for tokens that need to be appended
-		if len(p.tokenTailBuffer) > 0 {
-			twe := p.tokenTailBuffer[0]
-			return twe.tok, twe.err
-		}
-	}
+	tok, err := p.next()
 
 	// Store token+error for use in next()
 	p.tokenBuffer = append(p.tokenBuffer, tokenWithError{
@@ -343,14 +372,4 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 	}
 
 	return result, nil
-}
-
-func NewUnexpectedTokenError(tok Token, wanted ...TokenType) error {
-	// TODO Proper error type with positional information
-	wantedStrings := []string{}
-	for _, tt := range wanted {
-		wantedStrings = append(wantedStrings, string(tt))
-	}
-	wantedString := strings.Join(wantedStrings, ", ")
-	return fmt.Errorf("unexpected %s, expected %s", tok.tokenType(), wantedString)
 }
