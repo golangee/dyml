@@ -2,10 +2,8 @@ package parser2
 
 import (
 	"errors"
-	"fmt"
 	"github.com/golangee/tadl/token"
 	"io"
-	"strings"
 )
 
 // TreeNode is a node in the parse tree.
@@ -78,34 +76,6 @@ func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
 type tokenWithError struct {
 	tok Token
 	err error
-}
-
-// UnexpectedTokenError is returned when a token appeared that the parser did not expect.
-// It provides expected alternatives for tokens that were expected instead.
-type UnexpectedTokenError struct {
-	tok      Token
-	expected []TokenType
-}
-
-func NewUnexpectedTokenError(tok Token, expected ...TokenType) error {
-	return UnexpectedTokenError{
-		tok:      tok,
-		expected: expected,
-	}
-}
-
-func (u UnexpectedTokenError) Error() string {
-	// Build a pretty string with expected tokens
-	expectedStrings := []string{}
-	for _, tt := range u.expected {
-		expectedStrings = append(expectedStrings, string(tt))
-	}
-	expected := strings.Join(expectedStrings, ", ")
-	return fmt.Sprintf(
-		"unexpected %s at %s, expected %s",
-		u.tok.tokenType(),
-		u.tok.position().Begin(),
-		expected)
 }
 
 // Parser is used to get a tree representation from Tadl input.
@@ -317,8 +287,7 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		if attr, ok := tok.(*DefineAttribute); ok {
 			if wantForward && !attr.Forward {
-				// TODO More user friendly error message
-				return nil, fmt.Errorf("expected a forwarding attribute")
+				return nil, NewForwardAttrError(tok)
 			}
 			if !wantForward && attr.Forward {
 				// The next forwarding attribute is not for us, but for the next element.
