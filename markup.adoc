@@ -78,13 +78,19 @@ CommentLine       ::=  '#?' Char* '\n'
 Grammar2          ::= '#!' S* '{' .* '}'
 
 Element           ::= '#' Identifier S* Attribute* S* '{' (Element|Text)* '}'
+// A ForwardElement will be inserted as a child of the next regular element.
+// They will be inserted before other children that are defined inside the element,
+// so that elements appear intuitively in reading-order.
+ForwardElement    ::= '#' Element
 // until next # or }
 ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*
 // anything but #, {, }, !, @, ' ' and at least one char
 Identifier        ::= [^(\s|#|{|}|!|@)]+
 
 // attributes can only have texts, id-value must be unique
-Attribute         ::= ':' Identifier S* '{' Char '}'
+Attribute         ::= '@' Identifier S* '{' Char '}'
+// ForwardAttributes will appear on the next element, instead of the current one.
+ForwardAttribute  ::= '@' Attribute
 
 
 // Scanner insertion rules:
