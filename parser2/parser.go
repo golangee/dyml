@@ -65,6 +65,9 @@ type Parser struct {
 	// lexer.Token() returns no more tokens. tokenTailBuffer will contain
 	// tokens that were added from parser code.
 	tokenTailBuffer []tokenWithError
+	// forwardingNodes is a list of all nodes that were defined as forwarded.
+	// They will be inserted into the next node.
+	forwardingNodes []*TreeNode
 }
 
 func NewParser(filename string, r io.Reader) *Parser {
@@ -152,14 +155,15 @@ func (p *Parser) Parse() (*TreeNode, error) {
 func (p *Parser) g1Node() (*TreeNode, error) {
 	// TODO Parse positional information into nodes.
 
+	forwardingNode := false
+
 	// Expect ElementDefinition or CharData
 	tok, err := p.next()
 	if err != nil {
 		return nil, err
 	}
-	if tok.tokenType() == TokenDefineElement {
-		// ok
-		// TODO forwarded elements
+	if de, ok := tok.(*DefineElement); ok {
+		forwardingNode = de.Forward
 	} else if cd, ok := tok.(*CharData); ok {
 		return NewTextNode(cd.Value), nil
 	} else {
@@ -176,6 +180,13 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		node.Name = id.Value
 	} else {
 		return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+	}
+
+	// We now have a valid node.
+	// Place our forwardingNodes inside it, if it is not one itself.
+	if !forwardingNode {
+		node.Children = p.forwardingNodes
+		p.forwardingNodes = nil
 	}
 
 	// Process all attributes
@@ -250,6 +261,14 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		if tok.tokenType() != TokenBlockEnd {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
 		}
+	}
+
+	if forwardingNode {
+		// We just parsed a forwarding node. We need to save it, but cannot return it,
+		// as it needs to be placed inside the next non-forwarding node.
+		// We will parse another node to make it opaque to our caller that this happened.
+		p.forwardingNodes = append(p.forwardingNodes, node)
+		return p.g1Node()
 	}
 
 	return node, nil

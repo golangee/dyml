@@ -73,6 +73,29 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
+		{
+			name: "forwarded elements",
+			text: `#A
+					##B
+					##C
+					#D {
+						##E
+						#F
+					}
+					#G
+				`,
+			want: NewNode("root").AddChildren(
+				NewNode("A"),
+				NewNode("D").AddChildren(
+					NewNode("B"),
+					NewNode("C"),
+					NewNode("F").AddChildren(
+						NewNode("E"),
+					),
+				),
+				NewNode("G"),
+			),
+		},
 	}
 
 	for _, tt := range tests {
