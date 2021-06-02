@@ -73,7 +73,9 @@ func (l *Lexer) gSkipWhitespace() error {
 // gIdent parses a text sequence until next control char # or } or EOF or whitespace.
 func (l *Lexer) gIdent() (*Identifier, error) {
 	startPos := l.Pos()
+
 	var tmp bytes.Buffer
+
 	for {
 		r, err := l.nextR()
 		if errors.Is(err, io.EOF) {
@@ -95,6 +97,10 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 
 		tmp.WriteRune(r)
 
+	}
+
+	if tmp.Len() == 0 {
+		return nil, token.NewPosError(l.node(), "expected identifier")
 	}
 
 	ident := &Identifier{}
