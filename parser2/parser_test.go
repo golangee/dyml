@@ -182,8 +182,18 @@ func TestParser(t *testing.T) {
 
 			if len(differences) > 0 {
 				for _, d := range differences {
+
+					nicePath := strings.Join(d.Path, ".")
+
+					// Skip differences on node ranges, as those are too noisy to test.
+					// This is a bit hacky, but is fine for testing. It would be nicer to
+					// have a custom recursive function to compare nodes.
+					if strings.Contains(nicePath, "Range.") {
+						continue
+					}
+
 					t.Errorf("property '%s' %s, expected %s but got %s",
-						strings.Join(d.Path, "."),
+						nicePath,
 						changeTypeDescription[d.Type],
 						PrettyValue(d.From), PrettyValue(d.To))
 				}

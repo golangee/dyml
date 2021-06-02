@@ -3,6 +3,7 @@ package parser2
 import (
 	"errors"
 	"fmt"
+	"github.com/golangee/tadl/token"
 	"io"
 	"strings"
 )
@@ -10,12 +11,13 @@ import (
 // TreeNode is a node in the parse tree.
 // For regular nodes Text will always be nil.
 // For terminal text nodes Children and Name will be empty and Text will be set.
-// TODO The positions from the lexer need to be saved in the nodes.
 type TreeNode struct {
 	Name       string
 	Text       *string
 	Attributes AttributeMap
 	Children   []*TreeNode
+	// Range will span all tokens that were processed to build this node.
+	Range token.Position
 }
 
 // NewNode creates a new node for the parse tree.
@@ -207,9 +209,10 @@ func (p *Parser) Parse() (*TreeNode, error) {
 
 // g1Node recusively parses a g1Node and all its children from tokens.
 func (p *Parser) g1Node() (*TreeNode, error) {
-	// TODO Parse positional information into nodes.
 
 	forwardingNode := false
+	node := NewNode("invalid name") // name will be set later
+	node.Range.BeginPos = p.lexer.Pos()
 
 	// Parse forwarding attributes
 	forwardedAttributes, err := p.parseAttributes(true)
@@ -231,7 +234,6 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	}
 
 	// Expect identifier for new element
-	node := NewNode("invalid name")
 	tok, err = p.next()
 	if err != nil {
 		return nil, err
@@ -293,6 +295,8 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		p.forwardingNodes = append(p.forwardingNodes, node)
 		return p.g1Node()
 	}
+
+	node.Range.EndPos = p.lexer.Pos()
 
 	return node, nil
 }
