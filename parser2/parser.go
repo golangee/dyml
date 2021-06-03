@@ -2,27 +2,27 @@ package parser2
 
 import (
 	"errors"
-	"fmt"
+	"github.com/golangee/tadl/token"
 	"io"
-	"strings"
 )
 
 // TreeNode is a node in the parse tree.
 // For regular nodes Text will always be nil.
 // For terminal text nodes Children and Name will be empty and Text will be set.
-// TODO The positions from the lexer need to be saved in the nodes.
 type TreeNode struct {
 	Name       string
 	Text       *string
-	Attributes map[string]string
+	Attributes AttributeMap
 	Children   []*TreeNode
+	// Range will span all tokens that were processed to build this node.
+	Range token.Position
 }
 
 // NewNode creates a new node for the parse tree.
 func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
-		Attributes: make(map[string]string),
+		Attributes: NewAttributeMap(),
 	}
 }
 
@@ -41,8 +41,33 @@ func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
-	t.Attributes[key] = value
+	t.Attributes.Set(key, value)
 	return t
+}
+
+// AttributeMap is a simple wrapper around a map[string]string to make the
+// handling of attributes easier.
+type AttributeMap map[string]string
+
+func NewAttributeMap() AttributeMap {
+	return make(map[string]string)
+}
+
+// Set sets a key to a value in this map.
+func (a AttributeMap) Set(key, value string) {
+	a[key] = value
+}
+
+// Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
+func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
+	result := NewAttributeMap()
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, v := range other {
+		result[k] = v
+	}
+	return result
 }
 
 // tokenWithError is a struct that wraps a Token and an error that may
@@ -65,6 +90,9 @@ type Parser struct {
 	// lexer.Token() returns no more tokens. tokenTailBuffer will contain
 	// tokens that were added from parser code.
 	tokenTailBuffer []tokenWithError
+	// forwardingNodes is a list of all nodes that were defined as forwarded.
+	// They will be inserted into the next node.
+	forwardingNodes []*TreeNode
 }
 
 func NewParser(filename string, r io.Reader) *Parser {
@@ -75,7 +103,7 @@ func NewParser(filename string, r io.Reader) *Parser {
 }
 
 // next returns the next token or (nil, io.EOF) if there are no more tokens.
-// Repeately calling this can be used to get all tokens by advancing the lexer.
+// Repeatedly calling this can be used to get all tokens by advancing the lexer.
 func (p *Parser) next() (Token, error) {
 
 	// Check the buffer for tokens
@@ -92,6 +120,15 @@ func (p *Parser) next() (Token, error) {
 		if len(p.tokenTailBuffer) > 0 {
 			twe := p.tokenTailBuffer[0]
 			p.tokenTailBuffer = p.tokenTailBuffer[1:] // pop token
+
+			// Tail tokens are generated and have no positional information associated.
+			// We fix that here, so that potential errors point to the right place.
+			if twe.tok != nil {
+				lexPos := p.lexer.Pos()
+				twe.tok.position().SetBegin(lexPos.File, lexPos.Line, lexPos.Col)
+				twe.tok.position().SetEnd(lexPos.File, lexPos.Line, lexPos.Col)
+			}
+
 			return twe.tok, twe.err
 		}
 	}
@@ -110,15 +147,7 @@ func (p *Parser) peek() (Token, error) {
 		return twe.tok, twe.err
 	}
 
-	tok, err := p.lexer.Token()
-
-	if errors.Is(err, io.EOF) {
-		// Check tail buffer for tokens that need to be appended
-		if len(p.tokenTailBuffer) > 0 {
-			twe := p.tokenTailBuffer[0]
-			return twe.tok, twe.err
-		}
-	}
+	tok, err := p.next()
 
 	// Store token+error for use in next()
 	p.tokenBuffer = append(p.tokenBuffer, tokenWithError{
@@ -150,16 +179,24 @@ func (p *Parser) Parse() (*TreeNode, error) {
 
 // g1Node recusively parses a g1Node and all its children from tokens.
 func (p *Parser) g1Node() (*TreeNode, error) {
-	// TODO Parse positional information into nodes.
+
+	forwardingNode := false
+	node := NewNode("invalid name") // name will be set later
+	node.Range.BeginPos = p.lexer.Pos()
+
+	// Parse forwarding attributes
+	forwardedAttributes, err := p.parseAttributes(true)
+	if err != nil {
+		return nil, err
+	}
 
 	// Expect ElementDefinition or CharData
 	tok, err := p.next()
 	if err != nil {
 		return nil, err
 	}
-	if tok.tokenType() == TokenDefineElement {
-		// ok
-		// TODO forwarded elements
+	if de, ok := tok.(*DefineElement); ok {
+		forwardingNode = de.Forward
 	} else if cd, ok := tok.(*CharData); ok {
 		return NewTextNode(cd.Value), nil
 	} else {
@@ -167,7 +204,6 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	}
 
 	// Expect identifier for new element
-	node := NewNode("invalid name")
 	tok, err = p.next()
 	if err != nil {
 		return nil, err
@@ -178,50 +214,20 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
 	}
 
-	// Process all attributes
-	// TODO Forwarded attributes
-	for {
-		tok, _ = p.peek()
-		if tok.tokenType() != TokenDefineAttribute {
-			break
-		}
-
-		p.next() // Pop the token since we know it's a DefineAttribute
-
-		// Read attribute key
-		attrKey := ""
-		tok, err = p.next()
-		if err != nil {
-			return nil, err
-		}
-		if ident, ok := tok.(*Identifier); ok {
-			attrKey = ident.Value
-		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
-		}
-
-		// Read CharData enclosed in brackets as attribute value
-		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockStart {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
-		}
-
-		tok, err = p.next()
-		if err != nil {
-			return nil, err
-		}
-		if cd, ok := tok.(*CharData); ok {
-			node.AddAttribute(attrKey, cd.Value)
-		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenCharData)
-		}
-
-		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockEnd {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
-		}
-
+	// We now have a valid node.
+	// Place our forwardingNodes inside it, if it is not one itself.
+	if !forwardingNode {
+		node.Children = p.forwardingNodes
+		p.forwardingNodes = nil
 	}
+
+	// Process non-forwarding attributes.
+	attributes, err := p.parseAttributes(false)
+	if err != nil {
+		return nil, err
+	}
+
+	node.Attributes = forwardedAttributes.Merge(attributes)
 
 	// Optional children enclosed in brackets
 	tok, _ = p.peek()
@@ -252,15 +258,91 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		}
 	}
 
+	if forwardingNode {
+		// We just parsed a forwarding node. We need to save it, but cannot return it,
+		// as it needs to be placed inside the next non-forwarding node.
+		// We will parse another node to make it opaque to our caller that this happened.
+		p.forwardingNodes = append(p.forwardingNodes, node)
+		return p.g1Node()
+	}
+
+	node.Range.EndPos = p.lexer.Pos()
+
 	return node, nil
 }
 
-func NewUnexpectedTokenError(tok Token, wanted ...TokenType) error {
-	// TODO Proper error type with positional information
-	wantedStrings := []string{}
-	for _, tt := range wanted {
-		wantedStrings = append(wantedStrings, string(tt))
+// parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.
+// forwarding specifies if regular or forwarding attributes should be parsed.
+// The function returns when a non-attribute is encountered. Should an attribute be parsed
+// that is the wrong type of forwarding, it will return an error.
+func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
+	result := NewAttributeMap()
+
+	for {
+
+		tok, err := p.peek()
+		if err != nil {
+			break
+		}
+
+		if attr, ok := tok.(*DefineAttribute); ok {
+			if wantForward && !attr.Forward {
+				return nil, NewForwardAttrError(tok)
+			}
+			if !wantForward && attr.Forward {
+				// The next forwarding attribute is not for us, but for the next element.
+				// Stop parsing attributes here.
+				break
+			}
+
+			if wantForward != attr.Forward {
+				// Should never happen, as the two if-blocks make this impossible.
+				panic("Sanity check failed, wantForward != attr.Forward")
+			}
+
+			p.next() // pop DefineAttribute
+		} else {
+			break
+		}
+
+		attrKey := ""
+		attrValue := ""
+
+		// Read attribute key
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if ident, ok := tok.(*Identifier); ok {
+			attrKey = ident.Value
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+		}
+
+		// Read CharData enclosed in brackets as attribute value
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockStart {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
+		}
+
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if cd, ok := tok.(*CharData); ok {
+			attrValue = cd.Value
+		} else {
+			return nil, NewUnexpectedTokenError(tok, TokenCharData)
+		}
+
+		result.Set(attrKey, attrValue)
+
+		tok, _ = p.next()
+		if tok.tokenType() != TokenBlockEnd {
+			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+		}
+
 	}
-	wantedString := strings.Join(wantedStrings, ", ")
-	return fmt.Errorf("unexpected %s, expected %s", tok.tokenType(), wantedString)
+
+	return result, nil
 }

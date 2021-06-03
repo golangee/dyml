@@ -146,6 +146,12 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
+			name:    "invalid blank identifier",
+			text:    "# ",
+			wantErr: true,
+		},
+
+		{
 			name: "empty g2",
 			text: "#!{}",
 			want: NewTestSet().
@@ -340,17 +346,21 @@ func TestLexer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tokens, err := parseTokens(tt.text)
-			if !tt.wantErr && err != nil {
-				t.Error(err)
-				return
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error")
+				} else {
+					// we wanted and got an error, that's okay
+				}
+			} else {
+				if err != nil {
+					t.Error(err)
+				} else {
+					tt.want.Assert(tokens, t)
+				}
 			}
 
-			if tt.wantErr && err == nil {
-				t.Errorf("expected error")
-				return
-			}
-
-			tt.want.Assert(tokens, t)
 		})
 	}
 }

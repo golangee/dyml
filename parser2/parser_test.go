@@ -73,6 +73,76 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
+		{
+			name: "forwarded elements",
+			text: `#A
+					##B
+					##C
+					#D {
+						##E
+						#F
+					}
+					#G
+				`,
+			want: NewNode("root").AddChildren(
+				NewNode("A"),
+				NewNode("D").AddChildren(
+					NewNode("B"),
+					NewNode("C"),
+					NewNode("F").AddChildren(
+						NewNode("E"),
+					),
+				),
+				NewNode("G"),
+			),
+		},
+		{
+			name:    "invalid dangling forward element",
+			text:    `##item`,
+			wantErr: true,
+		},
+		{
+			name: "forwarded attributes",
+			text: `#A
+					@simple{attribute}
+					@@forwarded{attribute}
+					@@another{forwarded}
+					#B
+					@simple{attribute}
+					#C`,
+			want: NewNode("root").AddChildren(
+				NewNode("A").
+					AddAttribute("simple", "attribute"),
+				NewNode("B").
+					AddAttribute("forwarded", "attribute").
+					AddAttribute("another", "forwarded").
+					AddAttribute("simple", "attribute"),
+				NewNode("C"),
+			),
+		},
+		{
+			name: "mixed forwarded attributes and elements",
+			text: `##subA @@key{value} ##subB @@another_key{more_value} #item`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("another_key", "more_value").
+					AddChildren(
+						NewNode("subA"),
+						NewNode("subB").
+							AddAttribute("key", "value"),
+					),
+			),
+		},
+		{
+			name:    "invalid simple attribute",
+			text:    `@key{value} #item`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid dangling forward attribute",
+			text:    `@@key{value}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,8 +182,18 @@ func TestParser(t *testing.T) {
 
 			if len(differences) > 0 {
 				for _, d := range differences {
+
+					nicePath := strings.Join(d.Path, ".")
+
+					// Skip differences on node ranges, as those are too noisy to test.
+					// This is a bit hacky, but is fine for testing. It would be nicer to
+					// have a custom recursive function to compare nodes.
+					if strings.Contains(nicePath, "Range.") {
+						continue
+					}
+
 					t.Errorf("property '%s' %s, expected %s but got %s",
-						strings.Join(d.Path, "."),
+						nicePath,
 						changeTypeDescription[d.Type],
 						PrettyValue(d.From), PrettyValue(d.To))
 				}

@@ -40,6 +40,7 @@ const (
 // A Token is an interface for all possible token types.
 type Token interface {
 	tokenType() TokenType
+	position() *token.Position
 }
 
 type TokenType string
