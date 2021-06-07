@@ -235,6 +235,53 @@ func TestParser(t *testing.T) {
 			text:    `#!{@key="value"}`,
 			wantErr: true,
 		},
+		{
+			name: "simple forwarded attribute G2",
+			text: `#!{
+						@@key="value"
+						item
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("key", "value"),
+			),
+		},
+		{
+			name: "forwarded attributes G2",
+			text: `#!{
+						item,
+						@@key="value"
+						@@another="one"
+						item @not="forwarded",
+						parent @@for="child" child,
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+				NewNode("item").
+					AddAttribute("not", "forwarded").
+					AddAttribute("key", "value").
+					AddAttribute("another", "one"),
+				NewNode("parent").
+					AddChildren(
+						NewNode("child").
+							AddAttribute("for", "child"),
+					),
+			),
+		},
+		{
+			name: "invalid dangling forward attribute G2",
+			text: `#!{
+						item @@key="value"
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid forward attribute for text G2",
+			text: `#!{
+						@@key="value" "text"
+					}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
