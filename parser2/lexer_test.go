@@ -481,11 +481,11 @@ func (ts *TestSet) GenericEnd() *TestSet {
 
 func (ts *TestSet) G2Preambel() *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
-		if _, ok := t.(*G2Preambel); ok {
+		if _, ok := t.(*G2Preamble); ok {
 			return nil
 		}
 
-		return fmt.Errorf("G2Preambel: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("G2Preamble: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

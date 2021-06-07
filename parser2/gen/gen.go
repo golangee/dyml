@@ -22,11 +22,11 @@ const TypeTemplate = `	Token%[1]s TokenType = "Token%[1]s"
 `
 
 const ReceiverTemplate = `
-func (t *%[1]s) tokenType() TokenType {
+func (t *%[1]s) TokenType() TokenType {
 	return Token%[1]s
 }
 
-func (t *%[1]s) position() *token.Position {
+func (t *%[1]s) Pos() *token.Position {
 	return &t.Position
 }
 `

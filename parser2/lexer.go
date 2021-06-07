@@ -24,7 +24,7 @@ const (
 type WantMode string
 
 const (
-	// Nothing special needs to be expected.
+	// WantNothing indicates that the lexer should operate as usual.
 	WantNothing     WantMode = "Nothing"
 	WantCommentLine WantMode = "CommentLine"
 	WantIdentifier  WantMode = "Identifier"
@@ -39,8 +39,8 @@ const (
 
 // A Token is an interface for all possible token types.
 type Token interface {
-	tokenType() TokenType
-	position() *token.Position
+	TokenType() TokenType
+	Pos() *token.Position
 }
 
 type TokenType string

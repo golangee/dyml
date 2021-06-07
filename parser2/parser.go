@@ -45,7 +45,7 @@ func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
 	return t
 }
 
-// AttributeMap is a simple wrapper around a map[string]string to make the
+// AttributeMap is a custom map[string]string to make the
 // handling of attributes easier.
 type AttributeMap map[string]string
 
@@ -125,8 +125,8 @@ func (p *Parser) next() (Token, error) {
 			// We fix that here, so that potential errors point to the right place.
 			if twe.tok != nil {
 				lexPos := p.lexer.Pos()
-				twe.tok.position().SetBegin(lexPos.File, lexPos.Line, lexPos.Col)
-				twe.tok.position().SetEnd(lexPos.File, lexPos.Line, lexPos.Col)
+				twe.tok.Pos().SetBegin(lexPos.File, lexPos.Line, lexPos.Col)
+				twe.tok.Pos().SetEnd(lexPos.File, lexPos.Line, lexPos.Col)
 			}
 
 			return twe.tok, twe.err
@@ -231,13 +231,13 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 
 	// Optional children enclosed in brackets
 	tok, _ = p.peek()
-	if tok.tokenType() == TokenBlockStart {
+	if tok.TokenType() == TokenBlockStart {
 		p.next() // Pop the token, we know it's a BlockStart
 
 		// Append children until we encounter a TokenBlockEnd
 		for {
 			tok, _ = p.peek()
-			if tok.tokenType() == TokenBlockEnd {
+			if tok.TokenType() == TokenBlockEnd {
 				break
 			}
 
@@ -253,7 +253,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		if tok.tokenType() != TokenBlockEnd {
+		if tok.TokenType() != TokenBlockEnd {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
 		}
 	}
@@ -321,7 +321,7 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		// Read CharData enclosed in brackets as attribute value
 		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockStart {
+		if tok.TokenType() != TokenBlockStart {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
 		}
 
@@ -338,7 +338,7 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		result.Set(attrKey, attrValue)
 
 		tok, _ = p.next()
-		if tok.tokenType() != TokenBlockEnd {
+		if tok.TokenType() != TokenBlockEnd {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
 		}
 

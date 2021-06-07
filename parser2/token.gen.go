@@ -12,7 +12,7 @@ const (
 	TokenGroupEnd        TokenType = "TokenGroupEnd"
 	TokenGenericStart    TokenType = "TokenGenericStart"
 	TokenGenericEnd      TokenType = "TokenGenericEnd"
-	TokenG2Preambel      TokenType = "TokenG2Preambel"
+	TokenG2Preamble      TokenType = "TokenG2Preamble"
 	TokenDefineElement   TokenType = "TokenDefineElement"
 	TokenDefineAttribute TokenType = "TokenDefineAttribute"
 	TokenAssign          TokenType = "TokenAssign"
@@ -23,138 +23,138 @@ const (
 	TokenG2Comment       TokenType = "TokenG2Comment"
 )
 
-func (t *CharData) tokenType() TokenType {
+func (t *CharData) TokenType() TokenType {
 	return TokenCharData
 }
 
-func (t *CharData) position() *token.Position {
+func (t *CharData) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *Identifier) tokenType() TokenType {
+func (t *Identifier) TokenType() TokenType {
 	return TokenIdentifier
 }
 
-func (t *Identifier) position() *token.Position {
+func (t *Identifier) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *BlockStart) tokenType() TokenType {
+func (t *BlockStart) TokenType() TokenType {
 	return TokenBlockStart
 }
 
-func (t *BlockStart) position() *token.Position {
+func (t *BlockStart) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *BlockEnd) tokenType() TokenType {
+func (t *BlockEnd) TokenType() TokenType {
 	return TokenBlockEnd
 }
 
-func (t *BlockEnd) position() *token.Position {
+func (t *BlockEnd) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *GroupStart) tokenType() TokenType {
+func (t *GroupStart) TokenType() TokenType {
 	return TokenGroupStart
 }
 
-func (t *GroupStart) position() *token.Position {
+func (t *GroupStart) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *GroupEnd) tokenType() TokenType {
+func (t *GroupEnd) TokenType() TokenType {
 	return TokenGroupEnd
 }
 
-func (t *GroupEnd) position() *token.Position {
+func (t *GroupEnd) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *GenericStart) tokenType() TokenType {
+func (t *GenericStart) TokenType() TokenType {
 	return TokenGenericStart
 }
 
-func (t *GenericStart) position() *token.Position {
+func (t *GenericStart) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *GenericEnd) tokenType() TokenType {
+func (t *GenericEnd) TokenType() TokenType {
 	return TokenGenericEnd
 }
 
-func (t *GenericEnd) position() *token.Position {
+func (t *GenericEnd) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *G2Preambel) tokenType() TokenType {
-	return TokenG2Preambel
+func (t *G2Preamble) TokenType() TokenType {
+	return TokenG2Preamble
 }
 
-func (t *G2Preambel) position() *token.Position {
+func (t *G2Preamble) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *DefineElement) tokenType() TokenType {
+func (t *DefineElement) TokenType() TokenType {
 	return TokenDefineElement
 }
 
-func (t *DefineElement) position() *token.Position {
+func (t *DefineElement) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *DefineAttribute) tokenType() TokenType {
+func (t *DefineAttribute) TokenType() TokenType {
 	return TokenDefineAttribute
 }
 
-func (t *DefineAttribute) position() *token.Position {
+func (t *DefineAttribute) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *Assign) tokenType() TokenType {
+func (t *Assign) TokenType() TokenType {
 	return TokenAssign
 }
 
-func (t *Assign) position() *token.Position {
+func (t *Assign) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *G1LineEnd) tokenType() TokenType {
+func (t *G1LineEnd) TokenType() TokenType {
 	return TokenG1LineEnd
 }
 
-func (t *G1LineEnd) position() *token.Position {
+func (t *G1LineEnd) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *Comma) tokenType() TokenType {
+func (t *Comma) TokenType() TokenType {
 	return TokenComma
 }
 
-func (t *Comma) position() *token.Position {
+func (t *Comma) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *Pipe) tokenType() TokenType {
+func (t *Pipe) TokenType() TokenType {
 	return TokenPipe
 }
 
-func (t *Pipe) position() *token.Position {
+func (t *Pipe) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *G1Comment) tokenType() TokenType {
+func (t *G1Comment) TokenType() TokenType {
 	return TokenG1Comment
 }
 
-func (t *G1Comment) position() *token.Position {
+func (t *G1Comment) Pos() *token.Position {
 	return &t.Position
 }
 
-func (t *G2Comment) tokenType() TokenType {
+func (t *G2Comment) TokenType() TokenType {
 	return TokenG2Comment
 }
 
-func (t *G2Comment) position() *token.Position {
+func (t *G2Comment) Pos() *token.Position {
 	return &t.Position
 }

@@ -50,8 +50,8 @@ type GenericEnd struct {
 	token.Position
 }
 
-// G2Preambel is the '#!' preambel for a G2 grammar.
-type G2Preambel struct {
+// G2Preamble is the '#!' preamble for a G2 grammar.
+type G2Preamble struct {
 	token.Position
 }
 

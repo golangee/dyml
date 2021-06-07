@@ -9,7 +9,7 @@ import (
 )
 
 // g2Preambel reads the '#!' preambel of G2 grammars.
-func (l *Lexer) g2Preambel() (*G2Preambel, error) {
+func (l *Lexer) g2Preambel() (*G2Preamble, error) {
 	startPos := l.Pos()
 
 	// Eat '#!' from input
@@ -22,7 +22,7 @@ func (l *Lexer) g2Preambel() (*G2Preambel, error) {
 		return nil, token.NewPosError(l.node(), "expected '!' in g2 mode")
 	}
 
-	preambel := &G2Preambel{}
+	preambel := &G2Preamble{}
 	preambel.Position.BeginPos = startPos
 	preambel.Position.EndPos = l.pos
 
