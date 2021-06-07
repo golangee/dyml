@@ -4,8 +4,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"go/format"
 	"io"
 	"log"
 	"os"
@@ -22,11 +24,11 @@ const TypeTemplate = `	Token%[1]s TokenType = "Token%[1]s"
 `
 
 const ReceiverTemplate = `
-func (t *%[1]s) tokenType() TokenType {
+func (t *%[1]s) TokenType() TokenType {
 	return Token%[1]s
 }
 
-func (t *%[1]s) position() *token.Position {
+func (t *%[1]s) Pos() *token.Position {
 	return &t.Position
 }
 `
@@ -58,27 +60,39 @@ func main() {
 
 	}
 
-	// Generate output file.
+	// Generate output source.
+	var output bytes.Buffer
+
+	output.WriteString(HeaderTemplate)
+
+	// Write const section for TokenTypes.
+	output.WriteString("\nconst (\n")
+	for _, tokenName := range tokenNames {
+		output.WriteString(fmt.Sprintf(TypeTemplate, tokenName))
+	}
+	output.WriteString(")\n")
+
+	// Write receiver methods for tokens.
+	for _, tokenName := range tokenNames {
+		output.WriteString(fmt.Sprintf(ReceiverTemplate, tokenName))
+	}
+
+	// Format source.
+	source := output.Bytes()
+	if s, err := format.Source(source); err == nil {
+		source = s
+	}
+
+	// Write output file.
 	fileOut, err := os.Create("token.gen.go")
 	if err != nil {
-		log.Fatalf("Error while creating token.gen.go: %v", err)
+		log.Fatalf("error while creating token.gen.go: %v", err)
 	}
 	defer fileOut.Close()
 
 	writer := bufio.NewWriter(fileOut)
-	writer.WriteString(HeaderTemplate)
-
-	// Write const section for TokenTypes
-	writer.WriteString("\nconst (\n")
-	for _, tokenName := range tokenNames {
-		writer.WriteString(fmt.Sprintf(TypeTemplate, tokenName))
+	if _, err := writer.Write(source); err != nil {
+		log.Fatalf("failed to write output file: %v", err)
 	}
-	writer.WriteString(")\n")
-
-	// Write receiver methods for tokens.
-	for _, tokenName := range tokenNames {
-		writer.WriteString(fmt.Sprintf(ReceiverTemplate, tokenName))
-	}
-
 	writer.Flush()
 }

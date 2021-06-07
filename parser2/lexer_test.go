@@ -187,7 +187,7 @@ func TestLexer(t *testing.T) {
 			want: NewTestSet().
 				G2Preambel().
 				BlockStart().
-				CharData(`hello\"\n`).
+				CharData(`hello"\n`).
 				BlockEnd(),
 		},
 
@@ -360,7 +360,6 @@ func TestLexer(t *testing.T) {
 					tt.want.Assert(tokens, t)
 				}
 			}
-
 		})
 	}
 }
@@ -481,11 +480,11 @@ func (ts *TestSet) GenericEnd() *TestSet {
 
 func (ts *TestSet) G2Preambel() *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
-		if _, ok := t.(*G2Preambel); ok {
+		if _, ok := t.(*G2Preamble); ok {
 			return nil
 		}
 
-		return fmt.Errorf("G2Preambel: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("G2Preamble: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
@@ -587,7 +586,7 @@ func (ts *TestSet) Pipe() *TestSet {
 			return nil
 		}
 
-		return fmt.Errorf("Pipe: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+		return fmt.Errorf("pipe: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
@@ -620,7 +619,9 @@ func newTestDec(text string) *Lexer {
 
 func parseTokens(text string) ([]Token, error) {
 	dec := newTestDec(text)
+
 	var res []Token
+
 	for {
 		token, err := dec.Token()
 		if errors.Is(err, io.EOF) {
@@ -642,5 +643,6 @@ func toString(i interface{}) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return string(buf)
 }

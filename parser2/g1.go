@@ -17,7 +17,9 @@ func debugStrOfRune(r rune) string {
 // g1Text parses a text sequence until next rune is in stopAt or EOF.
 func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 	startPos := l.Pos()
+
 	var tmp bytes.Buffer
+
 	for {
 		r, err := l.nextR()
 		if errors.Is(err, io.EOF) {
@@ -38,6 +40,7 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 				tmp.Truncate(tmp.Len() - 1)
 			} else {
 				l.prevR() // reset last read char
+
 				break
 			}
 		}
@@ -56,8 +59,7 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 func (l *Lexer) g1LineEnd() (*G1LineEnd, error) {
 	startPos := l.Pos()
 
-	r, _ := l.nextR()
-	if r != '\n' {
+	if r, _ := l.nextR(); r != '\n' {
 		return nil, token.NewPosError(l.node(), "expected newline")
 	}
 
@@ -73,12 +75,11 @@ func (l *Lexer) g1CommentStart() (*G1Comment, error) {
 	startPos := l.Pos()
 
 	// Eat '#?' from input
-	r, _ := l.nextR()
-	if r != '#' {
+	if r, _ := l.nextR(); r != '#' {
 		return nil, token.NewPosError(l.node(), "expected '#?' for comment")
 	}
-	r, _ = l.nextR()
-	if r != '?' {
+
+	if r, _ := l.nextR(); r != '?' {
 		return nil, token.NewPosError(l.node(), "expected '#?' for comment")
 	}
 
@@ -87,5 +88,4 @@ func (l *Lexer) g1CommentStart() (*G1Comment, error) {
 	comment.Position.EndPos = l.pos
 
 	return comment, nil
-
 }

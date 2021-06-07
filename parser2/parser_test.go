@@ -24,19 +24,19 @@ func TestParser(t *testing.T) {
 			name: "just text",
 			text: "hello world",
 			want: NewNode("root").AddChildren(
-				NewTextNode("hello world"),
+				NewStringNode("hello world"),
 			),
 		},
 		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
 			want: NewNode("root").AddChildren(
-				NewTextNode("hello "),
+				NewStringNode("hello "),
 				NewNode("item1"),
-				NewTextNode("world "),
+				NewStringNode("world "),
 				NewNode("item2"),
 				NewNode("item3"),
-				NewTextNode("more text"),
+				NewStringNode("more text"),
 			),
 		},
 		{
@@ -143,11 +143,149 @@ func TestParser(t *testing.T) {
 			text:    `@@key{value}`,
 			wantErr: true,
 		},
+		{
+			name: "empty G2",
+			text: `#!{}`,
+			want: NewNode("root"),
+		},
+		{
+			name: "simple G2",
+			text: `#!{item}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+			),
+		},
+		{
+			name: "siblings G2",
+			text: `#!{item, item}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+				NewNode("item"),
+			),
+		},
+		{
+			name: "nested G2",
+			text: `#!{item subitem subsubitem "text"}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").AddChildren(
+					NewNode("subitem").AddChildren(
+						NewNode("subsubitem").AddChildren(
+							NewStringNode("text"),
+						),
+					),
+				),
+			),
+		},
+		{
+			name: "complex siblings and nested G2",
+			text: `#!{
+						A B {
+							C,
+							D,
+						}
+						E {F, G}
+						H
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("A").AddChildren(
+					NewNode("B").AddChildren(
+						NewNode("C"),
+						NewNode("D"),
+					),
+				),
+				NewNode("E").AddChildren(
+					NewNode("F"),
+					NewNode("G"),
+				),
+				NewNode("H"),
+			),
+		},
+		{
+			name: "simple attribute G2",
+			text: `#!{
+						item @key="value" @another="key with 'special #chars\""
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("key", "value").
+					AddAttribute("another", `key with 'special #chars"`),
+			),
+		},
+		{
+			name: "attribute with siblings G2",
+			text: `#!{
+						A,
+						B C @key="value" D,
+						E,
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("A"),
+				NewNode("B").AddChildren(
+					NewNode("C").
+						AddAttribute("key", "value").
+						AddChildren(
+							NewNode("D"),
+						),
+				),
+				NewNode("E"),
+			),
+		},
+		{
+			name:    "invalid lonely attribute G2",
+			text:    `#!{@key="value"}`,
+			wantErr: true,
+		},
+		{
+			name: "simple forwarded attribute G2",
+			text: `#!{
+						@@key="value"
+						item
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("key", "value"),
+			),
+		},
+		{
+			name: "forwarded attributes G2",
+			text: `#!{
+						item,
+						@@key="value"
+						@@another="one"
+						item @not="forwarded",
+						parent @@for="child" child,
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+				NewNode("item").
+					AddAttribute("not", "forwarded").
+					AddAttribute("key", "value").
+					AddAttribute("another", "one"),
+				NewNode("parent").
+					AddChildren(
+						NewNode("child").
+							AddAttribute("for", "child"),
+					),
+			),
+		},
+		{
+			name: "invalid dangling forward attribute G2",
+			text: `#!{
+						item @@key="value"
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid forward attribute for text G2",
+			text: `#!{
+						@@key="value" "text"
+					}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
 
@@ -182,7 +320,6 @@ func TestParser(t *testing.T) {
 
 			if len(differences) > 0 {
 				for _, d := range differences {
-
 					nicePath := strings.Join(d.Path, ".")
 
 					// Skip differences on node ranges, as those are too noisy to test.
@@ -198,7 +335,6 @@ func TestParser(t *testing.T) {
 						PrettyValue(d.From), PrettyValue(d.To))
 				}
 			}
-
 		})
 	}
 }
@@ -207,7 +343,6 @@ func TestParser(t *testing.T) {
 // Usually "%#v" in fmt.Sprintf can give a nice description of the thing
 // you're passing in, but that does not apply to e.g. string pointers.
 func PrettyValue(v interface{}) string {
-
 	if s, ok := v.(*string); ok {
 		return fmt.Sprintf("%#v", *s)
 	}

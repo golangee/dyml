@@ -21,15 +21,17 @@ func NewUnexpectedTokenError(tok Token, expected ...TokenType) error {
 
 func (u UnexpectedTokenError) Error() string {
 	// Build a pretty string with expected tokens
-	expectedStrings := []string{}
+	var expectedStrings []string
 	for _, tt := range u.expected {
 		expectedStrings = append(expectedStrings, string(tt))
 	}
+
 	expected := strings.Join(expectedStrings, ", ")
+
 	return fmt.Sprintf(
 		"unexpected %s at %s, expected %s",
-		u.tok.tokenType(),
-		u.tok.position().Begin(),
+		u.tok.TokenType(),
+		u.tok.Pos().Begin(),
 		expected)
 }
 
@@ -40,7 +42,7 @@ type ForwardAttrError struct {
 }
 
 func (e ForwardAttrError) Error() string {
-	return fmt.Sprintf("expected a forward attribute at %s", e.tok.position().Begin())
+	return fmt.Sprintf("expected a forward attribute at %s", e.tok.Pos().Begin())
 }
 
 func NewForwardAttrError(tok Token) error {

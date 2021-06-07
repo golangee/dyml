@@ -24,7 +24,7 @@ const (
 type WantMode string
 
 const (
-	// Nothing special needs to be expected.
+	// WantNothing indicates that the lexer should operate as usual.
 	WantNothing     WantMode = "Nothing"
 	WantCommentLine WantMode = "CommentLine"
 	WantIdentifier  WantMode = "Identifier"
@@ -39,8 +39,8 @@ const (
 
 // A Token is an interface for all possible token types.
 type Token interface {
-	tokenType() TokenType
-	position() *token.Position
+	TokenType() TokenType
+	Pos() *token.Position
 }
 
 type TokenType string
@@ -57,7 +57,7 @@ type Lexer struct {
 	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
 	bufPos int
 	pos    token.Pos // current position
-	// started is only used to detect if the first token is the G2Preambel
+	// started is only used to detect if the first token is the G2Preamble
 	started bool
 	mode    GrammarMode
 	want    WantMode
@@ -84,10 +84,12 @@ func (l *Lexer) Token() (Token, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	r2, err := l.nextR()
 	if err == nil {
 		l.prevR()
 	}
+
 	l.prevR()
 
 	var tok Token
@@ -99,6 +101,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.mode = G2
 			tok, err = l.g2Preambel()
 			l.gSkipWhitespace()
+
 			return tok, err
 		}
 	}
@@ -110,30 +113,39 @@ func (l *Lexer) Token() (Token, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		l.gSkipWhitespace()
 		l.want = WantG1AttributeStart
+
 		return tok, err
 	case WantG1AttributeStart:
 		tok, err = l.gBlockStart()
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantG1AttributeCharData
+
 		return tok, err
 	case WantG1AttributeCharData:
 		tok, err = l.g1Text("}")
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantG1AttributeEnd
+
 		return tok, err
 	case WantG1AttributeEnd:
 		tok, err = l.gBlockEnd()
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantNothing
+
 		l.gSkipWhitespace()
+
 		return tok, err
 	}
 
@@ -231,6 +243,7 @@ func (l *Lexer) Token() (Token, error) {
 		} else {
 			return nil, token.NewPosError(l.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
+
 		l.gSkipWhitespace()
 	default:
 		return nil, errors.New("lexer in unknown mode")
