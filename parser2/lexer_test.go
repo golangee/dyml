@@ -187,7 +187,7 @@ func TestLexer(t *testing.T) {
 			want: NewTestSet().
 				G2Preambel().
 				BlockStart().
-				CharData(`hello\"\n`).
+				CharData(`hello"\n`).
 				BlockEnd(),
 		},
 

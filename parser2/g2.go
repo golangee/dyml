@@ -46,8 +46,13 @@ func (l *Lexer) g2CharData() (*CharData, error) {
 			break
 		}
 
-		if r == '"' && !l.gIsEscaped() {
-			break
+		if r == '"' {
+			if l.gIsEscaped() {
+				// Remove previous '\'
+				tmp.Truncate(tmp.Len() - 1)
+			} else {
+				break
+			}
 		}
 
 		tmp.WriteRune(r)
