@@ -26,7 +26,6 @@ func (l *Lexer) gBlockStart() (*BlockStart, error) {
 	blockStart.Position.EndPos = l.pos
 
 	return blockStart, nil
-
 }
 
 // gBlockEnd reads the '}' that marks the end of a block.
@@ -47,12 +46,10 @@ func (l *Lexer) gBlockEnd() (*BlockEnd, error) {
 	blockEnd.Position.EndPos = l.pos
 
 	return blockEnd, nil
-
 }
 
 // Skip whitespace characters
 func (l *Lexer) gSkipWhitespace() error {
-
 	for {
 		r, err := l.nextR()
 		if err != nil {
@@ -65,6 +62,7 @@ func (l *Lexer) gSkipWhitespace() error {
 		default:
 			// We got a non-whitespace, rewind and return
 			l.prevR()
+
 			return nil
 		}
 	}
@@ -92,11 +90,11 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 
 		if !l.gIdentChar(r) {
 			l.prevR() // reset last read char
+
 			break
 		}
 
 		tmp.WriteRune(r)
-
 	}
 
 	if tmp.Len() == 0 {

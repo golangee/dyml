@@ -36,12 +36,14 @@ func NewTextNode(text string) *TreeNode {
 // AddChildren adds children to a node and can be used builder-style.
 func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 	t.Children = append(t.Children, children...)
+
 	return t
 }
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
 	t.Attributes.Set(key, value)
+
 	return t
 }
 
@@ -61,12 +63,15 @@ func (a AttributeMap) Set(key, value string) {
 // Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
 func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
 	result := NewAttributeMap()
+
 	for k, v := range a {
 		result[k] = v
 	}
+
 	for k, v := range other {
 		result[k] = v
 	}
+
 	return result
 }
 
@@ -105,11 +110,11 @@ func NewParser(filename string, r io.Reader) *Parser {
 // next returns the next token or (nil, io.EOF) if there are no more tokens.
 // Repeatedly calling this can be used to get all tokens by advancing the lexer.
 func (p *Parser) next() (Token, error) {
-
 	// Check the buffer for tokens
 	if len(p.tokenBuffer) > 0 {
 		twe := p.tokenBuffer[0]
 		p.tokenBuffer = p.tokenBuffer[1:] // pop token
+
 		return twe.tok, twe.err
 	}
 
@@ -140,7 +145,6 @@ func (p *Parser) next() (Token, error) {
 // Under the hood it does advance the lexer, but by using only next() and peek()
 // you will get expected behaviour.
 func (p *Parser) peek() (Token, error) {
-
 	// Check the buffer for tokens
 	if len(p.tokenBuffer) > 0 {
 		twe := p.tokenBuffer[0]
@@ -160,7 +164,6 @@ func (p *Parser) peek() (Token, error) {
 
 // Parse returns a parsed tree.
 func (p *Parser) Parse() (*TreeNode, error) {
-
 	// Peek the first token to check if we should set G2 mode.
 	tok, err := p.peek()
 
@@ -178,7 +181,6 @@ func (p *Parser) Parse() (*TreeNode, error) {
 		)
 
 		return p.g2Node()
-
 	} else {
 		// Prepare G1.
 		// Prepend and append tokens for the root element.
@@ -200,7 +202,6 @@ func (p *Parser) Parse() (*TreeNode, error) {
 
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (p *Parser) g1Node() (*TreeNode, error) {
-
 	forwardingNode := false
 	node := NewNode("invalid name") // name will be set later
 	node.Range.BeginPos = p.lexer.Pos()
@@ -216,6 +217,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if de, ok := tok.(*DefineElement); ok {
 		forwardingNode = de.Forward
 	} else if cd, ok := tok.(*CharData); ok {
@@ -229,6 +231,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if id, ok := tok.(*Identifier); ok {
 		node.Name = id.Value
 	} else {
@@ -266,6 +269,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			node.AddChildren(child)
 		}
 
@@ -274,6 +278,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if tok.TokenType() != TokenBlockEnd {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
 		}
@@ -305,7 +310,6 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 	result := NewAttributeMap()
 
 	for {
-
 		tok, err := p.peek()
 		if err != nil {
 			break
@@ -315,6 +319,7 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 			if wantForward && !attr.Forward {
 				return nil, NewForwardAttrError(tok)
 			}
+
 			if !wantForward && attr.Forward {
 				// The next forwarding attribute is not for us, but for the next element.
 				// Stop parsing attributes here.
@@ -331,14 +336,14 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 			break
 		}
 
-		attrKey := ""
-		attrValue := ""
+		var attrKey, attrValue string
 
 		// Read attribute key
 		tok, err = p.next()
 		if err != nil {
 			return nil, err
 		}
+
 		if ident, ok := tok.(*Identifier); ok {
 			attrKey = ident.Value
 		} else {
@@ -355,6 +360,7 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if cd, ok := tok.(*CharData); ok {
 			attrValue = cd.Value
 		} else {
@@ -367,7 +373,6 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if tok.TokenType() != TokenBlockEnd {
 			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
 		}
-
 	}
 
 	return result, nil

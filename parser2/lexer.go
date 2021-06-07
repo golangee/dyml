@@ -84,10 +84,12 @@ func (l *Lexer) Token() (Token, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	r2, err := l.nextR()
 	if err == nil {
 		l.prevR()
 	}
+
 	l.prevR()
 
 	var tok Token
@@ -99,6 +101,7 @@ func (l *Lexer) Token() (Token, error) {
 			l.mode = G2
 			tok, err = l.g2Preambel()
 			l.gSkipWhitespace()
+
 			return tok, err
 		}
 	}
@@ -112,28 +115,36 @@ func (l *Lexer) Token() (Token, error) {
 		}
 		l.gSkipWhitespace()
 		l.want = WantG1AttributeStart
+
 		return tok, err
 	case WantG1AttributeStart:
 		tok, err = l.gBlockStart()
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantG1AttributeCharData
+
 		return tok, err
 	case WantG1AttributeCharData:
 		tok, err = l.g1Text("}")
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantG1AttributeEnd
+
 		return tok, err
 	case WantG1AttributeEnd:
 		tok, err = l.gBlockEnd()
 		if err != nil {
 			return nil, err
 		}
+
 		l.want = WantNothing
+
 		l.gSkipWhitespace()
+
 		return tok, err
 	}
 

@@ -13,12 +13,11 @@ func (l *Lexer) g2Preambel() (*G2Preamble, error) {
 	startPos := l.Pos()
 
 	// Eat '#!' from input
-	r, _ := l.nextR()
-	if r != '#' {
+	if r, _ := l.nextR(); r != '#' {
 		return nil, token.NewPosError(l.node(), "expected '#' in g2 mode")
 	}
-	r, _ = l.nextR()
-	if r != '!' {
+
+	if r, _ := l.nextR(); r != '!' {
 		return nil, token.NewPosError(l.node(), "expected '!' in g2 mode")
 	}
 
@@ -40,6 +39,7 @@ func (l *Lexer) g2CharData() (*CharData, error) {
 	}
 
 	var tmp bytes.Buffer
+
 	for {
 		r, err := l.nextR()
 		if errors.Is(err, io.EOF) {
@@ -139,7 +139,6 @@ func (l *Lexer) g2GroupStart() (*GroupStart, error) {
 	groupStart.Position.EndPos = l.pos
 
 	return groupStart, nil
-
 }
 
 // g2GroupEnd reads the ')' that marks the end of a group.
@@ -160,7 +159,6 @@ func (l *Lexer) g2GroupEnd() (*GroupEnd, error) {
 	groupEnd.Position.EndPos = l.pos
 
 	return groupEnd, nil
-
 }
 
 // g2GenericStart reads the '<' that marks the start of a generic group.
@@ -181,7 +179,6 @@ func (l *Lexer) g2GenericStart() (*GenericStart, error) {
 	genericStart.Position.EndPos = l.pos
 
 	return genericStart, nil
-
 }
 
 // g2GenericEnd reads the '>' that marks the end of a generic group.
@@ -202,7 +199,6 @@ func (l *Lexer) g2GenericEnd() (*GenericEnd, error) {
 	genericEnd.Position.EndPos = l.pos
 
 	return genericEnd, nil
-
 }
 
 // g2CommentStart reads a '//' that marks the start of a line comment in G2.
@@ -222,5 +218,4 @@ func (l *Lexer) g2CommentStart() (*G2Comment, error) {
 	comment.Position.EndPos = l.pos
 
 	return comment, nil
-
 }

@@ -25,7 +25,9 @@ func (u UnexpectedTokenError) Error() string {
 	for _, tt := range u.expected {
 		expectedStrings = append(expectedStrings, string(tt))
 	}
+
 	expected := strings.Join(expectedStrings, ", ")
+
 	return fmt.Sprintf(
 		"unexpected %s at %s, expected %s",
 		u.tok.TokenType(),

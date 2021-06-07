@@ -152,7 +152,6 @@ func TestParser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
 
@@ -187,7 +186,6 @@ func TestParser(t *testing.T) {
 
 			if len(differences) > 0 {
 				for _, d := range differences {
-
 					nicePath := strings.Join(d.Path, ".")
 
 					// Skip differences on node ranges, as those are too noisy to test.
@@ -203,7 +201,6 @@ func TestParser(t *testing.T) {
 						PrettyValue(d.From), PrettyValue(d.To))
 				}
 			}
-
 		})
 	}
 }
@@ -212,7 +209,6 @@ func TestParser(t *testing.T) {
 // Usually "%#v" in fmt.Sprintf can give a nice description of the thing
 // you're passing in, but that does not apply to e.g. string pointers.
 func PrettyValue(v interface{}) string {
-
 	if s, ok := v.(*string); ok {
 		return fmt.Sprintf("%#v", *s)
 	}
