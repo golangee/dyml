@@ -200,6 +200,41 @@ func TestParser(t *testing.T) {
 				NewNode("H"),
 			),
 		},
+		{
+			name: "simple attribute G2",
+			text: `#!{
+						item @key="value" @another="key with 'special #chars\""
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").
+					AddAttribute("key", "value").
+					AddAttribute("another", `key with 'special #chars"`),
+			),
+		},
+		{
+			name: "attribute with siblings G2",
+			text: `#!{
+						A,
+						B C @key="value" D,
+						E,
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("A"),
+				NewNode("B").AddChildren(
+					NewNode("C").
+						AddAttribute("key", "value").
+						AddChildren(
+							NewNode("D"),
+						),
+				),
+				NewNode("E"),
+			),
+		},
+		{
+			name:    "invalid lonely attribute G2",
+			text:    `#!{@key="value"}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -330,18 +330,61 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenCharData)
 	}
 
-	// End this item on Comma or BlockEnd
-	tok, err = p.peek()
-	if err != nil {
-		return nil, err
-	}
+	// Read attributes
+	for {
+		tok, err = p.peek()
+		if err != nil {
+			return nil, err
+		}
 
-	if tok.TokenType() == TokenComma {
-		p.next()
+		if tok.TokenType() == TokenComma {
+			// Comma ends this element
+			p.next()
 
-		return node, nil
-	} else if tok.TokenType() == TokenBlockEnd {
-		return node, nil
+			return node, nil
+		} else if tok.TokenType() == TokenBlockEnd {
+			// BlockEnd ends this element
+			return node, nil
+		} else if tok.TokenType() == TokenDefineAttribute {
+			p.next() // pop DefineAttribute
+
+			var attrKey, attrValue string
+
+			// Read identifier as attribute name
+			tok, err = p.next()
+			if err != nil {
+				return nil, err
+			}
+
+			if ident, ok := tok.(*Identifier); ok {
+				attrKey = ident.Value
+			} else {
+				return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+			}
+
+			// Expect Assign
+			tok, _ = p.next()
+			if tok != nil && tok.TokenType() != TokenAssign {
+				return nil, NewUnexpectedTokenError(tok, TokenAssign)
+			}
+
+			// Read CharData as attribute value
+			tok, err = p.next()
+			if err != nil {
+				return nil, err
+			}
+
+			if cd, ok := tok.(*CharData); ok {
+				attrValue = cd.Value
+			} else {
+				return nil, NewUnexpectedTokenError(tok, TokenCharData)
+			}
+
+			node.AddAttribute(attrKey, attrValue)
+		} else {
+			// We probably encountered a child, which will be processed later.
+			break
+		}
 	}
 
 	// Process children

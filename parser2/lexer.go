@@ -113,6 +113,7 @@ func (l *Lexer) Token() (Token, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		l.gSkipWhitespace()
 		l.want = WantG1AttributeStart
 
@@ -242,6 +243,7 @@ func (l *Lexer) Token() (Token, error) {
 		} else {
 			return nil, token.NewPosError(l.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
+
 		l.gSkipWhitespace()
 	default:
 		return nil, errors.New("lexer in unknown mode")
