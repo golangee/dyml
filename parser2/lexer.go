@@ -57,7 +57,7 @@ type Lexer struct {
 	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
 	bufPos int
 	pos    token.Pos // current position
-	// started is only used to detect if the first token is the G2Preambel
+	// started is only used to detect if the first token is the G2Preamble
 	started bool
 	mode    GrammarMode
 	want    WantMode

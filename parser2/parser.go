@@ -71,7 +71,7 @@ func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
 }
 
 // tokenWithError is a struct that wraps a Token and an error that may
-// have occured while reading that Token.
+// have occurred while reading that Token.
 // This type simplifies storing tokens in the parser.
 type tokenWithError struct {
 	tok Token
@@ -161,23 +161,44 @@ func (p *Parser) peek() (Token, error) {
 // Parse returns a parsed tree.
 func (p *Parser) Parse() (*TreeNode, error) {
 
-	// TODO G2 mode
+	// Peek the first token to check if we should set G2 mode.
+	tok, err := p.peek()
 
-	// Prepend and append tokens for the root element.
-	// This makes the root just another element, which simplifies parsing a lot.
-	p.tokenBuffer = append(p.tokenBuffer,
-		tokenWithError{tok: &DefineElement{}},
-		tokenWithError{tok: &Identifier{Value: "root"}},
-		tokenWithError{tok: &BlockStart{}},
-	)
-	p.tokenTailBuffer = append(p.tokenTailBuffer,
-		tokenWithError{tok: &BlockEnd{}},
-	)
+	// Edge case: When the input is empty we do not want the EOF in our buffer, as we will append tailTokens later.
+	if errors.Is(err, io.EOF) {
+		p.next()
+	}
 
-	return p.g1Node()
+	if tok != nil && tok.TokenType() == TokenG2Preamble {
+		// Prepare G2 by switching out the preamble for a root identifier.
+		p.mode = G2
+		p.next()
+		p.tokenBuffer = append(p.tokenBuffer,
+			tokenWithError{tok: &Identifier{Value: "root"}},
+		)
+
+		return p.g2Node()
+
+	} else {
+		// Prepare G1.
+		// Prepend and append tokens for the root element.
+		// This makes the root just another element, which simplifies parsing a lot.
+		p.tokenBuffer = append([]tokenWithError{
+			{tok: &DefineElement{}},
+			{tok: &Identifier{Value: "root"}},
+			{tok: &BlockStart{}},
+		},
+			p.tokenBuffer...,
+		)
+		p.tokenTailBuffer = append(p.tokenTailBuffer,
+			tokenWithError{tok: &BlockEnd{}},
+		)
+
+		return p.g1Node()
+	}
 }
 
-// g1Node recusively parses a g1Node and all its children from tokens.
+// g1Node recursively parses a G1 node and all its children from tokens.
 func (p *Parser) g1Node() (*TreeNode, error) {
 
 	forwardingNode := false
@@ -269,6 +290,11 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	node.Range.EndPos = p.lexer.Pos()
 
 	return node, nil
+}
+
+// g2Node recursively parses a G2 node and all its children from tokens.
+func (p *Parser) g2Node() (*TreeNode, error) {
+	return NewNode("root"), nil
 }
 
 // parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.

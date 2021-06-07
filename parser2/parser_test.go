@@ -143,6 +143,11 @@ func TestParser(t *testing.T) {
 			text:    `@@key{value}`,
 			wantErr: true,
 		},
+		{
+			name: "empty G2",
+			text: `#!{}`,
+			want: NewNode("root"),
+		},
 	}
 
 	for _, tt := range tests {
