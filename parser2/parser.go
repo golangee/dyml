@@ -27,7 +27,19 @@ func NewNode(name string) *TreeNode {
 }
 
 // NewTextNode creates a node that will only contain text.
-func NewTextNode(text string) *TreeNode {
+func NewTextNode(cd *CharData) *TreeNode {
+	return &TreeNode{
+		Text: &cd.Value,
+		Range: token.Position{
+			BeginPos: cd.Begin(),
+			EndPos:   cd.End(),
+		},
+	}
+}
+
+// NewStringNode will create a TextNode, like NewTextNode, but without positional information.
+// Use NewTextNode with a CharData token if you can.
+func NewStringNode(text string) *TreeNode {
 	return &TreeNode{
 		Text: &text,
 	}
@@ -218,12 +230,13 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		return nil, err
 	}
 
-	if de, ok := tok.(*DefineElement); ok {
-		forwardingNode = de.Forward
-	} else if cd, ok := tok.(*CharData); ok {
-		return NewTextNode(cd.Value), nil
-	} else {
-		return nil, NewUnexpectedTokenError(tok, TokenCharData, TokenDefineElement)
+	switch t := tok.(type) {
+	case *DefineElement:
+		forwardingNode = t.Forward
+	case *CharData:
+		return NewTextNode(t), nil
+	default:
+		return nil, NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData)
 	}
 
 	// Expect identifier for new element
@@ -299,7 +312,90 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (p *Parser) g2Node() (*TreeNode, error) {
-	return NewNode("root"), nil
+	node := NewNode("invalid name") // name will be set later
+	node.Range.BeginPos = p.lexer.Pos()
+
+	// Expect identifier or text
+	tok, err := p.next()
+	if err != nil {
+		return nil, err
+	}
+
+	switch t := tok.(type) {
+	case *Identifier:
+		node.Name = t.Value
+	case *CharData:
+		return NewTextNode(t), nil
+	default:
+		return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenCharData)
+	}
+
+	// End this item on Comma or BlockEnd
+	tok, err = p.peek()
+	if err != nil {
+		return nil, err
+	}
+
+	if tok.TokenType() == TokenComma {
+		p.next()
+
+		return node, nil
+	} else if tok.TokenType() == TokenBlockEnd {
+		return node, nil
+	}
+
+	// Process children
+	tok, err = p.peek()
+	if err != nil {
+		return nil, err
+	}
+
+	switch t := tok.(type) {
+	case *Identifier:
+		child, err := p.g2Node()
+		if err != nil {
+			return nil, err
+		}
+
+		node.AddChildren(child)
+	case *CharData:
+		p.next()
+
+		node.AddChildren(NewTextNode(t))
+	case *BlockStart:
+		p.next()
+
+		// Parse children in curly brackets
+		for {
+			tok, err = p.peek()
+			if err != nil {
+				return nil, err
+			}
+
+			if tok.TokenType() == TokenIdentifier {
+				child, err := p.g2Node()
+				if err != nil {
+					return nil, err
+				}
+
+				node.AddChildren(child)
+			} else if tok.TokenType() == TokenBlockEnd {
+				p.next() // pop BlockEnd
+
+				break
+			} else {
+				return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenBlockEnd)
+			}
+		}
+	case *Comma:
+		// Comma ends a node definition
+	default:
+		return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenCharData, TokenBlockStart, TokenComma)
+	}
+
+	node.Range.EndPos = p.lexer.Pos()
+
+	return node, nil
 }
 
 // parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.

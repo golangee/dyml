@@ -24,19 +24,19 @@ func TestParser(t *testing.T) {
 			name: "just text",
 			text: "hello world",
 			want: NewNode("root").AddChildren(
-				NewTextNode("hello world"),
+				NewStringNode("hello world"),
 			),
 		},
 		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
 			want: NewNode("root").AddChildren(
-				NewTextNode("hello "),
+				NewStringNode("hello "),
 				NewNode("item1"),
-				NewTextNode("world "),
+				NewStringNode("world "),
 				NewNode("item2"),
 				NewNode("item3"),
-				NewTextNode("more text"),
+				NewStringNode("more text"),
 			),
 		},
 		{
@@ -147,6 +147,58 @@ func TestParser(t *testing.T) {
 			name: "empty G2",
 			text: `#!{}`,
 			want: NewNode("root"),
+		},
+		{
+			name: "simple G2",
+			text: `#!{item}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+			),
+		},
+		{
+			name: "siblings G2",
+			text: `#!{item, item}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item"),
+				NewNode("item"),
+			),
+		},
+		{
+			name: "nested G2",
+			text: `#!{item subitem subsubitem "text"}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").AddChildren(
+					NewNode("subitem").AddChildren(
+						NewNode("subsubitem").AddChildren(
+							NewStringNode("text"),
+						),
+					),
+				),
+			),
+		},
+		{
+			name: "complex siblings and nested G2",
+			text: `#!{
+						A B {
+							C,
+							D,
+						}
+						E {F, G}
+						H
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("A").AddChildren(
+					NewNode("B").AddChildren(
+						NewNode("C"),
+						NewNode("D"),
+					),
+				),
+				NewNode("E").AddChildren(
+					NewNode("F"),
+					NewNode("G"),
+				),
+				NewNode("H"),
+			),
 		},
 	}
 
