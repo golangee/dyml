@@ -8,8 +8,8 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
-// g2Preambel reads the '#!' preambel of G2 grammars.
-func (l *Lexer) g2Preambel() (*G2Preamble, error) {
+// g2Preambel reads the '#!' preamble of G2 grammars.
+func (l *Lexer) g2Preamble() (*G2Preamble, error) {
 	startPos := l.Pos()
 
 	// Eat '#!' from input

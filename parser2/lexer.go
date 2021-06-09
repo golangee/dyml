@@ -99,7 +99,7 @@ func (l *Lexer) Token() (Token, error) {
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
 			l.mode = G2
-			tok, err = l.g2Preambel()
+			tok, err = l.g2Preamble()
 			l.gSkipWhitespace()
 
 			return tok, err
@@ -114,7 +114,12 @@ func (l *Lexer) Token() (Token, error) {
 			return nil, err
 		}
 
-		l.gSkipWhitespace()
+		if l.mode == G1Line {
+			l.gSkipWhitespace('\n')
+		} else {
+			l.gSkipWhitespace()
+		}
+
 		l.want = WantG1AttributeStart
 
 		return tok, err
@@ -128,7 +133,12 @@ func (l *Lexer) Token() (Token, error) {
 
 		return tok, err
 	case WantG1AttributeCharData:
-		tok, err = l.g1Text("}")
+		if l.mode == G1Line {
+			tok, err = l.g1Text("}\n")
+		} else {
+			tok, err = l.g1Text("}")
+		}
+
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +154,11 @@ func (l *Lexer) Token() (Token, error) {
 
 		l.want = WantNothing
 
-		l.gSkipWhitespace()
+		if l.mode == G1Line {
+			l.gSkipWhitespace('\n')
+		} else {
+			l.gSkipWhitespace()
+		}
 
 		return tok, err
 	}
@@ -188,7 +202,7 @@ func (l *Lexer) Token() (Token, error) {
 		} else if l.want == WantIdentifier {
 			tok, err = l.gIdent()
 			l.want = WantNothing
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else if r1 == '#' {
 			tok, err = l.gDefineElement()
 			l.want = WantIdentifier
@@ -197,10 +211,10 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else {
 			tok, err = l.g1Text("#}\n")
 		}
@@ -208,45 +222,56 @@ func (l *Lexer) Token() (Token, error) {
 		if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
 			l.want = WantNothing
+			l.gSkipWhitespace()
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
+			l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '(' {
 			tok, err = l.g2GroupStart()
+			l.gSkipWhitespace()
 		} else if r1 == ')' {
 			tok, err = l.g2GroupEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '<' {
 			tok, err = l.g2GenericStart()
+			l.gSkipWhitespace()
 		} else if r1 == '>' {
 			tok, err = l.g2GenericEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '"' {
 			tok, err = l.g2CharData()
+			l.gSkipWhitespace()
 		} else if r1 == '@' {
 			tok, err = l.gDefineAttribute()
 		} else if r1 == '#' {
 			// A '#' marks the start of a G1 line.
 			tok, err = l.gDefineElement()
 			l.mode = G1Line
+			l.gSkipWhitespace('\n')
 		} else if r1 == '=' {
 			tok, err = l.g2Assign()
+			l.gSkipWhitespace()
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
+			l.gSkipWhitespace()
 		} else if r1 == '|' {
 			tok, err = l.g2Pipe()
+			l.gSkipWhitespace()
 		} else if r1 == '/' {
 			tok, err = l.g2CommentStart()
-			l.gSkipWhitespace()
 			l.want = WantCommentLine
+			l.gSkipWhitespace('\n')
 		} else if l.gIdentChar(r1) {
 			tok, err = l.gIdent()
+			l.gSkipWhitespace()
 		} else {
 			return nil, token.NewPosError(l.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
-
-		l.gSkipWhitespace()
 	default:
-		return nil, errors.New("lexer in unknown mode")
+		return nil, fmt.Errorf("lexer is in unknown mode (%d), this is a bug", l.mode)
 	}
 
 	// An EOF might occur while reading a token.

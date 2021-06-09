@@ -184,6 +184,8 @@ func (p *Parser) Parse() (*TreeNode, error) {
 		p.next()
 	}
 
+	var tree *TreeNode
+
 	if tok != nil && tok.TokenType() == TokenG2Preamble {
 		// Prepare G2 by switching out the preamble for a root identifier.
 		p.mode = G2
@@ -192,7 +194,10 @@ func (p *Parser) Parse() (*TreeNode, error) {
 			tokenWithError{tok: &Identifier{Value: "root"}},
 		)
 
-		return p.g2Node()
+		tree, err = p.g2Node()
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		// Prepare G1.
 		// Prepend and append tokens for the root element.
@@ -208,8 +213,18 @@ func (p *Parser) Parse() (*TreeNode, error) {
 			tokenWithError{tok: &BlockEnd{}},
 		)
 
-		return p.g1Node()
+		tree, err = p.g1Node()
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	// All forwarding nodes should have been processed earlier.
+	if len(p.forwardingNodes) > 0 {
+		return nil, token.NewPosError(p.forwardingNodes[0].Range, "there is no node to forward this node into")
+	}
+
+	return tree, nil
 }
 
 // g1Node recursively parses a G1 node and all its children from tokens.
@@ -236,7 +251,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	case *CharData:
 		return NewTextNode(t), nil
 	default:
-		return nil, NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData))
 	}
 
 	// Expect identifier for new element
@@ -248,7 +266,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	if id, ok := tok.(*Identifier); ok {
 		node.Name = id.Value
 	} else {
-		return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
 	}
 
 	// We now have a valid node.
@@ -293,7 +314,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		}
 
 		if tok.TokenType() != TokenBlockEnd {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"use a '}' here to close the element",
+			).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
 		}
 	}
 
@@ -310,10 +334,66 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	return node, nil
 }
 
+// g1LineNodes returns all nodes that were encountered in a G1 line.
+// This function will eat the beginning DefineElement and the ending G1LineEnd token.
+func (p *Parser) g1LineNodes() ([]*TreeNode, error) {
+	// Expect beginning '#'
+	tok, err := p.next()
+	if err != nil {
+		return nil, err
+	}
+
+	var forward bool
+
+	if de, ok := tok.(*DefineElement); ok {
+		forward = de.Forward
+	} else {
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"start of G1 line expected",
+		).SetCause(NewUnexpectedTokenError(tok, TokenDefineElement))
+	}
+
+	p.mode = G1Line
+
+	// Read g1Nodes until we encounter G1LineEnd
+	var nodes []*TreeNode
+
+	for {
+		tok, _ := p.peek()
+		if tok != nil && tok.TokenType() == TokenG1LineEnd {
+			p.next()
+			break
+		}
+
+		node, err := p.g1Node()
+		if err != nil {
+			return nil, err
+		}
+
+		nodes = append(nodes, node)
+	}
+
+	p.mode = G2
+
+	// Should this be a forwarding G1 line, we will store the children for later
+	// and return an empty array here.
+	if forward {
+		p.forwardingNodes = append(p.forwardingNodes, nodes...)
+		return []*TreeNode{}, nil
+	} else {
+		return nodes, nil
+	}
+}
+
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (p *Parser) g2Node() (*TreeNode, error) {
 	node := NewNode("invalid name") // name will be set later
 	node.Range.BeginPos = p.lexer.Pos()
+
+	// Insert forwarded nodes
+	node.Children = p.forwardingNodes
+	p.forwardingNodes = nil
 
 	// Read forward attributes
 	forwardedAttributes, err := p.parseAttributes(true)
@@ -333,12 +413,18 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	case *CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"attributes cannot be forwarded into this text",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
 		}
 
 		return NewTextNode(t), nil
 	default:
-		return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenCharData)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenCharData, TokenIdentifier))
 	}
 
 	// Read attributes
@@ -360,6 +446,13 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		p.next()
 
 		node.AddChildren(NewTextNode(t))
+	case *DefineElement:
+		children, err := p.g1LineNodes()
+		if err != nil {
+			return nil, err
+		}
+
+		node.AddChildren(children...)
 	case *BlockStart:
 		p.next()
 
@@ -374,6 +467,12 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 				p.next() // pop BlockEnd
 
 				break
+			} else if tok.TokenType() == TokenDefineElement {
+				children, err := p.g1LineNodes()
+				if err != nil {
+					return nil, err
+				}
+				node.AddChildren(children...)
 			} else {
 				child, err := p.g2Node()
 				if err != nil {
@@ -410,6 +509,8 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 	result := NewAttributeMap()
 
+	isG1 := p.mode == G1 || p.mode == G1Line
+
 	for {
 		tok, err := p.peek()
 		if err != nil {
@@ -418,7 +519,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		if attr, ok := tok.(*DefineAttribute); ok {
 			if wantForward && !attr.Forward {
-				return nil, NewForwardAttrError(tok)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"this should be a forward attribute or removed",
+				).SetCause(NewForwardAttrError())
 			}
 
 			if !wantForward && attr.Forward {
@@ -449,20 +553,29 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if ident, ok := tok.(*Identifier); ok {
 			attrKey = ident.Value
 		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"an identifier is required as an attribute key",
+			).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
 		}
 
 		// Read CharData enclosed in brackets as attribute value in G1.
 		// Read CharData after Assign in G2.
 
 		tok, _ = p.next()
-		if p.mode == G1 {
+		if isG1 {
 			if tok.TokenType() != TokenBlockStart {
-				return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"attribute value must be enclosed in '{}'",
+				).SetCause(NewUnexpectedTokenError(tok, TokenBlockStart))
 			}
 		} else {
 			if tok.TokenType() != TokenAssign {
-				return nil, NewUnexpectedTokenError(tok, TokenAssign)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"'=' is expected here",
+				).SetCause(NewUnexpectedTokenError(tok, TokenAssign))
 			}
 		}
 
@@ -474,15 +587,21 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if cd, ok := tok.(*CharData); ok {
 			attrValue = cd.Value
 		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenCharData)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"attribute value is required",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
 		}
 
 		result.Set(attrKey, attrValue)
 
-		if p.mode == G1 {
+		if isG1 {
 			tok, _ = p.next()
 			if tok.TokenType() != TokenBlockEnd {
-				return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"attribute value needs to be closed with '}'",
+				).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
 			}
 		}
 	}

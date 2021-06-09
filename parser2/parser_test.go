@@ -282,6 +282,59 @@ func TestParser(t *testing.T) {
 					}`,
 			wantErr: true,
 		},
+		{
+			name: "G1 line in G2",
+			text: `#!{
+						# This is a G1 text line. #item @key{with value}
+					}`,
+			want: NewNode("root").AddChildren(
+				NewStringNode("This is a G1 text line. "),
+				NewNode("item").
+					AddAttribute("key", "with value"),
+			),
+		},
+		{
+			name: "nested G1 line",
+			text: `#!{
+						item # text child #child
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").AddChildren(
+					NewStringNode("text child "),
+					NewNode("child"),
+				),
+			),
+		},
+		{
+			name: "forward G1 line",
+			text: `#!{
+						## forwarded #item @with{attribute}
+						parent with children
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("parent").AddChildren(
+					NewStringNode("forwarded "),
+					NewNode("item").AddAttribute("with", "attribute"),
+					NewNode("with").AddChildren(
+						NewNode("children"),
+					),
+				),
+			),
+		},
+		{
+			name: "empty G1 line",
+			text: `#!{
+						#
+					}`,
+			want: NewNode("root"),
+		},
+		{
+			name: "invalid forward G1 line",
+			text: `#!{
+						## where would this text be forwarded to?
+					}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
