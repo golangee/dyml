@@ -29,24 +29,19 @@ func (u UnexpectedTokenError) Error() string {
 	expected := strings.Join(expectedStrings, ", ")
 
 	return fmt.Sprintf(
-		"unexpected %s at %s, expected %s",
+		"unexpected %s, expected %s",
 		u.tok.TokenType(),
-		u.tok.Pos().Begin(),
 		expected)
 }
 
 // ForwardAttrError is returned when the token is a simple '@' for defining an attribute,
 // but a forward definition '@@' is required.
-type ForwardAttrError struct {
-	tok Token
-}
+type ForwardAttrError struct{}
 
 func (e ForwardAttrError) Error() string {
-	return fmt.Sprintf("expected a forward attribute at %s", e.tok.Pos().Begin())
+	return fmt.Sprintf("expected a forward attribute")
 }
 
-func NewForwardAttrError(tok Token) error {
-	return ForwardAttrError{
-		tok: tok,
-	}
+func NewForwardAttrError() error {
+	return ForwardAttrError{}
 }

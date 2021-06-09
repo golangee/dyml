@@ -236,7 +236,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	case *CharData:
 		return NewTextNode(t), nil
 	default:
-		return nil, NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData))
 	}
 
 	// Expect identifier for new element
@@ -248,7 +251,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	if id, ok := tok.(*Identifier); ok {
 		node.Name = id.Value
 	} else {
-		return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
 	}
 
 	// We now have a valid node.
@@ -293,7 +299,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		}
 
 		if tok.TokenType() != TokenBlockEnd {
-			return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"use a '}' here to close the element",
+			).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
 		}
 	}
 
@@ -333,12 +342,18 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	case *CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"this token is not valid here",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
 		}
 
 		return NewTextNode(t), nil
 	default:
-		return nil, NewUnexpectedTokenError(tok, TokenIdentifier, TokenCharData)
+		return nil, token.NewPosError(
+			tok.Pos(),
+			"this token is not valid here",
+		).SetCause(NewUnexpectedTokenError(tok, TokenCharData, TokenIdentifier))
 	}
 
 	// Read attributes
@@ -418,7 +433,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		if attr, ok := tok.(*DefineAttribute); ok {
 			if wantForward && !attr.Forward {
-				return nil, NewForwardAttrError(tok)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"this should be a forward attribute or removed",
+				).SetCause(NewForwardAttrError())
 			}
 
 			if !wantForward && attr.Forward {
@@ -449,7 +467,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if ident, ok := tok.(*Identifier); ok {
 			attrKey = ident.Value
 		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenIdentifier)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"an identifier is required as an attribute key",
+			).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
 		}
 
 		// Read CharData enclosed in brackets as attribute value in G1.
@@ -458,11 +479,17 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		tok, _ = p.next()
 		if p.mode == G1 {
 			if tok.TokenType() != TokenBlockStart {
-				return nil, NewUnexpectedTokenError(tok, TokenBlockStart)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"attribute value must be enclosed in '{}'",
+				).SetCause(NewUnexpectedTokenError(tok, TokenBlockStart))
 			}
 		} else {
 			if tok.TokenType() != TokenAssign {
-				return nil, NewUnexpectedTokenError(tok, TokenAssign)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"'=' is expected here",
+				).SetCause(NewUnexpectedTokenError(tok, TokenAssign))
 			}
 		}
 
@@ -474,7 +501,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if cd, ok := tok.(*CharData); ok {
 			attrValue = cd.Value
 		} else {
-			return nil, NewUnexpectedTokenError(tok, TokenCharData)
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"attribute value is required",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
 		}
 
 		result.Set(attrKey, attrValue)
@@ -482,7 +512,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if p.mode == G1 {
 			tok, _ = p.next()
 			if tok.TokenType() != TokenBlockEnd {
-				return nil, NewUnexpectedTokenError(tok, TokenBlockEnd)
+				return nil, token.NewPosError(
+					tok.Pos(),
+					"attribute value needs to be closed with '}'",
+				).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
 			}
 		}
 	}

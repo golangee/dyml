@@ -99,7 +99,7 @@ func (l *Lexer) Token() (Token, error) {
 		// Find out if we should switch to g2 by checking if the first two runes are '#!'
 		if r1 == '#' && r2 == '!' {
 			l.mode = G2
-			tok, err = l.g2Preambel()
+			tok, err = l.g2Preamble()
 			l.gSkipWhitespace()
 
 			return tok, err
@@ -246,7 +246,7 @@ func (l *Lexer) Token() (Token, error) {
 
 		l.gSkipWhitespace()
 	default:
-		return nil, errors.New("lexer in unknown mode")
+		return nil, fmt.Errorf("lexer is in unknown mode (%d), this is a bug", l.mode)
 	}
 
 	// An EOF might occur while reading a token.
