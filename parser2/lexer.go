@@ -114,7 +114,12 @@ func (l *Lexer) Token() (Token, error) {
 			return nil, err
 		}
 
-		l.gSkipWhitespace()
+		if l.mode == G1Line {
+			l.gSkipWhitespace('\n')
+		} else {
+			l.gSkipWhitespace()
+		}
+
 		l.want = WantG1AttributeStart
 
 		return tok, err
@@ -128,7 +133,11 @@ func (l *Lexer) Token() (Token, error) {
 
 		return tok, err
 	case WantG1AttributeCharData:
-		tok, err = l.g1Text("}")
+		if l.mode == G1Line {
+			tok, err = l.g1Text("}\n")
+		} else {
+			tok, err = l.g1Text("}")
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +153,11 @@ func (l *Lexer) Token() (Token, error) {
 
 		l.want = WantNothing
 
-		l.gSkipWhitespace()
+		if l.mode == G1Line {
+			l.gSkipWhitespace('\n')
+		} else {
+			l.gSkipWhitespace()
+		}
 
 		return tok, err
 	}
@@ -188,7 +201,7 @@ func (l *Lexer) Token() (Token, error) {
 		} else if l.want == WantIdentifier {
 			tok, err = l.gIdent()
 			l.want = WantNothing
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else if r1 == '#' {
 			tok, err = l.gDefineElement()
 			l.want = WantIdentifier
@@ -197,10 +210,10 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
-			l.gSkipWhitespace()
+			l.gSkipWhitespace('\n')
 		} else {
 			tok, err = l.g1Text("#}\n")
 		}

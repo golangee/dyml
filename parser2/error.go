@@ -21,16 +21,28 @@ func NewUnexpectedTokenError(tok Token, expected ...TokenType) error {
 
 func (u UnexpectedTokenError) Error() string {
 	// Build a pretty string with expected tokens
-	var expectedStrings []string
+	var expectedTokens []string
 	for _, tt := range u.expected {
-		expectedStrings = append(expectedStrings, string(tt))
+		tokenName := strings.TrimPrefix(string(tt), "Token")
+		expectedTokens = append(expectedTokens, tokenName)
 	}
 
-	expected := strings.Join(expectedStrings, ", ")
+	// Join the last two elements with an "or" to have a nice looking string.
+	count := len(expectedTokens)
+	if count >= 2 {
+		joined := fmt.Sprintf("%s or %s",
+			expectedTokens[count-2],
+			expectedTokens[count-1],
+		)
+		expectedTokens = expectedTokens[:count-1]
+		expectedTokens[len(expectedTokens)-1] = joined
+	}
+
+	expected := strings.Join(expectedTokens, ", ")
 
 	return fmt.Sprintf(
 		"unexpected %s, expected %s",
-		u.tok.TokenType(),
+		strings.TrimPrefix(string(u.tok.TokenType()), "Token"),
 		expected)
 }
 

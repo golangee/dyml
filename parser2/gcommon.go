@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/golangee/tadl/token"
 )
@@ -48,18 +49,22 @@ func (l *Lexer) gBlockEnd() (*BlockEnd, error) {
 	return blockEnd, nil
 }
 
-// Skip whitespace characters
-func (l *Lexer) gSkipWhitespace() error {
+// gSkipWhitespace skips whitespace characters.
+// Any whitespace characters in dontSkip will not be skipped.
+func (l *Lexer) gSkipWhitespace(dontSkip ...rune) error {
+	whitespaces := " \n\t"
+	dontSkipStr := string(dontSkip)
+
 	for {
 		r, err := l.nextR()
 		if err != nil {
 			return err
 		}
 
-		switch r {
-		case ' ', '\t', '\n':
+		if strings.ContainsRune(whitespaces, r) && !strings.ContainsRune(dontSkipStr, r) {
+			// skip this character
 			continue
-		default:
+		} else {
 			// We got a non-whitespace, rewind and return
 			l.prevR()
 
