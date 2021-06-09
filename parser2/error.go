@@ -22,6 +22,7 @@ func NewUnexpectedTokenError(tok Token, expected ...TokenType) error {
 func (u UnexpectedTokenError) Error() string {
 	// Build a pretty string with expected tokens
 	var expectedTokens []string
+
 	for _, tt := range u.expected {
 		tokenName := strings.TrimPrefix(string(tt), "Token")
 		expectedTokens = append(expectedTokens, tokenName)
@@ -51,7 +52,7 @@ func (u UnexpectedTokenError) Error() string {
 type ForwardAttrError struct{}
 
 func (e ForwardAttrError) Error() string {
-	return fmt.Sprintf("expected a forward attribute")
+	return "expected a forward attribute"
 }
 
 func NewForwardAttrError() error {

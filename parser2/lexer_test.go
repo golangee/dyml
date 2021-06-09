@@ -235,6 +235,7 @@ func TestLexer(t *testing.T) {
 						# #item{#child}
 						# @key{value}
 						# text
+						#
 					}`,
 			want: NewTestSet().
 				G2Preambel().
@@ -260,6 +261,8 @@ func TestLexer(t *testing.T) {
 				G1LineEnd().
 				DefineElement(false).
 				CharData("text").
+				G1LineEnd().
+				DefineElement(false).
 				G1LineEnd().
 				BlockEnd(),
 		},

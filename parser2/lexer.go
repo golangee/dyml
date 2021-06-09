@@ -138,6 +138,7 @@ func (l *Lexer) Token() (Token, error) {
 		} else {
 			tok, err = l.g1Text("}")
 		}
+
 		if err != nil {
 			return nil, err
 		}
@@ -221,43 +222,54 @@ func (l *Lexer) Token() (Token, error) {
 		if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
 			l.want = WantNothing
+			l.gSkipWhitespace()
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
+			l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '(' {
 			tok, err = l.g2GroupStart()
+			l.gSkipWhitespace()
 		} else if r1 == ')' {
 			tok, err = l.g2GroupEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '<' {
 			tok, err = l.g2GenericStart()
+			l.gSkipWhitespace()
 		} else if r1 == '>' {
 			tok, err = l.g2GenericEnd()
+			l.gSkipWhitespace()
 		} else if r1 == '"' {
 			tok, err = l.g2CharData()
+			l.gSkipWhitespace()
 		} else if r1 == '@' {
 			tok, err = l.gDefineAttribute()
 		} else if r1 == '#' {
 			// A '#' marks the start of a G1 line.
 			tok, err = l.gDefineElement()
 			l.mode = G1Line
+			l.gSkipWhitespace('\n')
 		} else if r1 == '=' {
 			tok, err = l.g2Assign()
+			l.gSkipWhitespace()
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
+			l.gSkipWhitespace()
 		} else if r1 == '|' {
 			tok, err = l.g2Pipe()
+			l.gSkipWhitespace()
 		} else if r1 == '/' {
 			tok, err = l.g2CommentStart()
-			l.gSkipWhitespace()
 			l.want = WantCommentLine
+			l.gSkipWhitespace('\n')
 		} else if l.gIdentChar(r1) {
 			tok, err = l.gIdent()
+			l.gSkipWhitespace()
 		} else {
 			return nil, token.NewPosError(l.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
-
-		l.gSkipWhitespace()
 	default:
 		return nil, fmt.Errorf("lexer is in unknown mode (%d), this is a bug", l.mode)
 	}
