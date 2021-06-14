@@ -391,6 +391,11 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name:    "invalid root brackets",
+			text:    `#!(item)`,
+			wantErr: true,
+		},
+		{
 			name: "function definition example",
 			text: `#!{
 						## Greet someone.

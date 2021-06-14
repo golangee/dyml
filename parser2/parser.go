@@ -259,6 +259,11 @@ func (p *Parser) Parse() (*TreeNode, error) {
 		return nil, token.NewPosError(p.forwardingNodes[0].Range, "there is no node to forward this node into")
 	}
 
+	// The root element should always have curly brackets.
+	if tree.BlockType != BlockNormal {
+		return nil, token.NewPosError(tree.Range, "root element must have curly brackets")
+	}
+
 	return tree, nil
 }
 
