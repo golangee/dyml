@@ -335,6 +335,93 @@ func TestParser(t *testing.T) {
 					}`,
 			wantErr: true,
 		},
+		{
+			name: "many G1 lines",
+			text: `#!{
+						# Hello!
+						# Hello!
+						# Hello!
+					}`,
+			want: NewNode("root").AddChildren(
+				NewStringNode("Hello!"),
+				NewStringNode("Hello!"),
+				NewStringNode("Hello!"),
+			),
+		},
+		{
+			name: "other group types",
+			text: `#!{
+						item { X , Y}
+						item < X ,Y  >
+						item (X, Y )
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").AddChildren(
+					NewNode("X"),
+					NewNode("Y"),
+				),
+				NewNode("item").Block(BlockGeneric).AddChildren(
+					NewNode("X"),
+					NewNode("Y"),
+				),
+				NewNode("item").Block(BlockGroup).AddChildren(
+					NewNode("X"),
+					NewNode("Y"),
+				),
+			),
+		},
+		{
+			name: "incorrect closing type",
+			text: `#!{
+						item {>
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "nested groups",
+			text: `#!{
+						item< item( item ) >
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("item").Block(BlockGeneric).AddChildren(
+					NewNode("item").Block(BlockGroup).AddChildren(
+						NewNode("item"),
+					),
+				),
+			),
+		},
+		{
+			name: "function definition example",
+			text: `#!{
+						## Greet someone.
+						@@name="The name to greet."
+						func Greet(name string)
+
+						## Run complex calculations.
+						func Run(x int, y int, z string)
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("func").
+					AddAttribute("name", "The name to greet.").
+					AddChildren(
+						NewStringNode("Greet someone."),
+						NewNode("Greet").Block(BlockGroup).AddChildren(
+							NewNode("name").AddChildren(
+								NewNode("string"),
+							),
+						),
+					),
+				NewNode("func").
+					AddChildren(
+						NewStringNode("Run complex calculations."),
+						NewNode("Run").Block(BlockGroup).AddChildren(
+							NewNode("x").AddChildren(NewNode("int")),
+							NewNode("y").AddChildren(NewNode("int")),
+							NewNode("z").AddChildren(NewNode("string")),
+						),
+					),
+			),
+		},
 	}
 
 	for _, tt := range tests {

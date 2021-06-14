@@ -82,11 +82,6 @@ type Comma struct {
 	token.Position
 }
 
-// Pipe '|' is used as a separator in G2.
-type Pipe struct {
-	token.Position
-}
-
 // G1Comment is a '#?' that indicates a comment in G1.
 type G1Comment struct {
 	token.Position

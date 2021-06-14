@@ -14,6 +14,8 @@ type TreeNode struct {
 	Text       *string
 	Attributes AttributeMap
 	Children   []*TreeNode
+	// BlockType describes the type of brackets the children were surrounded with.
+	BlockType BlockType
 	// Range will span all tokens that were processed to build this node.
 	Range token.Position
 }
@@ -23,6 +25,7 @@ func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
 		Attributes: NewAttributeMap(),
+		BlockType:  BlockNormal,
 	}
 }
 
@@ -57,6 +60,28 @@ func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
 	t.Attributes.Set(key, value)
 
 	return t
+}
+
+// Block is used to set the BlockType of this node.
+func (t *TreeNode) Block(blockType BlockType) *TreeNode {
+	t.BlockType = blockType
+
+	return t
+}
+
+// isClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
+// match for closing this TreeNode.
+func (t *TreeNode) isClosedBy(tok Token) bool {
+	switch tok.(type) {
+	case *BlockEnd:
+		return t.BlockType == BlockNormal
+	case *GroupEnd:
+		return t.BlockType == BlockGroup
+	case *GenericEnd:
+		return t.BlockType == BlockGeneric
+	default:
+		return false
+	}
 }
 
 // AttributeMap is a custom map[string]string to make the
@@ -94,6 +119,16 @@ type tokenWithError struct {
 	tok Token
 	err error
 }
+
+// BlockType is an addition for nodes that describes with what brackets their children were surrounded.
+type BlockType string
+
+const (
+	BlockNone    BlockType = ""
+	BlockNormal  BlockType = "{}"
+	BlockGroup   BlockType = "()"
+	BlockGeneric BlockType = "<>"
+)
 
 // Parser is used to get a tree representation from Tadl input.
 type Parser struct {
@@ -292,6 +327,8 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	if tok.TokenType() == TokenBlockStart {
 		p.next() // Pop the token, we know it's a BlockStart
 
+		node.BlockType = BlockNormal
+
 		// Append children until we encounter a TokenBlockEnd
 		for {
 			tok, _ = p.peek()
@@ -453,18 +490,28 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		}
 
 		node.AddChildren(children...)
-	case *BlockStart:
+	case *BlockStart, *GenericStart, *GroupStart:
 		p.next()
 
-		// Parse children in curly brackets
+		// Set BlockType
+		switch t.(type) {
+		case *BlockStart:
+			node.BlockType = BlockNormal
+		case *GroupStart:
+			node.BlockType = BlockGroup
+		case *GenericStart:
+			node.BlockType = BlockGeneric
+		}
+
+		// Parse children
 		for {
 			tok, err = p.peek()
 			if err != nil {
 				return nil, err
 			}
 
-			if tok.TokenType() == TokenBlockEnd {
-				p.next() // pop BlockEnd
+			if node.isClosedBy(tok) {
+				p.next() // pop closing token
 
 				break
 			} else if tok.TokenType() == TokenDefineElement {
@@ -482,8 +529,8 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 				node.AddChildren(child)
 			}
 		}
-	case *BlockEnd:
-		// BlockEnd ends a node definition
+	case *BlockEnd, *GroupEnd, *GenericEnd:
+		// Any closing token ends this node and will be handled by the parent.
 	case *Comma:
 		// Comma ends a node definition
 		p.next()
