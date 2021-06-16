@@ -7,11 +7,13 @@ import (
 )
 
 // TreeNode is a node in the parse tree.
-// For regular nodes Text will always be nil.
+// For regular nodes Text and Comment will always be nil.
 // For terminal text nodes Children and Name will be empty and Text will be set.
+// For comment nodes Children and Name will be empty and only Comment will be set.
 type TreeNode struct {
 	Name       string
 	Text       *string
+	Comment    *string
 	Attributes AttributeMap
 	Children   []*TreeNode
 	// BlockType describes the type of brackets the children were surrounded with.
@@ -40,11 +42,32 @@ func NewTextNode(cd *CharData) *TreeNode {
 	}
 }
 
-// NewStringNode will create a TextNode, like NewTextNode, but without positional information.
+// NewCommentNode creates a node that will only contain a comment.
+func NewCommentNode(cd *CharData) *TreeNode {
+	return &TreeNode{
+		Comment: &cd.Value,
+		Range: token.Position{
+			BeginPos: cd.Begin(),
+			EndPos:   cd.End(),
+		},
+	}
+}
+
+// NewStringNode will create a text node, like NewTextNode,
+// but without positional information. This is only used for testing.
 // Use NewTextNode with a CharData token if you can.
 func NewStringNode(text string) *TreeNode {
 	return &TreeNode{
 		Text: &text,
+	}
+}
+
+// NewStringCommentNode will create a comment node, like NewCommentNode,
+// but without positional information. This is only used for testing.
+// Use NewCommentNode with a CharData token if you can.
+func NewStringCommentNode(text string) *TreeNode {
+	return &TreeNode{
+		Comment: &text,
 	}
 }
 
@@ -82,6 +105,24 @@ func (t *TreeNode) isClosedBy(tok Token) bool {
 	default:
 		return false
 	}
+}
+
+// IsText returns true if this node is a text only node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsText() bool {
+	return t.Text != nil
+}
+
+// IsComment returns true if this node is a comment node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsComment() bool {
+	return t.Text != nil
+}
+
+// IsNode returns true if this is a regular node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsNode() bool {
+	return !t.IsText() && !t.IsComment()
 }
 
 // AttributeMap is a custom map[string]string to make the
@@ -296,6 +337,21 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		forwardingNode = t.Forward
 	case *CharData:
 		return NewTextNode(t), nil
+	case *G1Comment:
+		// Expect CharData as comment
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+
+		if cd, ok := tok.(*CharData); ok {
+			return NewCommentNode(cd), nil
+		} else {
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"expected a comment",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+		}
 	default:
 		return nil, token.NewPosError(
 			tok.Pos(),

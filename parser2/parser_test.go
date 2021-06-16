@@ -149,6 +149,14 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "comment",
+			text: "#? this is a comment\nThis is not.",
+			want: NewNode("root").AddChildren(
+				NewStringCommentNode("this is a comment"),
+				NewStringNode("This is not."),
+			),
+		},
+		{
 			name: "empty G2",
 			text: `#!{}`,
 			want: NewNode("root"),

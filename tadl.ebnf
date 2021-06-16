@@ -22,8 +22,11 @@ Root: G2 | G1;
 // Attributes can also be forwarded: "@@key{value} #element". You can also forward
 // multiple attributes. Forwarded attributes will be inserted into the next element,
 // no matter if it is regular or forwarded.
-G1: (G1Element)*;
+// You can start a comment node with '#?'. All text until a new element begins or
+// the current block closes will be a comment.
+G1: (G1Element | G1Comment)*;
 G1Element: (G1ForwardAttribute WS)* ('#' | '##') Identifier WS (G1Attribute WS)* ('{' G1Element* '}' WS)? | Text;
+G1Comment: '#?' Text;
 G1Attribute: '@' Identifier '{' Text '}';
 G1ForwardAttribute: '@' G1Attribute;
 
