@@ -60,98 +60,7 @@ language and enrich it with markup declarations. All white-spaces within an elem
 significant, because their rendering depends on later transformation and styling
 (see also the white-space processing model of https://drafts.csswg.org/css-text-3/#white-space-phase-1[html5/CSS]).
 
-Grammar 1 (text first)
-[source,abnf]
-----
-// anything but unescaped # and }
-Char              ::=  \\(#|})|[^(#|})]
-Text              ::=  Char*
-// any whitespace
-S                 ::=  \s
-
-// multiline
-CommentNode       ::=  '#?' S* '{' Char* '}'
-// anything until end of line
-CommentLine       ::=  '#?' Char* '\n'
-
-// { } pairs must be balanced inside .*, other symbols are ignored
-Grammar2          ::= '#!' S* '{' .* '}'
-
-Element           ::= '#' Identifier S* Attribute* S* '{' (Element|Text)* '}'
-// A ForwardElement will be inserted as a child of the next regular element.
-// They will be inserted before other children that are defined inside the element,
-// so that elements appear intuitively in reading-order.
-ForwardElement    ::= '#' Element
-// until next # or }
-ShortElement      ::= '#' '@'? Identifier S* Attribute* Text*
-// anything but #, {, }, !, @, ' ' and at least one char
-Identifier        ::= [^(\s|#|{|}|!|@)]+
-
-// attributes can only have texts, id-value must be unique
-Attribute         ::= '@' Identifier S* '{' Char '}'
-// ForwardAttributes will appear on the next element, instead of the current one.
-ForwardAttribute  ::= '@' Attribute
-
-
-// Scanner insertion rules:
-// Rule 1: If after consuming ('#' Identifier S*) and there is no '{' insert '{' before scanning next
-// Rule 2: If after consuming ('#' Identifier S* '{') and there is a # (but not a ':'), insert '{' before the '#'
-//
-/// Whitespace significance rules:
-// Rule 1: Any whitespace within an Element is significant
-// Rule 2: Whitespace between terminator symbols are insignificant
-
-----
-
-The second grammar is _node first_ and avoids all # markers for nodes for the price of escaping text content.
-It must be declared within '#! {' '}'. Think of the front matter pattern (yaml, json) in Markdown files, but
-integrated directly in the specification.
-
-Grammar 2 (node first):
-[source,abnf]
-----
-LineComment         ::=  '//' .*
-
-// anything but #, {, }, !, @, ' ' and at least one char
-Identifier          ::= [^(\s|#|{|}|!|@)]+
-
-// uninterpreted string enclosed in " ", may contain line breaks
-String              ::=  "(\\"|[^"])*"
-
-// create new and append element to last Element
-Element             ::= Identifier
-
-// variable close element, subsequent declared elements are either added to prior or pre-prior parent.
-// inside {} or <> -> close only the last element
-// inside ()       -> close the last and its parent element
-VarCloseElement     ::= ','
-
-// just like ',' in {}
-CloseElement        ::= '|'
-
-
-// An entire line can be marked as Grammar1 (must not contain recursive Grammar 2)
-Grammar1Line        ::= '# ' .*
-
-// Like Grammar1Line but the Text is inserted into the next declared element, instead the current position.
-ForwardGrammar1Line ::= '## ' .* '\n' S* Element
-
-// Attribute to set on the enclosing Element
-Attribute           ::= '@' Identifier S* '='? S* String|Char*
-
-// Attribute to set on the next declared element, instead the current one.
-ForwardAttribute    ::=  '@@' Identifier S* '='? S* String|Char*
-
-Declaration         ::= Element | CloseElement? | Attribute | ForwardGrammar1Line | Attribute
-
-Block               ::= '{' S* Declaration* S* '}'
-GroupBlock          ::= '(' S* Declaration* S* ')'
-GenericBlock        ::= '<' S* Declaration* S* '>'
-----
-
-All document elements are implicitly wrapped by a root element without a name. An element is always declared by a prefixed
-#. All other hashtags must be escaped using backslash. Braces can be omitted and are inserted automatically. The
-closing bracket is either inserted directly before the next element declaration or after a shifted element declaration.
+The grammar has two modes, text first (G1) and node first (G2). By default a document is written in G1, but can be switched to G2 when it starts with `#!`. See the formal grammar in link:tadl.ebnf[] for more details or the examples below to get a feeling for the grammar.
 
 === Examples
 
@@ -185,7 +94,7 @@ A book example.
 ----
 #book {
   #toc{}
-  #section #:1 {
+  #section @id{1} {
     #title {
         The sections title
     }
@@ -219,19 +128,19 @@ A more complex book example, could be a DocBook.
 
 [source,tadl]
 ----
-#book #:my-book ##author Torben {
+#book @id{my-book} @author{Torben} {
     #title A very simple book
-    #chapter :id{ch1} {
+    #chapter @id{ch1} {
         #title Chapter One
         #p Hello paragraph.
         Still going on.
     }
 
-    #chapter :id{ch2} {
+    #chapter @id{ch2} {
         #title Chapter Two
         Some #red{#bold Text} text.
-        The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
-        #image ##width{100%} https://worldiety.de/favicon.png
+        The #span @style{color:red} { #span @style{font-weight:bold} Text } text.
+        #image @width{100%} https://worldiety.de/favicon.png
     }
 }
 ----
@@ -269,8 +178,8 @@ so a writer can decide which reads best in the current context.
 ----
 #list{
   #item1{#key value}
-  #item2 :id{1}
-  #item3 :key{value}
+  #item2 @id{1}
+  #item3 @key{value}
 }
 ----
 
@@ -280,7 +189,7 @@ is equivalent to
 #!{
     list{
         item1 key "value",
-        @@1
+        @@id="1"
         item2,
         item3 @key="value",
     }

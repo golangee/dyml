@@ -106,26 +106,6 @@ func (l *Lexer) g2Comma() (*Comma, error) {
 	return comma, nil
 }
 
-// g2Pipe reads '|' which separates elements.
-func (l *Lexer) g2Pipe() (*Pipe, error) {
-	startPos := l.Pos()
-
-	r, err := l.nextR()
-	if err != nil {
-		return nil, err
-	}
-
-	if r != '|' {
-		return nil, token.NewPosError(l.node(), "expected '|'")
-	}
-
-	pipe := &Pipe{}
-	pipe.Position.BeginPos = startPos
-	pipe.Position.EndPos = l.pos
-
-	return pipe, nil
-}
-
 // g2GroupStart reads the '(' that marks the start of a group.
 func (l *Lexer) g2GroupStart() (*GroupStart, error) {
 	startPos := l.Pos()

@@ -7,13 +7,17 @@ import (
 )
 
 // TreeNode is a node in the parse tree.
-// For regular nodes Text will always be nil.
+// For regular nodes Text and Comment will always be nil.
 // For terminal text nodes Children and Name will be empty and Text will be set.
+// For comment nodes Children and Name will be empty and only Comment will be set.
 type TreeNode struct {
 	Name       string
 	Text       *string
+	Comment    *string
 	Attributes AttributeMap
 	Children   []*TreeNode
+	// BlockType describes the type of brackets the children were surrounded with.
+	BlockType BlockType
 	// Range will span all tokens that were processed to build this node.
 	Range token.Position
 }
@@ -23,6 +27,7 @@ func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
 		Attributes: NewAttributeMap(),
+		BlockType:  BlockNormal,
 	}
 }
 
@@ -37,11 +42,32 @@ func NewTextNode(cd *CharData) *TreeNode {
 	}
 }
 
-// NewStringNode will create a TextNode, like NewTextNode, but without positional information.
+// NewCommentNode creates a node that will only contain a comment.
+func NewCommentNode(cd *CharData) *TreeNode {
+	return &TreeNode{
+		Comment: &cd.Value,
+		Range: token.Position{
+			BeginPos: cd.Begin(),
+			EndPos:   cd.End(),
+		},
+	}
+}
+
+// NewStringNode will create a text node, like NewTextNode,
+// but without positional information. This is only used for testing.
 // Use NewTextNode with a CharData token if you can.
 func NewStringNode(text string) *TreeNode {
 	return &TreeNode{
 		Text: &text,
+	}
+}
+
+// NewStringCommentNode will create a comment node, like NewCommentNode,
+// but without positional information. This is only used for testing.
+// Use NewCommentNode with a CharData token if you can.
+func NewStringCommentNode(text string) *TreeNode {
+	return &TreeNode{
+		Comment: &text,
 	}
 }
 
@@ -59,6 +85,46 @@ func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
 	return t
 }
 
+// Block is used to set the BlockType of this node.
+func (t *TreeNode) Block(blockType BlockType) *TreeNode {
+	t.BlockType = blockType
+
+	return t
+}
+
+// isClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
+// match for closing this TreeNode.
+func (t *TreeNode) isClosedBy(tok Token) bool {
+	switch tok.(type) {
+	case *BlockEnd:
+		return t.BlockType == BlockNormal
+	case *GroupEnd:
+		return t.BlockType == BlockGroup
+	case *GenericEnd:
+		return t.BlockType == BlockGeneric
+	default:
+		return false
+	}
+}
+
+// IsText returns true if this node is a text only node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsText() bool {
+	return t.Text != nil
+}
+
+// IsComment returns true if this node is a comment node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsComment() bool {
+	return t.Text != nil
+}
+
+// IsNode returns true if this is a regular node.
+// Only one of IsText, IsComment, IsNode should be true.
+func (t *TreeNode) IsNode() bool {
+	return !t.IsText() && !t.IsComment()
+}
+
 // AttributeMap is a custom map[string]string to make the
 // handling of attributes easier.
 type AttributeMap map[string]string
@@ -70,6 +136,12 @@ func NewAttributeMap() AttributeMap {
 // Set sets a key to a value in this map.
 func (a AttributeMap) Set(key, value string) {
 	a[key] = value
+}
+
+// Has returns true if the given key is in the map and false otherwise.
+func (a AttributeMap) Has(key string) bool {
+	_, ok := a[key]
+	return ok
 }
 
 // Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
@@ -94,6 +166,16 @@ type tokenWithError struct {
 	tok Token
 	err error
 }
+
+// BlockType is an addition for nodes that describes with what brackets their children were surrounded.
+type BlockType string
+
+const (
+	BlockNone    BlockType = ""
+	BlockNormal  BlockType = "{}"
+	BlockGroup   BlockType = "()"
+	BlockGeneric BlockType = "<>"
+)
 
 // Parser is used to get a tree representation from Tadl input.
 type Parser struct {
@@ -224,6 +306,11 @@ func (p *Parser) Parse() (*TreeNode, error) {
 		return nil, token.NewPosError(p.forwardingNodes[0].Range, "there is no node to forward this node into")
 	}
 
+	// The root element should always have curly brackets.
+	if tree.BlockType != BlockNormal {
+		return nil, token.NewPosError(tree.Range, "root element must have curly brackets")
+	}
+
 	return tree, nil
 }
 
@@ -250,6 +337,21 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		forwardingNode = t.Forward
 	case *CharData:
 		return NewTextNode(t), nil
+	case *G1Comment:
+		// Expect CharData as comment
+		tok, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+
+		if cd, ok := tok.(*CharData); ok {
+			return NewCommentNode(cd), nil
+		} else {
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"expected a comment",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+		}
 	default:
 		return nil, token.NewPosError(
 			tok.Pos(),
@@ -291,6 +393,8 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 	tok, _ = p.peek()
 	if tok.TokenType() == TokenBlockStart {
 		p.next() // Pop the token, we know it's a BlockStart
+
+		node.BlockType = BlockNormal
 
 		// Append children until we encounter a TokenBlockEnd
 		for {
@@ -391,10 +495,6 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	node := NewNode("invalid name") // name will be set later
 	node.Range.BeginPos = p.lexer.Pos()
 
-	// Insert forwarded nodes
-	node.Children = p.forwardingNodes
-	p.forwardingNodes = nil
-
 	// Read forward attributes
 	forwardedAttributes, err := p.parseAttributes(true)
 	if err != nil {
@@ -410,6 +510,9 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	switch t := tok.(type) {
 	case *Identifier:
 		node.Name = t.Value
+		// Insert forwarded nodes
+		node.Children = p.forwardingNodes
+		p.forwardingNodes = nil
 	case *CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
@@ -453,18 +556,28 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		}
 
 		node.AddChildren(children...)
-	case *BlockStart:
+	case *BlockStart, *GenericStart, *GroupStart:
 		p.next()
 
-		// Parse children in curly brackets
+		// Set BlockType
+		switch t.(type) {
+		case *BlockStart:
+			node.BlockType = BlockNormal
+		case *GroupStart:
+			node.BlockType = BlockGroup
+		case *GenericStart:
+			node.BlockType = BlockGeneric
+		}
+
+		// Parse children
 		for {
 			tok, err = p.peek()
 			if err != nil {
 				return nil, err
 			}
 
-			if tok.TokenType() == TokenBlockEnd {
-				p.next() // pop BlockEnd
+			if node.isClosedBy(tok) {
+				p.next() // pop closing token
 
 				break
 			} else if tok.TokenType() == TokenDefineElement {
@@ -482,8 +595,8 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 				node.AddChildren(child)
 			}
 		}
-	case *BlockEnd:
-		// BlockEnd ends a node definition
+	case *BlockEnd, *GroupEnd, *GenericEnd:
+		// Any closing token ends this node and will be handled by the parent.
 	case *Comma:
 		// Comma ends a node definition
 		p.next()
@@ -557,6 +670,13 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 				tok.Pos(),
 				"an identifier is required as an attribute key",
 			).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
+		}
+
+		if result.Has(attrKey) {
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"cannot define same attribute twice",
+			)
 		}
 
 		// Read CharData enclosed in brackets as attribute value in G1.
