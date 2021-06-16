@@ -206,6 +206,18 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "G2 string will stop parsing nested children",
+			text: `#!{
+						A "hello" B
+					}`,
+			want: NewNode("root").AddChildren(
+				NewNode("A").AddChildren(
+					NewStringNode("hello"),
+				),
+				NewNode("B"),
+			),
+		},
+		{
 			name: "simple attribute G2",
 			text: `#!{
 						item @key="value" @another="key with 'special #chars\""
@@ -358,6 +370,20 @@ func TestParser(t *testing.T) {
 				NewStringNode("Hello!"),
 				NewStringNode("Hello!"),
 				NewStringNode("Hello!"),
+			),
+		},
+		{
+			name: "forward G1 line with string",
+			text: `#!{
+						## hello
+						"this is a string"
+						item
+					}`,
+			want: NewNode("root").AddChildren(
+				NewStringNode("this is a string"),
+				NewNode("item").AddChildren(
+					NewStringNode("hello"),
+				),
 			),
 		},
 		{

@@ -439,10 +439,6 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	node := NewNode("invalid name") // name will be set later
 	node.Range.BeginPos = p.lexer.Pos()
 
-	// Insert forwarded nodes
-	node.Children = p.forwardingNodes
-	p.forwardingNodes = nil
-
 	// Read forward attributes
 	forwardedAttributes, err := p.parseAttributes(true)
 	if err != nil {
@@ -458,6 +454,9 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	switch t := tok.(type) {
 	case *Identifier:
 		node.Name = t.Value
+		// Insert forwarded nodes
+		node.Children = p.forwardingNodes
+		p.forwardingNodes = nil
 	case *CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
