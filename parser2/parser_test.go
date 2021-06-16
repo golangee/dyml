@@ -139,6 +139,11 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "invalid attribute defined twice",
+			text:    `#item @key{value} @key{value}`,
+			wantErr: true,
+		},
+		{
 			name:    "invalid dangling forward attribute",
 			text:    `@@key{value}`,
 			wantErr: true,
@@ -233,6 +238,13 @@ func TestParser(t *testing.T) {
 		{
 			name:    "invalid lonely attribute G2",
 			text:    `#!{@key="value"}`,
+			wantErr: true,
+		},
+		{
+			name: "invalid attribute defined twice G2",
+			text: `#!{
+						item @key="value" @key="value"
+					}`,
 			wantErr: true,
 		},
 		{

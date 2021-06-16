@@ -97,6 +97,12 @@ func (a AttributeMap) Set(key, value string) {
 	a[key] = value
 }
 
+// Has returns true if the given key is in the map and false otherwise.
+func (a AttributeMap) Has(key string) bool {
+	_, ok := a[key]
+	return ok
+}
+
 // Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
 func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
 	result := NewAttributeMap()
@@ -609,6 +615,13 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 				tok.Pos(),
 				"an identifier is required as an attribute key",
 			).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
+		}
+
+		if result.Has(attrKey) {
+			return nil, token.NewPosError(
+				tok.Pos(),
+				"cannot define same attribute twice",
+			)
 		}
 
 		// Read CharData enclosed in brackets as attribute value in G1.
