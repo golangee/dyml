@@ -1,8 +1,0 @@
- # ...groups all ticket related use cases.
-service WithTickets {
-    inject {
-        # ...the core domain service to use. This may be non-interface but may also use repos directly.
-        # However, only domain core elements are allowed.
-        tickets *tickets::core::TicketService
-    }
-}

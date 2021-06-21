@@ -61,6 +61,8 @@ significant, because their rendering depends on later transformation and styling
 (see also the white-space processing model of https://drafts.csswg.org/css-text-3/#white-space-phase-1[html5/CSS]).
 
 The grammar has two modes, text first (G1) and node first (G2). By default a document is written in G1, but can be switched to G2 when it starts with `#!`. See the formal grammar in link:tadl.ebnf[] for more details or the examples below to get a feeling for the grammar.
+The following railroad diagram was generated from the grammar.
+image:tadl.png[]
 
 === Examples
 

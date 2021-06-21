@@ -1,2 +1,0 @@
-\...describes a microservice which implements the serverside of olzerp.
-Actually it defines the frame for Go service.

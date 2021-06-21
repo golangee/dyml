@@ -1,24 +1,10 @@
-// Copyright 2021 Torben Schinke
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-License-Identifier: Apache-2.0
 
 package token
 
 import (
-	"errors"
 	"fmt"
-	"github.com/alecthomas/participle/v2"
-	"github.com/alecthomas/participle/v2/lexer"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -114,6 +100,7 @@ func docLines(n Node) []string {
 	}
 
 	src := src(n.Begin().File)
+
 	return strings.Split(src, "\n")
 }
 
@@ -137,6 +124,7 @@ func posLine(lines []string, pos Pos) string {
 func (p PosError) Explain() string {
 	// grab the required indent for the line numbers
 	indent := 0
+
 	for _, detail := range p.Details {
 		l := len(strconv.Itoa(detail.Node.Begin().Line))
 		if l > indent {
@@ -203,42 +191,4 @@ func (p PosError) Explain() string {
 	}
 
 	return sb.String()
-}
-
-// Explain takes the given wrapped error chain and explains it, if it can.
-func Explain(err error) string {
-	var posErr *PosError
-	if errors.As(err, &posErr) {
-		sb := &strings.Builder{}
-		sb.WriteString("error: ")
-		sb.WriteString(err.Error())
-		sb.WriteString("\n")
-
-		sb.WriteString(posErr.Explain())
-
-		return sb.String()
-	}
-
-	var particplePos participle.Error
-	if errors.As(err, &particplePos) {
-		return Explain(NewPosError(adapterNode{particplePos.Position()}, particplePos.Message()))
-	}
-
-	return err.Error()
-}
-
-type adapterNode struct {
-	pos lexer.Position
-}
-
-func (a adapterNode) Begin() Pos {
-	return Pos{
-		File: a.pos.Filename,
-		Line: a.pos.Line,
-		Col:  a.pos.Column,
-	}
-}
-
-func (a adapterNode) End() Pos {
-	return Pos{}
 }
