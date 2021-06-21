@@ -35,11 +35,13 @@ func TestParser(t *testing.T) {
 			text: "hello #item1 world #item2 #item3 more text",
 			want: NewNode("root").AddChildren(
 				NewStringNode("hello "),
-				NewNode("item1"),
-				NewStringNode("world "),
+				NewNode("item1").AddChildren(
+					NewStringNode("world "),
+				),
 				NewNode("item2"),
-				NewNode("item3"),
-				NewStringNode("more text"),
+				NewNode("item3").AddChildren(
+					NewStringNode("more text"),
+				),
 			),
 		},
 		{
@@ -55,6 +57,18 @@ func TestParser(t *testing.T) {
 					),
 				),
 				NewNode("F"),
+			),
+		},
+		{
+			name: "elements with text",
+			text: `#title Hello #subtitle World`,
+			want: NewNode("root").AddChildren(
+				NewNode("title").AddChildren(
+					NewStringNode("Hello "),
+				),
+				NewNode("subtitle").AddChildren(
+					NewStringNode("World"),
+				),
 			),
 		},
 		{

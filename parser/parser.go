@@ -395,9 +395,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 
 	node.Attributes = forwardedAttributes.Merge(attributes)
 
-	// Optional children enclosed in brackets
 	tok, _ = p.peek()
-	if tok.TokenType() == token.TokenBlockStart {
+	switch t := tok.(type) {
+	case *token.BlockStart:
+		// Optional children enclosed in brackets
 		p.next() // Pop the token, we know it's a BlockStart
 
 		node.BlockType = BlockNormal
@@ -429,6 +430,10 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 				"use a '}' here to close the element",
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockEnd))
 		}
+	case *token.CharData:
+		// An element can contain a single CharData token, which will become a child of the current node.
+		p.next()
+		node.AddChildren(NewTextNode(t))
 	}
 
 	if forwardingNode {
