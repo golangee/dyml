@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"strings"
 
 	"github.com/golangee/tadl/parser2"
 )
 
+// XMLEncoder translates tadl-input to corresponding XML
 type XMLEncoder struct {
 	lexer  *parser2.Lexer
 	tokens []parser2.Token
@@ -18,20 +22,22 @@ type XMLEncoder struct {
 	postfix  string
 }
 
-func NewEncoderFromString(text string) XMLEncoder {
-	return XMLEncoder{
-		lexer:    parser2.NewLexer("default", bytes.NewBuffer([]byte(text))),
-		tadlText: text,
+// NewEncoder creades a new XMLEncoder
+// tadl-input is given as an io.Reader instance
+func NewEncoder(filename string, r io.Reader) *XMLEncoder {
+	buffer := new(strings.Builder)
+	_, err := io.Copy(buffer, r)
+	if err != nil {
+		log.Fatal("Could not read from Reader. Aborting")
+	}
+	return &XMLEncoder{
+		lexer:    parser2.NewLexer("default", r),
+		tadlText: buffer.String(),
 	}
 }
 
-func NewEncoderFromNameAndString(name, text string) XMLEncoder {
-	return XMLEncoder{
-		lexer:    parser2.NewLexer(name, bytes.NewBuffer([]byte(text))),
-		tadlText: text,
-	}
-}
-
+// EncodeToXml uses a parser2.parser to create a syntax tree,
+// utilizes the encodeRek method to translate it and returns the result
 func (x *XMLEncoder) EncodeToXML() (string, error) {
 	//err := x.Tokenize()
 	var err error
@@ -77,6 +83,7 @@ func (x *XMLEncoder) EncodeToXML() (string, error) {
 	return output, nil
 }
 
+// Tokenize creates a Slice of consecutive Tokens, representing the tadl-input syntax
 func (x *XMLEncoder) Tokenize() error {
 	for {
 		currentToken, err := x.getNextToken()
@@ -93,6 +100,7 @@ func (x *XMLEncoder) Tokenize() error {
 	return nil
 }
 
+// getNextToken uses a Lexer to read the next consecutive Token
 func (x *XMLEncoder) getNextToken() (parser2.Token, error) {
 	token, err := x.lexer.Token()
 	if err != nil {
@@ -149,6 +157,8 @@ func (x *XMLEncoder) encodeIdentifier(position *token.Position) (string, error) 
 	return "Identifier", nil
 }*/
 
+// encodeRek recursively translates the syntax tree
+// given by its root Element to the corresponding XML.
 func encodeRek(root parser2.TreeNode) (string, error) {
 	if root.IsComment() {
 		return "<!-- " + *root.Comment + " -->", nil
@@ -176,7 +186,6 @@ func encodeRek(root parser2.TreeNode) (string, error) {
 
 		outString += ">"
 		if root.Name == "title" {
-			fmt.Printf("TITLE: %v", root.Children)
 		}
 		for _, child := range root.Children {
 

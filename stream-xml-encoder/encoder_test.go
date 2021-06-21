@@ -1,6 +1,7 @@
 package streamxmlencoder
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -8,10 +9,10 @@ import (
 func TestEncoder(t *testing.T) {
 	var encoder XMLEncoder
 	tests := []struct {
-		name    string
-		text    string
-		want    string
-		wantErr bool
+		name          string
+		text          string
+		want, wantAlt string
+		wantErr       bool
 	}{
 		{
 			name: "hello world",
@@ -34,7 +35,7 @@ func TestEncoder(t *testing.T) {
 				  #title {
 					  The sections title
 				  }
-			  
+
 				  The sections text.
 				}
 			  }`,
@@ -53,35 +54,54 @@ func TestEncoder(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			// might fail, as the sequence in which Attributes are added to an identifier
+			// depends on the sequence they lie in the Nodes' Attributes-Slice
 			name: "complex book example",
 			text: `#book @id{my-book} @author{Torben} {
-				#title { A very simple book }
-				#chapter @id{ch1} {
-					#title {
-						Chapter One
-					}
-					#p {
-						Hello paragraph.
-					Still going on.
-					}
-				}
-			
-				#chapter @id{ch2} {
-					#title { Chapter Two }
- 					Some #red{#bold{ Text}} text.
-					The #span @style{color:red} { #span @style{font-weight:bold} Text } text.
-					#image @width{100%} https://worldiety.de/favicon.png
-				}
-			}`,
+						#title { A very simple book }
+						#chapter @id{ch1} {
+							#title {
+								Chapter One
+							}
+							#p {
+								Hello paragraph.
+							Still going on.
+							}
+						}
+
+						#chapter @id{ch2} {
+							#title { Chapter Two }
+		 					Some #red{#bold{ Text}} text.
+							The #span @style{color:red} { #span @style{font-weight:bold} {Text }} text.
+							#image @width{100%} {https://worldiety.de/favicon.png}
+						}
+					}`,
 			want: `<root>
-			<book id="my-book" author="Torben">
+					<book id="my-book" author="Torben">
+						<title>A very simple book</title>
+						<chapter id="ch1">
+							<title>Chapter One</title>
+							<p>Hello paragraph.
+							Still going on.</p>
+						</chapter>
+
+						<chapter id="ch2">
+							<title>Chapter Two</title>
+							Some <red><bold>Text</bold></red> text.
+							The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
+							<image width="100%">https://worldiety.de/favicon.png</image>
+						</chapter>
+					</book>
+				</root>`,
+			wantAlt: `<root>
+			<book author="Torben id="my-book"">
 				<title>A very simple book</title>
 				<chapter id="ch1">
 					<title>Chapter One</title>
 					<p>Hello paragraph.
 					Still going on.</p>
 				</chapter>
-		
+
 				<chapter id="ch2">
 					<title>Chapter Two</title>
 					Some <red><bold>Text</bold></red> text.
@@ -91,23 +111,23 @@ func TestEncoder(t *testing.T) {
 			</book>
 		</root>`,
 		},
-		/*{
+		{
 			name: "equivalent example grammar1",
 			text: `#list{
-					#item1{#key value}
-					#item2 :id{1}
-					#item3 :key{value}
-			  	}`,
+							#item1{#key {value}}
+							#item2 @id{1}
+							#item3 @key{value}
+					  	}`,
 			want: `<root>
-						<list>
-							<item1><key>value</key></item1>
-					 		<item2 id="1"/>
-					 		<item3 key="value"/>
-						</list>
-					</root>`,
+								<list>
+									<item1><key>value</key></item1>
+							 		<item2 id="1"></item2>
+							 		<item3 key="value"></item3>
+								</list>
+							</root>`,
 			wantErr: false,
 		},
-		{
+		/*{
 			name: "equivalent example grammar2",
 			text: `#!{
 						list{
@@ -176,9 +196,10 @@ func TestEncoder(t *testing.T) {
 	}
 
 	for _, test := range tests {
+
 		t.Run(test.name, func(t *testing.T) {
 			var output string
-			encoder = NewEncoderFromNameAndString(test.name, test.text)
+			encoder = *NewEncoder(test.name, bytes.NewBuffer([]byte(test.text)))
 			output, err := encoder.EncodeToXML()
 
 			if test.wantErr {
@@ -190,7 +211,11 @@ func TestEncoder(t *testing.T) {
 					t.Error(err)
 				} else {
 					if !StringsEqual(output, test.want) {
-						t.Errorf("Test %s failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, output, test.want)
+						// if a testcase includes multiple Attributes on a single Node, the sequence of these Attributes is not fixed,
+						// as it passes a non ordered slice. In this Case, an alternative testcase is used, switching the corresponding Attributes
+						if test.wantAlt == "" || !StringsEqual(output, test.wantAlt) {
+							t.Errorf("Test %s failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, output, test.want)
+						}
 					}
 				}
 			}
@@ -199,7 +224,7 @@ func TestEncoder(t *testing.T) {
 	}
 }
 
-// StringsEqual compares to given strings
+// StringsEqual compares two given strings
 // ignores differences in Whitespaces, Tabs and newlines
 func StringsEqual(in1, in2 string) bool {
 	var cleanIn1 string = strings.Replace(strings.Replace(strings.Replace(in1, "\n", "", -1), " ", "", -1), "\t", "", -1)
