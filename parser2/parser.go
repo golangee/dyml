@@ -116,7 +116,7 @@ func (t *TreeNode) IsText() bool {
 // IsComment returns true if this node is a comment node.
 // Only one of IsText, IsComment, IsNode should be true.
 func (t *TreeNode) IsComment() bool {
-	return t.Text != nil
+	return t.Comment != nil
 }
 
 // IsNode returns true if this is a regular node.
@@ -192,6 +192,9 @@ type Parser struct {
 	// forwardingNodes is a list of all nodes that were defined as forwarded.
 	// They will be inserted into the next node.
 	forwardingNodes []*TreeNode
+	// g2Comments contains all comments in G2 that were eaten from the input,
+	// but are not yet placed in a sensible position.
+	g2Comments []*TreeNode
 }
 
 func NewParser(filename string, r io.Reader) *Parser {
@@ -492,12 +495,21 @@ func (p *Parser) g1LineNodes() ([]*TreeNode, error) {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (p *Parser) g2Node() (*TreeNode, error) {
-	node := NewNode("invalid name") // name will be set later
-	node.Range.BeginPos = p.lexer.Pos()
+	if err := p.g2EatComments(); err != nil {
+		return nil, err
+	}
+
+	var nodeName string
+
+	nodeStart := p.lexer.Pos()
 
 	// Read forward attributes
 	forwardedAttributes, err := p.parseAttributes(true)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := p.g2EatComments(); err != nil {
 		return nil, err
 	}
 
@@ -509,10 +521,7 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 
 	switch t := tok.(type) {
 	case *Identifier:
-		node.Name = t.Value
-		// Insert forwarded nodes
-		node.Children = p.forwardingNodes
-		p.forwardingNodes = nil
+		nodeName = t.Value
 	case *CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
@@ -530,6 +539,16 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		).SetCause(NewUnexpectedTokenError(tok, TokenCharData, TokenIdentifier))
 	}
 
+	// From this point onwards we will be handling a valid node
+	node := NewNode(nodeName)
+	node.Range.BeginPos = nodeStart
+
+	p.g2AppendComments(node)
+
+	// Insert forwarded nodes
+	node.Children = p.forwardingNodes
+	p.forwardingNodes = nil
+
 	// Read attributes
 	attributes, err := p.parseAttributes(false)
 	if err != nil {
@@ -537,6 +556,12 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	}
 
 	node.Attributes = forwardedAttributes.Merge(attributes)
+
+	if err := p.g2EatComments(); err != nil {
+		return nil, err
+	}
+
+	p.g2AppendComments(node)
 
 	// Process children
 	tok, err = p.peek()
@@ -571,6 +596,12 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 
 		// Parse children
 		for {
+			if err := p.g2EatComments(); err != nil {
+				return nil, err
+			}
+
+			p.g2AppendComments(node)
+
 			tok, err = p.peek()
 			if err != nil {
 				return nil, err
@@ -609,9 +640,58 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		node.AddChildren(child)
 	}
 
+	if err := p.g2EatComments(); err != nil {
+		return nil, err
+	}
+
+	p.g2AppendComments(node)
+
 	node.Range.EndPos = p.lexer.Pos()
 
 	return node, nil
+}
+
+// g2EatComments will read all G2 comments from the current lexer position and store them in
+// p.g2Comments so that the can be placed in a sensible node with g2AppendComments.
+func (p *Parser) g2EatComments() error {
+	for {
+		tok, err := p.peek()
+		if err != nil {
+			// Do not report an error at this point, as some other function will handle it.
+			break
+		}
+
+		if tok.TokenType() != TokenG2Comment {
+			// The next thing is not a comment, which means that we are done.
+			break
+		}
+
+		p.next() // Pop G2Comment
+
+		tok, err = p.next()
+		if err != nil {
+			return err
+		}
+
+		// Expect CharData as comment
+		if cd, ok := tok.(*CharData); ok {
+			p.g2Comments = append(p.g2Comments, NewCommentNode(cd))
+		} else {
+			return token.NewPosError(
+				tok.Pos(),
+				"empty comment is not valid",
+			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+		}
+	}
+
+	return nil
+}
+
+// g2AppendComments will append all comments that were parsed with g2EatComments as children
+// into the given node.
+func (p *Parser) g2AppendComments(node *TreeNode) {
+	node.Children = append(node.Children, p.g2Comments...)
+	p.g2Comments = nil
 }
 
 // parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.
@@ -625,6 +705,10 @@ func (p *Parser) parseAttributes(wantForward bool) (AttributeMap, error) {
 	isG1 := p.mode == G1 || p.mode == G1Line
 
 	for {
+		if err := p.g2EatComments(); err != nil {
+			return nil, err
+		}
+
 		tok, err := p.peek()
 		if err != nil {
 			break

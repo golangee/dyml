@@ -473,6 +473,29 @@ func TestParser(t *testing.T) {
 					),
 			),
 		},
+		{
+			name: "g2 comment",
+			text: `#!{
+						// First comment
+						item, // A comment
+						item
+						// Another comment
+						item
+						// Last comment
+					}`,
+			want: NewNode("root").AddChildren(
+				NewStringCommentNode("First comment"),
+				NewNode("item").AddChildren(
+					NewStringCommentNode("A comment"),
+				),
+				NewNode("item").AddChildren(
+					NewStringCommentNode("Another comment"),
+					NewNode("item").AddChildren(
+						NewStringCommentNode("Last comment"),
+					),
+				),
+			),
+		},
 	}
 
 	for _, tt := range tests {
