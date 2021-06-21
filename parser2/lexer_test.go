@@ -323,22 +323,6 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "g2 with elements separated by pipes",
-			text: `#!{item| item |item | item}`,
-			want: NewTestSet().
-				G2Preambel().
-				BlockStart().
-				Identifier("item").
-				Pipe().
-				Identifier("item").
-				Pipe().
-				Identifier("item").
-				Pipe().
-				Identifier("item").
-				BlockEnd(),
-		},
-
-		{
 			name: "g2 with simple groups",
 			text: `#!{ ( ) < >()<> }`,
 			want: NewTestSet().
@@ -614,18 +598,6 @@ func (ts *TestSet) Comma() *TestSet {
 		}
 
 		return fmt.Errorf("Comma: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
-	})
-
-	return ts
-}
-
-func (ts *TestSet) Pipe() *TestSet {
-	ts.checker = append(ts.checker, func(t Token) error {
-		if _, ok := t.(*Pipe); ok {
-			return nil
-		}
-
-		return fmt.Errorf("pipe: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

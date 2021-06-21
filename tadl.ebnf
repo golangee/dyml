@@ -1,0 +1,89 @@
+// This grammar describes the syntax for tadl.
+// This file is compatible with some tools supporting ANTLR4,
+// but the grammar itself is not supported by it because of
+// ANTLR4's limitations. A handwritten parser is used instead.
+
+grammar tadl;
+
+// TODO G2 "->" return arrow
+// TODO Comments G1
+// TODO Comments G2
+
+// Root is the implicit root element. It contains either a grammar G1
+// or a grammar G2, which is indicated by the preamble '#!'.
+Root: G2 | G1;
+
+// G1 is the text first grammar. Everything that is not an element is parsed as text.
+// An element is defined with "#element".
+// A forwarded element, defined like "##element" will be inserted as the first child of
+// the next regular element. When multiple elements are forwarded they all be forwarded
+// into the next element and will appear in the order they appear in the document.
+// You can add attributes to an element like this: "#element @key{value}".
+// Attributes can also be forwarded: "@@key{value} #element". You can also forward
+// multiple attributes. Forwarded attributes will be inserted into the next element,
+// no matter if it is regular or forwarded.
+// You can start a comment node with '#?'. All text until a new element begins or
+// the current block closes will be a comment.
+G1: (G1Element | G1Comment)*;
+G1Element: (G1ForwardAttribute WS)* ('#' | '##') Identifier WS (G1Attribute WS)* ('{' G1Element* '}' WS)? | Text;
+G1Comment: '#?' Text;
+G1Attribute: '@' Identifier '{' Text '}';
+G1ForwardAttribute: '@' G1Attribute;
+
+// G2 is the node first grammar. It must be of the form "#!{...}".
+// Text inside G2 is parsed as nodes. See G2BlockBody for details.
+// There are two special cases in G2 which are hard to express in a grammar,
+// but are easy to parse:
+// Should a '#' occur at any point in G2, the rest of the line follows rule G1Line.
+// Should a '//' occur at at any point in G2, the rest of the line follows rule G2Comment.
+G2: G2Preamble G2BlockBrackets;
+
+// G2Block can be enclosed with one of "{...}", "<...>", "(...)".
+G2Block: WS (G2BlockBrackets | G2BlockGeneric | G2BlockGroup) WS;
+G2BlockBrackets: '{' G2BlockBody '}';
+G2BlockGroup: '(' G2BlockBody ')';
+G2BlockGeneric: '<' G2BlockBody '>';
+
+// G2BlockBody can contain any number of children.
+// Children directly following each other will be nested.
+// Example: "A B" will be parsed as <A><B/></A>.
+// To keep them as siblings, separate them with ','.
+// Example: "A, B" will be parsed as <A/><B/>.
+// Elements with bodies also stop following elements from nesting.
+// Example: "A {...} B" will be parsed as <A>...</A><B/>.
+// The same applies to strings which will also stop
+// following elements form nesting.
+// Example: "A "hello" B will be parsed as <A>hello</A><B/>.
+G2BlockBody: ( G2Elements (',' | G2Block | QuotedString) | QuotedString )* G2Elements?;
+G2Elements: (WS G2Element WS)+;
+// G2Element is the simplest building block of an element,
+// consisting only of an identifier as a name and optional attributes.
+G2Element: (G2ForwardAttribute WS)* Identifier (WS G2Attribute)*;
+G2Attribute: '@' Identifier WS '=' WS QuotedString;
+G2ForwardAttribute: '@' G2Attribute;
+
+// G1Line ist the same as G1, but is only processed until the line ends.
+// If can be started in G2 with a '#'. If it is started with '##'
+// it is a forward G1 line where all elements will be forwarded into the
+// next regular G2 element.
+G1Line: '#' G1LineElement* G1LineEnd;
+G1ForwardLine: '#' G1Line;
+G1LineElement: (G1ForwardAttribute Spaces)* ('#' | '##') Identifier Spaces (G1Attribute Spaces)* ('{' G1Element* '}' Spaces)? | Text;
+
+G2Comment: '//' 'TODO';
+
+G2Preamble: '#!';
+G1LineEnd: '\n';
+Identifier: [0-9a-zA-Z_]+;
+// Char is any character except for unescaped '#' and '}'.
+Char: (~('#' | '}') | '\\#' | '\\}');
+Text: Char+;
+// QuotedString is any text in '"' except for unescaped '"'.
+QuotedString: '"' (~[\\"] | '\\' '\\"')* '"';
+// S is any whitespace character.
+S: ' ' | '\t' | '\n';
+// WS is any amount of whitespace.
+WS: S*;
+// Space is either a tab or a whitespace.
+Space: ' ' | '\t';
+Spaces: Space*;

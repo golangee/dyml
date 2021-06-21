@@ -18,7 +18,6 @@ const (
 	TokenAssign          TokenType = "TokenAssign"
 	TokenG1LineEnd       TokenType = "TokenG1LineEnd"
 	TokenComma           TokenType = "TokenComma"
-	TokenPipe            TokenType = "TokenPipe"
 	TokenG1Comment       TokenType = "TokenG1Comment"
 	TokenG2Comment       TokenType = "TokenG2Comment"
 )
@@ -132,14 +131,6 @@ func (t *Comma) TokenType() TokenType {
 }
 
 func (t *Comma) Pos() *token.Position {
-	return &t.Position
-}
-
-func (t *Pipe) TokenType() TokenType {
-	return TokenPipe
-}
-
-func (t *Pipe) Pos() *token.Position {
 	return &t.Position
 }
 
