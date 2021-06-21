@@ -2,8 +2,9 @@ package parser2
 
 import (
 	"errors"
-	"github.com/golangee/tadl/token"
 	"io"
+
+	"github.com/golangee/tadl/token"
 )
 
 // TreeNode is a node in the parse tree.
@@ -116,7 +117,7 @@ func (t *TreeNode) IsText() bool {
 // IsComment returns true if this node is a comment node.
 // Only one of IsText, IsComment, IsNode should be true.
 func (t *TreeNode) IsComment() bool {
-	return t.Text != nil
+	return t.Comment != nil
 }
 
 // IsNode returns true if this is a regular node.

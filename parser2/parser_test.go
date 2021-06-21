@@ -28,6 +28,11 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "BlockNoBrackets",
+			text: "#title Chapter Two",
+			want: NewNode("root").AddChildren(NewNode("title").AddChildren(NewStringNode("ChapterTwo"))),
+		},
+		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
 			want: NewNode("root").AddChildren(
@@ -479,6 +484,11 @@ func TestParser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
+			if tt.name == "BlockNoBrackets" {
+				for _, child := range tree.Children {
+					fmt.Println(child.Name, child.Text, child.Comment)
+				}
+			}
 
 			if !tt.wantErr && err != nil {
 				t.Error(err)

@@ -1,6 +1,7 @@
 package streamxmlencoder
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -14,34 +15,32 @@ func TestEncoder(t *testing.T) {
 	}{
 		{
 			name: "hello world",
-			text: `#? saying
-						hello world
-		 
+			text: `#? saying hello world
 		 			#hello{world}`,
 			want: `<root>
 			<!-- saying
 				 hello world
-			
+
 			-->
 			<hello>world</hello>
 			</root>`,
 			wantErr: false,
 		},
-		/*{
+		{
 			name: "book example",
 			text: `#book {
 				#toc{}
-				#section #:1 {
+				#section @id{1} {
 				  #title {
 					  The sections title
 				  }
-
+			  
 				  The sections text.
 				}
 			  }`,
 			want: `<root>
 				<book>
-					<toc/>
+					<toc></toc>
 					<section id="1">
 						<title>
 							The sections title
@@ -55,40 +54,44 @@ func TestEncoder(t *testing.T) {
 		},
 		{
 			name: "complex book example",
-			text: `#book #:my-book ##author Torben {
-					#title A very simple book
-					#chapter :id{ch1} {
-						#title Chapter One
-						#p Hello paragraph.
-						Still going on.
+			text: `#book @id{my-book} @author{Torben} {
+				#title { A very simple book }
+				#chapter @id{ch1} {
+					#title {
+						Chapter One
 					}
-
-					#chapter :id{ch2} {
-						#title Chapter Two
-						Some #red{#bold Text} text.
-						The #span ##style{color:red} { #span ##style{font-weight:bold} Text } text.
-						#image ##width{100%} https://worldiety.de/favicon.png
+					#p {
+						Hello paragraph.
+					Still going on.
 					}
-				}`,
+				}
+			
+				#chapter @id{ch2} {
+					#title { Chapter Two }
+ 					Some #red{#bold{ Text}} text.
+					The #span @style{color:red} { #span @style{font-weight:bold} Text } text.
+					#image @width{100%} https://worldiety.de/favicon.png
+				}
+			}`,
 			want: `<root>
-					<book id="my-book" author="Torben">
-						<title>A very simple book</title>
-						<chapter id="ch1">
-							<title>Chapter One</title>
-							<p>Hello paragraph.
-							Still going on.</p>
-						</chapter>
-
-						<chapter id="ch2">
-							<title>Chapter Two</title>
-							Some <red><bold>Text</bold></red> text.
-							The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
-							<image width="100%">https://worldiety.de/favicon.png</image>
-						</chapter>
-					</book>
-				</root>`,
+			<book id="my-book" author="Torben">
+				<title>A very simple book</title>
+				<chapter id="ch1">
+					<title>Chapter One</title>
+					<p>Hello paragraph.
+					Still going on.</p>
+				</chapter>
+		
+				<chapter id="ch2">
+					<title>Chapter Two</title>
+					Some <red><bold>Text</bold></red> text.
+					The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
+					<image width="100%">https://worldiety.de/favicon.png</image>
+				</chapter>
+			</book>
+		</root>`,
 		},
-		{
+		/*{
 			name: "equivalent example grammar1",
 			text: `#list{
 					#item1{#key value}
@@ -186,12 +189,23 @@ func TestEncoder(t *testing.T) {
 				if err != nil {
 					t.Error(err)
 				} else {
-					if output != test.want {
-						t.Errorf("Test %s failed: %s does not equal %s", test.name, output, test.want)
+					if !StringsEqual(output, test.want) {
+						t.Errorf("Test %s failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, output, test.want)
 					}
 				}
 			}
 
 		})
 	}
+}
+
+// StringsEqual compares to given strings
+// ignores differences in Whitespaces, Tabs and newlines
+func StringsEqual(in1, in2 string) bool {
+	var cleanIn1 string = strings.Replace(strings.Replace(strings.Replace(in1, "\n", "", -1), " ", "", -1), "\t", "", -1)
+	var cleanIn2 string = strings.Replace(strings.Replace(strings.Replace(in2, "\n", "", -1), " ", "", -1), "\t", "", -1)
+	if cleanIn1 == cleanIn2 {
+		return true
+	}
+	return false
 }

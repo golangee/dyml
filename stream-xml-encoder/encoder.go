@@ -2,10 +2,10 @@ package streamxmlencoder
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/golangee/tadl/parser2"
-	"github.com/golangee/tadl/token"
 )
 
 type XMLEncoder struct {
@@ -33,13 +33,26 @@ func NewEncoderFromNameAndString(name, text string) XMLEncoder {
 }
 
 func (x *XMLEncoder) EncodeToXML() (string, error) {
-	err := x.Tokenize()
+	//err := x.Tokenize()
+	var err error
+	/*if err != nil {
+		return "", err
+	}*/
+	var output string
+	var parser = parser2.NewParser("test", bytes.NewBuffer([]byte(x.tadlText)))
+	var tree *parser2.TreeNode
+	tree, err = parser.Parse()
 	if err != nil {
 		return "", err
 	}
-	var output string
-	fmt.Println(x.tokens)
-	for i, Token := range x.tokens {
+
+	output, err = encodeRek(*tree)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+
+	/*for i, Token := range x.tokens {
 		if i == 0 {
 
 		}
@@ -77,7 +90,6 @@ func (x *XMLEncoder) Tokenize() error {
 
 		x.tokens = append(x.tokens, currentToken)
 	}
-	fmt.Println(x.tokens)
 	return nil
 }
 
@@ -94,7 +106,7 @@ func (x *XMLEncoder) getNextToken() (parser2.Token, error) {
 	return token, nil
 }
 
-func (x *XMLEncoder) TokenToXML(lastToken, currentToken, nextToken parser2.Token) (string, error) {
+/*func (x *XMLEncoder) TokenToXML(lastToken, currentToken, nextToken parser2.Token) (string, error) {
 	switch currentToken.TokenType() {
 	case parser2.TokenIdentifier:
 		return x.encodeIdentifier(currentToken.Pos())
@@ -120,7 +132,6 @@ func (x *XMLEncoder) TokenToXML(lastToken, currentToken, nextToken parser2.Token
 		//return ("<!-- " + nextToken.value + "-->"), nil
 		return "<!-- Comment -->", nil
 	case parser2.TokenG1LineEnd:
-	case parser2.TokenPipe:
 	}
 	fmt.Print(currentToken.TokenType())
 	return "_", nil
@@ -136,4 +147,51 @@ func (x *XMLEncoder) encodeIdentifier(position *token.Position) (string, error) 
 	fmt.Println(position.EndPos.Offset)
 	fmt.Println(x.tadlText[position.BeginPos.Offset-2 : position.EndPos.Offset-1])
 	return "Identifier", nil
+}*/
+
+func encodeRek(root parser2.TreeNode) (string, error) {
+	if root.IsComment() {
+		return "<!-- " + *root.Comment + " -->", nil
+	} else if root.IsText() {
+		return *root.Text, nil
+	} else if root.IsNode() {
+		var outString, postfix string
+
+		if root.BlockType == parser2.BlockNormal || root.BlockType == parser2.BlockNone {
+			outString += "<" + root.Name
+			postfix = "</" + root.Name + ">"
+		} else if root.BlockType == parser2.BlockGroup {
+			outString += "<" + root.Name + ` _groupType="()"`
+			postfix = "</" + root.Name + ">"
+		} else if root.BlockType == parser2.BlockGeneric {
+			outString += "<" + root.Name + ` _groupType="<>"`
+			postfix = "</" + root.Name + ">"
+		}
+
+		if len(root.Attributes) != 0 {
+			for key, val := range root.Attributes {
+				outString += " " + key + `="` + val + `"`
+			}
+		}
+
+		outString += ">"
+		if root.Name == "title" {
+			fmt.Printf("TITLE: %v", root.Children)
+		}
+		for _, child := range root.Children {
+
+			fmt.Printf("root: %v, child: %v", root, child)
+			var text string
+			text, err := encodeRek(*child)
+			if err != nil {
+				return "", err
+			}
+
+			outString += text
+		}
+
+		return outString + postfix, nil
+	} else {
+		return "", errors.New("Token not identified, aborting encoding")
+	}
 }
