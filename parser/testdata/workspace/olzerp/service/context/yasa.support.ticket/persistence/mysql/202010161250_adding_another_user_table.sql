@@ -1,1 +1,0 @@
-CREATE TABLE book5 (id BINARY(16), name VARCHAR(255))
