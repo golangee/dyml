@@ -21,19 +21,19 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty",
 			text: "",
-			want: NewNode("root"),
+			want: NewNode("root").Block(BlockNormal),
 		},
 		{
 			name: "just text",
 			text: "hello world",
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringNode("hello world"),
 			),
 		},
 		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringNode("hello "),
 				NewNode("item1").AddChildren(
 					NewStringNode("world "),
@@ -47,11 +47,11 @@ func TestParser(t *testing.T) {
 		{
 			name: "recursion and whitespace",
 			text: "#A   { #B{#C  #D{#E }} } #F",
-			want: NewNode("root").AddChildren(
-				NewNode("A").AddChildren(
-					NewNode("B").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("A").Block(BlockNormal).AddChildren(
+					NewNode("B").Block(BlockNormal).AddChildren(
 						NewNode("C"),
-						NewNode("D").AddChildren(
+						NewNode("D").Block(BlockNormal).AddChildren(
 							NewNode("E"),
 						),
 					),
@@ -62,7 +62,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "elements with text",
 			text: `#title Hello #subtitle World`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("title").AddChildren(
 					NewStringNode("Hello "),
 				),
@@ -74,7 +74,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "attributes",
 			text: `#item @id{5} @hello{world} @complex{attribute "with" #special 'chars}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").
 					AddAttribute("id", "5").
 					AddAttribute("hello", "world").
@@ -84,8 +84,8 @@ func TestParser(t *testing.T) {
 		{
 			name: "attribute in nested element",
 			text: "#item { #subitem @hello{world} }",
-			want: NewNode("root").AddChildren(
-				NewNode("item").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").Block(BlockNormal).AddChildren(
 					NewNode("subitem").AddAttribute("hello", "world"),
 				),
 			),
@@ -101,9 +101,9 @@ func TestParser(t *testing.T) {
 					}
 					#G
 				`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A"),
-				NewNode("D").AddChildren(
+				NewNode("D").Block(BlockNormal).AddChildren(
 					NewNode("B"),
 					NewNode("C"),
 					NewNode("F").AddChildren(
@@ -127,7 +127,7 @@ func TestParser(t *testing.T) {
 					#B
 					@simple{attribute}
 					#C`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A").
 					AddAttribute("simple", "attribute"),
 				NewNode("B").
@@ -140,7 +140,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "mixed forwarded attributes and elements",
 			text: `##subA @@key{value} ##subB @@another_key{more_value} #item`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").
 					AddAttribute("another_key", "more_value").
 					AddChildren(
@@ -168,7 +168,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "comment",
 			text: "#? this is a comment\nThis is not.",
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringCommentNode("this is a comment"),
 				NewStringNode("This is not."),
 			),
@@ -176,19 +176,19 @@ func TestParser(t *testing.T) {
 		{
 			name: "empty G2",
 			text: `#!{}`,
-			want: NewNode("root"),
+			want: NewNode("root").Block(BlockNormal),
 		},
 		{
 			name: "simple G2",
 			text: `#!{item}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item"),
 			),
 		},
 		{
 			name: "siblings G2",
 			text: `#!{item, item}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item"),
 				NewNode("item"),
 			),
@@ -196,7 +196,7 @@ func TestParser(t *testing.T) {
 		{
 			name: "nested G2",
 			text: `#!{item subitem subsubitem "text"}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").AddChildren(
 					NewNode("subitem").AddChildren(
 						NewNode("subsubitem").AddChildren(
@@ -216,14 +216,14 @@ func TestParser(t *testing.T) {
 						E {F, G}
 						H
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A").AddChildren(
-					NewNode("B").AddChildren(
+					NewNode("B").Block(BlockNormal).AddChildren(
 						NewNode("C"),
 						NewNode("D"),
 					),
 				),
-				NewNode("E").AddChildren(
+				NewNode("E").Block(BlockNormal).AddChildren(
 					NewNode("F"),
 					NewNode("G"),
 				),
@@ -235,7 +235,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						A "hello" B
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A").AddChildren(
 					NewStringNode("hello"),
 				),
@@ -247,7 +247,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						item @key="value" @another="key with 'special #chars\""
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").
 					AddAttribute("key", "value").
 					AddAttribute("another", `key with 'special #chars"`),
@@ -260,7 +260,7 @@ func TestParser(t *testing.T) {
 						B C @key="value" D,
 						E,
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A"),
 				NewNode("B").AddChildren(
 					NewNode("C").
@@ -290,7 +290,7 @@ func TestParser(t *testing.T) {
 						@@key="value"
 						item
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").
 					AddAttribute("key", "value"),
 			),
@@ -304,7 +304,7 @@ func TestParser(t *testing.T) {
 						item @not="forwarded",
 						parent @@for="child" child,
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item"),
 				NewNode("item").
 					AddAttribute("not", "forwarded").
@@ -336,7 +336,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						# This is a G1 text line. #item @key{with value}
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringNode("This is a G1 text line. "),
 				NewNode("item").
 					AddAttribute("key", "with value"),
@@ -347,7 +347,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						item # text child #child
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").AddChildren(
 					NewStringNode("text child "),
 					NewNode("child"),
@@ -360,7 +360,7 @@ func TestParser(t *testing.T) {
 						## forwarded #item @with{attribute}
 						parent with children
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("parent").AddChildren(
 					NewStringNode("forwarded "),
 					NewNode("item").AddAttribute("with", "attribute"),
@@ -375,7 +375,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						#
 					}`,
-			want: NewNode("root"),
+			want: NewNode("root").Block(BlockNormal),
 		},
 		{
 			name: "invalid forward G1 line",
@@ -391,7 +391,7 @@ func TestParser(t *testing.T) {
 						# Hello!
 						# Hello!
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringNode("Hello!"),
 				NewStringNode("Hello!"),
 				NewStringNode("Hello!"),
@@ -404,7 +404,7 @@ func TestParser(t *testing.T) {
 						"this is a string"
 						item
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewStringNode("this is a string"),
 				NewNode("item").AddChildren(
 					NewStringNode("hello"),
@@ -418,8 +418,8 @@ func TestParser(t *testing.T) {
 						item < X ,Y  >
 						item (X, Y )
 					}`,
-			want: NewNode("root").AddChildren(
-				NewNode("item").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").Block(BlockNormal).AddChildren(
 					NewNode("X"),
 					NewNode("Y"),
 				),
@@ -445,7 +445,7 @@ func TestParser(t *testing.T) {
 			text: `#!{
 						item< item( item ) >
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").Block(BlockGeneric).AddChildren(
 					NewNode("item").Block(BlockGroup).AddChildren(
 						NewNode("item"),
@@ -459,6 +459,82 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "g2 comment",
+			text: `#!{
+						// First comment
+						item, // A comment
+						item
+						// Another comment
+						item
+						// Last comment
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringCommentNode("First comment"),
+				NewNode("item").AddChildren(
+					NewStringCommentNode("A comment"),
+				),
+				NewNode("item").AddChildren(
+					NewStringCommentNode("Another comment"),
+					NewNode("item").AddChildren(
+						NewStringCommentNode("Last comment"),
+					),
+				),
+			),
+		},
+		{
+			name: "g2 return arrow",
+			text: `#!{
+						func hello(string) -> (int)
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("func").AddChildren(
+					NewNode("hello").Block(BlockGroup).AddChildren(
+						NewNode("string"),
+					),
+					NewNode("ret").Block(BlockGroup).AddChildren(
+						NewNode("int"),
+					),
+				),
+			),
+		},
+		{
+			name: "g2 invalid return arrow after nothing",
+			text: `#!{
+						-> (int)
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "g2 invalid return arrow after element",
+			text: `#!{
+						x -> (y)
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "g2 invalid return arrow after element without block",
+			text: `#!{
+						x, -> (y)
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "g2 return arrow with generic blocks",
+			text: `#!{
+						fn x<y> -> <z>
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("fn").AddChildren(
+					NewNode("x").Block(BlockGeneric).AddChildren(
+						NewNode("y"),
+					),
+					NewNode("ret").Block(BlockGeneric).AddChildren(
+						NewNode("z"),
+					),
+				),
+			),
+		},
+		{
 			name: "function definition example",
 			text: `#!{
 						## Greet someone.
@@ -466,9 +542,9 @@ func TestParser(t *testing.T) {
 						func Greet(name string)
 
 						## Run complex calculations.
-						func Run(x int, y int, z string)
+						func Run(x int, y int, z string) -> (int, error)
 					}`,
-			want: NewNode("root").AddChildren(
+			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("func").
 					AddAttribute("name", "The name to greet.").
 					AddChildren(
@@ -487,30 +563,11 @@ func TestParser(t *testing.T) {
 							NewNode("y").AddChildren(NewNode("int")),
 							NewNode("z").AddChildren(NewNode("string")),
 						),
+						NewNode("ret").Block(BlockGroup).AddChildren(
+							NewNode("int"),
+							NewNode("error"),
+						),
 					),
-			),
-		},
-		{
-			name: "g2 comment",
-			text: `#!{
-						// First comment
-						item, // A comment
-						item
-						// Another comment
-						item
-						// Last comment
-					}`,
-			want: NewNode("root").AddChildren(
-				NewStringCommentNode("First comment"),
-				NewNode("item").AddChildren(
-					NewStringCommentNode("A comment"),
-				),
-				NewNode("item").AddChildren(
-					NewStringCommentNode("Another comment"),
-					NewNode("item").AddChildren(
-						NewStringCommentNode("Last comment"),
-					),
-				),
 			),
 		},
 	}

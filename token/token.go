@@ -92,3 +92,8 @@ type G1Comment struct {
 type G2Comment struct {
 	Position
 }
+
+// G2Arrow is a '->' that indicates a return value in G2.
+type G2Arrow struct {
+	Position
+}

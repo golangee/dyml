@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-// g2Preambel reads the '#!' preamble of G2 grammars.
+// g2Preamble reads the '#!' preamble of G2 grammars.
 func (l *Lexer) g2Preamble() (*G2Preamble, error) {
 	startPos := l.Pos()
 
@@ -22,11 +22,31 @@ func (l *Lexer) g2Preamble() (*G2Preamble, error) {
 		return nil, NewPosError(l.node(), "expected '!' in g2 mode")
 	}
 
-	preambel := &G2Preamble{}
-	preambel.Position.BeginPos = startPos
-	preambel.Position.EndPos = l.pos
+	preamble := &G2Preamble{}
+	preamble.Position.BeginPos = startPos
+	preamble.Position.EndPos = l.pos
 
-	return preambel, nil
+	return preamble, nil
+}
+
+// g2Arrow reads the '->' that indicates a return value in G2.
+func (l *Lexer) g2Arrow() (*G2Arrow, error) {
+	startPos := l.Pos()
+
+	// Eat '->' from input
+	if r, _ := l.nextR(); r != '-' {
+		return nil, NewPosError(l.node(), "expected '-'")
+	}
+
+	if r, _ := l.nextR(); r != '>' {
+		return nil, NewPosError(l.node(), "expected '>'")
+	}
+
+	arrow := &G2Arrow{}
+	arrow.Position.BeginPos = startPos
+	arrow.Position.EndPos = l.pos
+
+	return arrow, nil
 }
 
 // g2CharData reads a "quoted string".

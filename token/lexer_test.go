@@ -367,6 +367,16 @@ func TestLexer(t *testing.T) {
 				CharData("Another } comment # with { special characters").
 				BlockEnd(),
 		},
+
+		{
+			name: "g2 arrow",
+			text: `#!{ -> }`,
+			want: NewTestSet().
+				G2Preambel().
+				BlockStart().
+				G2Arrow().
+				BlockEnd(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -523,6 +533,18 @@ func (ts *TestSet) G2Comment() *TestSet {
 		}
 
 		return fmt.Errorf("G2Comment: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) G2Arrow() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*G2Arrow); ok {
+			return nil
+		}
+
+		return fmt.Errorf("G2Arrow: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts
