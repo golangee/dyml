@@ -2,7 +2,6 @@ package tadl
 
 import (
 	"github.com/r3labs/diff/v2"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -10,6 +9,7 @@ import (
 func TestUnmarshal(t *testing.T) {
 	// Base for testing
 	type TestCase struct {
+		name   string
 		text   string
 		strict bool
 		// into is an empty instance we will unmarshal into.
@@ -24,6 +24,7 @@ func TestUnmarshal(t *testing.T) {
 	type EmptyRoot struct{}
 
 	testCases = append(testCases, TestCase{
+		name: "empty",
 		text: "",
 		into: &EmptyRoot{},
 		want: &EmptyRoot{},
@@ -36,6 +37,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	testCases = append(testCases, TestCase{
+		name: "struct with some types",
 		text: "#S hello #I -5 #U 3000",
 		into: &SimpleRoot{},
 		want: &SimpleRoot{
@@ -50,15 +52,77 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	testCases = append(testCases, TestCase{
+		name:    "out of bounds int8",
 		text:    "#V 300",
 		into:    &OutOfBounds{},
 		wantErr: true,
 	})
 
+	type Empty struct{}
+
+	type EmptyElement struct {
+		EmptyEl Empty
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "empty element",
+		text: "#Empty",
+		into: &EmptyElement{},
+		want: &EmptyElement{
+			EmptyEl: Empty{},
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "absent empty element is correctly parsed in non-strict mode",
+		text: "",
+		into: &EmptyElement{},
+		want: &EmptyElement{
+			EmptyEl: Empty{},
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name:    "absent empty element is denied in strict mode",
+		text:    "",
+		into:    &EmptyElement{},
+		strict:  true,
+		wantErr: true,
+	})
+
+	type IntArray struct {
+		Nums []int
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "int array",
+		text: `#!{
+					Nums {"1" "2" "3" "4"}
+				}`,
+		into: &IntArray{},
+		want: &IntArray{
+			Nums: []int{1, 2, 3, 4},
+		},
+	})
+
+	type EmptyStructArray struct {
+		Things []Empty
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "array of empty structs",
+		text: `#!{
+					Things {Empty, Empty, Empty}
+				}`,
+		into: &EmptyStructArray{},
+		want: &EmptyStructArray{
+			Things: []Empty{{}, {}, {}},
+		},
+	})
+
 	// Run all test cases
 	for _, tc := range testCases {
-		testName := reflect.ValueOf(tc.into).Elem().Type().Name()
-		t.Run(testName, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			err := Unmarshal(strings.NewReader(tc.text), tc.into, tc.strict)
 
 			if err != nil {

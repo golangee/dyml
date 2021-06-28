@@ -22,116 +22,98 @@ func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 		return fmt.Errorf("cannot unmarshal because of parser error: %w", err)
 	}
 
-	struc, err := prepareValue(into)
-	if err != nil {
-		return err
-	}
+	value := reflect.ValueOf(into)
+	unmarshal := unmarshaler{strict: strict}
 
-	if err := unmarshalNode(tree, *struc, strict); err != nil {
+	if err := unmarshal.node(tree, value); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// unmarshalNode will place contents of the tadl node inside the given struct.
-// struc needs to be a struct, otherwise this method might panic.
-func unmarshalNode(node *parser.TreeNode, struc reflect.Value, strict bool) error {
-	for i := 0; i < struc.NumField(); i++ {
-		fieldType := struc.Type().Field(i)
-		field := struc.Field(i)
+// unmarshaler is a helper struct for easier managing the unmarshalling process.
+type unmarshaler struct {
+	strict bool
+}
 
-		nodeChildren := findChildrenByName(node, fieldType.Name)
+// node will place contents of the tadl node inside the given value.
+func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
+	valueType := value.Type()
 
-		if len(nodeChildren) < 1 {
-			if strict {
-				return fmt.Errorf("'%s' not defined", fieldType.Name)
-			}
-
-			continue
-		} else if len(nodeChildren) > 1 && strict {
-			return fmt.Errorf("'%s' defined multiple times", fieldType.Name)
+	switch value.Kind() {
+	case reflect.String:
+		text, err := getTextChild(node)
+		if err != nil {
+			return err
+		}
+		value.SetString(text)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		text, err := getTextChild(node)
+		if err != nil {
+			return fmt.Errorf("integer required for type '%s'", valueType.Name())
 		}
 
-		nodeForField := nodeChildren[0]
+		i, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
+		if err != nil {
+			return fmt.Errorf("'%s' is not a valid integer", text)
+		}
 
-		switch field.Kind() {
-		case reflect.String:
-			text, err := getTextChild(nodeForField)
-			if err != nil {
-				return fmt.Errorf("node for '%s' needs to have a text child", fieldType.Name)
+		if value.OverflowInt(i) {
+			return fmt.Errorf("value for '%s' out of bounds", valueType.Name())
+		}
+
+		value.SetInt(i)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		text, err := getTextChild(node)
+		if err != nil {
+			return fmt.Errorf("unsigned integer required for type '%s'", valueType.Name())
+		}
+
+		i, err := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
+		if err != nil {
+			return fmt.Errorf("'%s' is not a valid unsigned integer", text)
+		}
+
+		if value.OverflowUint(i) {
+			return fmt.Errorf("value for '%s' out of bounds", valueType.Name())
+		}
+
+		value.SetUint(i)
+	case reflect.Ptr:
+		// Dereference pointer
+		return u.node(node, value.Elem())
+	case reflect.Array, reflect.Slice:
+		return fmt.Errorf("arrays not supported yet")
+	case reflect.Struct:
+		for i := 0; i < value.NumField(); i++ {
+			fieldType := value.Type().Field(i)
+			field := value.Field(i)
+
+			nodeChildren := findChildrenByName(node, fieldType.Name)
+
+			if len(nodeChildren) < 1 {
+				if u.strict {
+					return fmt.Errorf("'%s' not defined", fieldType.Name)
+				}
+
+				continue
+			} else if len(nodeChildren) > 1 && u.strict {
+				return fmt.Errorf("'%s' defined multiple times", fieldType.Name)
 			}
 
-			field.SetString(text)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			text, err := getTextChild(nodeForField)
-			if err != nil {
-				return fmt.Errorf("node for '%s' needs to have a text child", fieldType.Name)
-			}
+			nodeForField := nodeChildren[0]
 
-			i, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
-			if err != nil {
-				return fmt.Errorf("'%s' is not a valid integer", text)
-			}
-
-			if field.OverflowInt(i) {
-				return fmt.Errorf("value for '%s' out of bounds", fieldType.Name)
-			}
-
-			field.SetInt(i)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			text, err := getTextChild(nodeForField)
-			if err != nil {
-				return fmt.Errorf("node for '%s' needs to have a text child", fieldType.Name)
-			}
-
-			i, err := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
-			if err != nil {
-				return fmt.Errorf("'%s' is not a valid integer", text)
-			}
-
-			if field.OverflowUint(i) {
-				return fmt.Errorf("value for '%s' out of bounds", fieldType.Name)
-			}
-
-			field.SetUint(i)
-		case reflect.Ptr:
-			return fmt.Errorf("pointer not supported yet")
-		case reflect.Array, reflect.Slice:
-			return fmt.Errorf("arrays not supported yet")
-		case reflect.Struct:
-			err := unmarshalNode(nodeForField, field, strict)
+			err := u.node(nodeForField, field)
 			if err != nil {
 				return fmt.Errorf("error in '%s': %w", fieldType.Name, err)
 			}
-		default:
-			return fmt.Errorf("cannot unmarshal into '%s' with unsupported type '%v'", fieldType.Name, fieldType.Type)
 		}
+	default:
+		return fmt.Errorf("cannot unmarshal into '%s' with unsupported type '%v'", valueType.Name(), valueType)
 	}
 
 	return nil
-}
-
-// prepareValue accepts a struct or a struct behind any amount of pointers and returns
-// a reflect.Value that contains a struct. This returns an error if the given value
-// was not a struct.
-func prepareValue(v interface{}) (*reflect.Value, error) {
-	value := reflect.ValueOf(v)
-
-	for {
-		switch value.Kind() {
-		case reflect.Struct:
-			return &value, nil
-		case reflect.Ptr:
-			if value.IsNil() {
-				return nil, fmt.Errorf("cannot unmarshal into nil")
-			}
-
-			value = value.Elem()
-		default:
-			return nil, fmt.Errorf("can only unmarshal into struct")
-		}
-	}
 }
 
 // findChildrenByName returns all direct children of the given node that have
@@ -153,7 +135,7 @@ func findChildrenByName(node *parser.TreeNode, name string) []*parser.TreeNode {
 // If the single child is not text, this will return an error.
 func getTextChild(node *parser.TreeNode) (string, error) {
 	if len(node.Children) != 1 {
-		return "", fmt.Errorf("only one child supported")
+		return "", fmt.Errorf("exactly one text child required")
 	}
 
 	textChild := node.Children[0]
