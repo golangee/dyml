@@ -47,6 +47,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 		if err != nil {
 			return err
 		}
+
 		value.SetString(text)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		text, err := getTextChild(node)
@@ -83,13 +84,26 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	case reflect.Ptr:
 		// Dereference pointer
 		return u.node(node, value.Elem())
-	case reflect.Array, reflect.Slice:
-		return fmt.Errorf("arrays not supported yet")
+	case reflect.Slice:
+		// Create, process and append children
+		elementType := value.Type().Elem()
+		for _, child := range node.Children {
+			element := reflect.New(elementType).Elem()
+			if err := u.node(child, element); err != nil {
+				return fmt.Errorf("error while reading slice children for '%s'", node.Name)
+			}
+			value.Set(reflect.Append(value, element))
+		}
+	case reflect.Array:
+		return fmt.Errorf("arrays not supported, use a slice instead")
 	case reflect.Struct:
+		// Iterate over all struct fields.
 		for i := 0; i < value.NumField(); i++ {
 			fieldType := value.Type().Field(i)
 			field := value.Field(i)
 
+			// There might be several children with a matching name inside the node.
+			// In strict mode exactly one is required, otherwise more than one is okay.
 			nodeChildren := findChildrenByName(node, fieldType.Name)
 
 			if len(nodeChildren) < 1 {
@@ -133,7 +147,12 @@ func findChildrenByName(node *parser.TreeNode, name string) []*parser.TreeNode {
 // getTextChild will return a string from the CharData that is the child of the given node.
 // If node has more than 1 children this will return an error.
 // If the single child is not text, this will return an error.
+// If node itself is a text, its text will be returned instead.
 func getTextChild(node *parser.TreeNode) (string, error) {
+	if node.IsText() {
+		return *node.Text, nil
+	}
+
 	if len(node.Children) != 1 {
 		return "", fmt.Errorf("exactly one text child required")
 	}

@@ -1,7 +1,9 @@
 package tadl
 
 import (
+	"fmt"
 	"github.com/r3labs/diff/v2"
+	"log"
 	"strings"
 	"testing"
 )
@@ -90,32 +92,32 @@ func TestUnmarshal(t *testing.T) {
 		wantErr: true,
 	})
 
-	type IntArray struct {
+	type IntSlice struct {
 		Nums []int
 	}
 
 	testCases = append(testCases, TestCase{
-		name: "int array",
+		name: "int slice",
 		text: `#!{
 					Nums {"1" "2" "3" "4"}
 				}`,
-		into: &IntArray{},
-		want: &IntArray{
+		into: &IntSlice{},
+		want: &IntSlice{
 			Nums: []int{1, 2, 3, 4},
 		},
 	})
 
-	type EmptyStructArray struct {
+	type EmptyStructSlice struct {
 		Things []Empty
 	}
 
 	testCases = append(testCases, TestCase{
-		name: "array of empty structs",
+		name: "slice of empty structs",
 		text: `#!{
 					Things {Empty, Empty, Empty}
 				}`,
-		into: &EmptyStructArray{},
-		want: &EmptyStructArray{
+		into: &EmptyStructSlice{},
+		want: &EmptyStructSlice{
 			Things: []Empty{{}, {}, {}},
 		},
 	})
@@ -140,7 +142,8 @@ func TestUnmarshal(t *testing.T) {
 
 			differences, err := diff.Diff(tc.want, tc.into)
 			if err != nil {
-				t.Error(err)
+				log.Println(fmt.Errorf("cannot compare test result: %w", err))
+				t.SkipNow()
 				return
 			}
 
