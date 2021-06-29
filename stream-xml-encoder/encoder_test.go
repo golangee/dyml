@@ -1,12 +1,16 @@
 package streamxmlencoder
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
 
-func TestEncoder(t *testing.T) {
+// test recursive encoding, using the parser and a full tree buffer
+func TestEncoderRek(t *testing.T) {
 	var encoder XMLEncoder
 	tests := []struct {
 		name          string
@@ -54,8 +58,9 @@ func TestEncoder(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			// might fail, as the sequence in which Attributes are added to an identifier
-			// depends on the sequence they lie in the Nodes' Attributes-Slice
+			// might fail, as the sequence in which Attributes are added to an identifier may differ,
+			// #book @id{my-book} @author{Torben} can be translated to:
+			// <book id="my-book" author="Torben"> or <book author="Torben id="my-book"">
 			name: "complex book example",
 			text: `#book @id{my-book} @author{Torben} {
 						#title { A very simple book }
@@ -199,7 +204,8 @@ func TestEncoder(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 			var output string
-			encoder = *NewEncoder(test.name, bytes.NewBuffer([]byte(test.text)))
+			var b bytes.Buffer
+			encoder = NewEncoder(test.name, bytes.NewBuffer([]byte(test.text)), bufio.NewWriter(&b))
 			output, err := encoder.EncodeToXML()
 
 			if test.wantErr {
@@ -218,6 +224,166 @@ func TestEncoder(t *testing.T) {
 						}
 					}
 				}
+			}
+
+		})
+	}
+}
+
+//test stream encoding
+func TestEncoderStream(t *testing.T) {
+	var encoder XMLEncoder
+	tests := []struct {
+		name          string
+		text          string
+		want, wantAlt [20]string
+		wantErr       bool
+	}{
+		/*{
+			name: "hello world",
+			text: `#? saying hello world
+		 			#hello{world}`,
+			want:    [20]string{`<root>`, `<!-- saying hello world -->`, `<hello>`, `world`, `</hello>`, `</root>`},
+			wantErr: false,
+		},*/
+		{
+			name:    "Identifier + Attributes",
+			text:    `#book @id{my-book} @author{Torben}`,
+			want:    [20]string{`<root>`, `<book id="my-book" author="Torben">`, `</book>`, `</root>`},
+			wantErr: false,
+		},
+		/*{
+			name: "book example",
+			text: `#book {
+				#toc{}
+				#section @id{1} {
+				  #title {
+					  The sections title
+				  }
+
+				  The sections text.
+				}
+			  }`,
+			want: `<root>
+				<book>
+					<toc></toc>
+					<section id="1">
+						<title>
+							The sections title
+						</title>
+
+						The sections text.
+					</section>
+				</book>
+			</root>`,
+			wantErr: false,
+		},
+		{
+			// might fail, as the sequence in which Attributes are added to an identifier
+			// depends on the sequence they lie in the Nodes' Attributes-Slice
+			name: "complex book example",
+			text: `#book @id{my-book} @author{Torben} {
+						#title { A very simple book }
+						#chapter @id{ch1} {
+							#title {
+								Chapter One
+							}
+							#p {
+								Hello paragraph.
+							Still going on.
+							}
+						}
+
+						#chapter @id{ch2} {
+							#title { Chapter Two }
+		 					Some #red{#bold{ Text}} text.
+							The #span @style{color:red} { #span @style{font-weight:bold} {Text }} text.
+							#image @width{100%} {https://worldiety.de/favicon.png}
+						}
+					}`,
+			want: `<root>
+					<book id="my-book" author="Torben">
+						<title>A very simple book</title>
+						<chapter id="ch1">
+							<title>Chapter One</title>
+							<p>Hello paragraph.
+							Still going on.</p>
+						</chapter>
+
+						<chapter id="ch2">
+							<title>Chapter Two</title>
+							Some <red><bold>Text</bold></red> text.
+							The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
+							<image width="100%">https://worldiety.de/favicon.png</image>
+						</chapter>
+					</book>
+				</root>`,
+			wantAlt: `<root>
+			<book author="Torben id="my-book"">
+				<title>A very simple book</title>
+				<chapter id="ch1">
+					<title>Chapter One</title>
+					<p>Hello paragraph.
+					Still going on.</p>
+				</chapter>
+
+				<chapter id="ch2">
+					<title>Chapter Two</title>
+					Some <red><bold>Text</bold></red> text.
+					The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
+					<image width="100%">https://worldiety.de/favicon.png</image>
+				</chapter>
+			</book>
+		</root>`,
+		},
+		{
+			name: "equivalent example grammar1",
+			text: `#list{
+							#item1{#key {value}}
+							#item2 @id{1}
+							#item3 @key{value}
+					  	}`,
+			want: `<root>
+								<list>
+									<item1><key>value</key></item1>
+							 		<item2 id="1"></item2>
+							 		<item3 key="value"></item3>
+								</list>
+							</root>`,
+			wantErr: false,
+		},*/
+	}
+	for _, test := range tests {
+		t.Run("stream - "+test.name, func(t *testing.T) {
+			var output string
+			var b bytes.Buffer
+			var err error
+
+			writer := bufio.NewWriter(&b)
+			reader := bytes.NewBuffer([]byte(test.text))
+
+			/*lexer := parser2.NewLexer("default", reader)
+			tok, err := lexer.Token()
+			fmt.Println("reader ", reader)
+			fmt.Println("token, err ", tok, err)
+			fmt.Println("tokentype, err ", tok.TokenType(), err)*/
+
+			encoder = NewEncoder(test.name, reader, writer)
+			fmt.Println("encoder, output ", encoder, output)
+
+			i := 0
+			for output, err := encoder.Next(); output == "" || err != io.EOF || err != nil; i++ {
+				fmt.Println(output)
+
+				if output != test.want[i] {
+					t.Errorf("Test %s failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, output, test.want)
+				} else {
+					fmt.Printf("Successfully translated Element: " + test.want[i])
+				}
+				output, err = encoder.Next()
+			}
+			if err != nil {
+				t.Error(err)
 			}
 
 		})
