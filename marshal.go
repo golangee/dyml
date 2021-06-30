@@ -12,7 +12,6 @@ import (
 // Unmarshal takes Tadl input and parses it into the given struct.
 // If "into" is not a struct, this method will fail.
 // Strict mode requires that all fields of the struct are set and defined only once.
-// TODO Better error handling
 // TODO Nice mechanism for attributes
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
@@ -37,6 +36,34 @@ type unmarshaler struct {
 	strict bool
 }
 
+// UnmarshalError is an error that occurred during unmarshaling.
+// It contains the offending node, a string with details and an underlying error (if any).
+type UnmarshalError struct {
+	node     *parser.TreeNode
+	detail   string
+	wrapping error
+}
+
+func NewUnmarshalError(node *parser.TreeNode, detail string, wrapping error) UnmarshalError {
+	return UnmarshalError{
+		node,
+		detail,
+		wrapping,
+	}
+}
+
+func (u UnmarshalError) Error() string {
+	if u.wrapping != nil {
+		return fmt.Sprintf("cannot unmarshal into '%s', %s: %s", u.node.Name, u.detail, u.wrapping.Error())
+	}
+
+	return fmt.Sprintf("cannot unmarshal into '%s', %s", u.node.Name, u.detail)
+}
+
+func (u *UnmarshalError) Unwrap() error {
+	return u.wrapping
+}
+
 // node will place contents of the tadl node inside the given value.
 func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	valueType := value.Type()
@@ -45,39 +72,39 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	case reflect.String:
 		text, err := getTextChild(node)
 		if err != nil {
-			return err
+			return NewUnmarshalError(node, "expected string", err)
 		}
 
 		value.SetString(text)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		text, err := getTextChild(node)
 		if err != nil {
-			return fmt.Errorf("integer required for type '%s'", valueType.Name())
+			return NewUnmarshalError(node, fmt.Sprintf("integer required for type '%s'", valueType.Name()), err)
 		}
 
 		i, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid integer", text)
+			return NewUnmarshalError(node, fmt.Sprintf("'%s' is not a valid integer", text), err)
 		}
 
 		if value.OverflowInt(i) {
-			return fmt.Errorf("value for '%s' out of bounds", valueType.Name())
+			return NewUnmarshalError(node, fmt.Sprintf("value for '%s' out of bounds", valueType.Name()), err)
 		}
 
 		value.SetInt(i)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		text, err := getTextChild(node)
 		if err != nil {
-			return fmt.Errorf("unsigned integer required for type '%s'", valueType.Name())
+			return NewUnmarshalError(node, fmt.Sprintf("unsigned integer required for type '%s'", valueType.Name()), err)
 		}
 
 		i, err := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
 		if err != nil {
-			return fmt.Errorf("'%s' is not a valid unsigned integer", text)
+			return NewUnmarshalError(node, fmt.Sprintf("'%s' is not a valid unsigned integer", text), err)
 		}
 
 		if value.OverflowUint(i) {
-			return fmt.Errorf("value for '%s' out of bounds", valueType.Name())
+			return NewUnmarshalError(node, fmt.Sprintf("value for '%s' out of bounds", valueType.Name()), err)
 		}
 
 		value.SetUint(i)
@@ -90,12 +117,13 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 		for _, child := range node.Children {
 			element := reflect.New(elementType).Elem()
 			if err := u.node(child, element); err != nil {
-				return fmt.Errorf("error while reading slice children for '%s'", node.Name)
+				return NewUnmarshalError(node, fmt.Sprintf("cannot read slice children for '%s'", node.Name), err)
 			}
+
 			value.Set(reflect.Append(value, element))
 		}
 	case reflect.Array:
-		return fmt.Errorf("arrays not supported, use a slice instead")
+		return NewUnmarshalError(node, "arrays not supported, use a slice instead", nil)
 	case reflect.Struct:
 		// Iterate over all struct fields.
 		for i := 0; i < value.NumField(); i++ {
@@ -108,23 +136,23 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 			if len(nodeChildren) < 1 {
 				if u.strict {
-					return fmt.Errorf("'%s' not defined", fieldType.Name)
+					return NewUnmarshalError(node, fmt.Sprintf("child of type '%s' required", fieldType.Name), nil)
 				}
 
 				continue
 			} else if len(nodeChildren) > 1 && u.strict {
-				return fmt.Errorf("'%s' defined multiple times", fieldType.Name)
+				return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldType.Name), nil)
 			}
 
 			nodeForField := nodeChildren[0]
 
 			err := u.node(nodeForField, field)
 			if err != nil {
-				return fmt.Errorf("error in '%s': %w", fieldType.Name, err)
+				return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
 			}
 		}
 	default:
-		return fmt.Errorf("cannot unmarshal into '%s' with unsupported type '%v'", valueType.Name(), valueType)
+		return NewUnmarshalError(node, fmt.Sprintf("with unsupported type '%s' for '%s'", valueType, valueType.Name()), nil)
 	}
 
 	return nil
@@ -154,12 +182,12 @@ func getTextChild(node *parser.TreeNode) (string, error) {
 	}
 
 	if len(node.Children) != 1 {
-		return "", fmt.Errorf("exactly one text child required")
+		return "", NewUnmarshalError(node, "exactly one text child required", nil)
 	}
 
 	textChild := node.Children[0]
 	if !textChild.IsText() {
-		return "", fmt.Errorf("child is not text")
+		return "", NewUnmarshalError(node, "child is not text", nil)
 	}
 
 	return *textChild.Text, nil
