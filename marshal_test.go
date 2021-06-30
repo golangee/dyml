@@ -23,6 +23,10 @@ func TestUnmarshal(t *testing.T) {
 
 	var testCases []TestCase
 
+	// Test cases always follow this pattern:
+	// 1. Define all required types
+	// 2. Define testcase using those types
+
 	type EmptyRoot struct{}
 
 	testCases = append(testCases, TestCase{
@@ -151,6 +155,54 @@ func TestUnmarshal(t *testing.T) {
 		text: `#item hello`,
 		into: &SimpleRename{},
 		want: &SimpleRename{Field: "hello"},
+	})
+
+	type InvalidFieldType struct {
+		V string `tadl:",not-a-type"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name:    "invalid field type",
+		text:    `#V hello`,
+		into:    &InvalidFieldType{},
+		wantErr: true,
+	})
+
+	type SimpleAttributeInner struct {
+		Attribute string `tadl:",attr"`
+		Renamed   int    `tadl:"x,attr"`
+	}
+
+	type SimpleAttribute struct {
+		Inner SimpleAttributeInner `tadl:"item"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "simple attribute",
+		text: `#item @Attribute{Hello world!} @x{123}`,
+		into: &SimpleAttribute{},
+		want: &SimpleAttribute{
+			Inner: SimpleAttributeInner{
+				Attribute: "Hello world!",
+				Renamed:   123,
+			},
+		},
+	})
+
+	type RequiredAttributeStrictInner struct {
+		Attribute string `tadl:",attr"`
+	}
+
+	type RequiredAttributeStrict struct {
+		Inner RequiredAttributeStrictInner `tadl:"item"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name:    "strict mode requires attribute to be set",
+		text:    `#item`,
+		into:    &RequiredAttributeStrict{},
+		strict:  true,
+		wantErr: true,
 	})
 
 	// Run all test cases

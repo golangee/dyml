@@ -12,7 +12,6 @@ import (
 // Unmarshal takes Tadl input and parses it into the given struct.
 // If "into" is not a struct, this method will fail.
 // Strict mode requires that all fields of the struct are set and defined only once.
-// TODO Nice mechanism for attributes
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
 
@@ -39,6 +38,15 @@ func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 type unmarshaler struct {
 	strict bool
 }
+
+// While unmarshalling we might need to process a node as an attribute.
+// We use this enum to make the decision.
+type unmarshalType int
+
+const (
+	unmarshalNormal unmarshalType = iota
+	unmarshalAttribute
+)
 
 // UnmarshalError is an error that occurred during unmarshaling.
 // It contains the offending node, a string with details and an underlying error (if any).
@@ -135,6 +143,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 			field := value.Field(i)
 
 			fieldName := fieldType.Name
+			unmarshalAs := unmarshalNormal
 
 			// Some tags will change the behavior of how this field will be processed.
 			if structTag, ok := fieldType.Tag.Lookup("tadl"); ok {
@@ -147,27 +156,62 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 						fieldName = tags[0]
 					}
 				}
+
+				// The second tag indicates the type we are parsing
+				if len(tags) > 1 {
+					as := tags[1]
+					switch as {
+					case "attr":
+						unmarshalAs = unmarshalAttribute
+					case "":
+						unmarshalAs = unmarshalNormal
+					default:
+						return NewUnmarshalError(node, fmt.Sprintf("field type '%s' invalid", as), nil)
+					}
+				}
 			}
 
-			// There might be several children with a matching name inside the node.
-			// In strict mode exactly one is required, otherwise more than one is okay.
-			nodeChildren := findChildrenByName(node, fieldName)
+			switch unmarshalAs {
+			case unmarshalNormal:
+				nodeChildren := findChildrenByName(node, fieldName)
 
-			if len(nodeChildren) < 1 {
-				if u.strict {
-					return NewUnmarshalError(node, fmt.Sprintf("child '%s' required", fieldName), nil)
+				// There might be several children with a matching name inside the node.
+				// In strict mode exactly one is required, otherwise more than one is okay.
+				if len(nodeChildren) < 1 {
+					if u.strict {
+						return NewUnmarshalError(node, fmt.Sprintf("child '%s' required", fieldName), nil)
+					}
+
+					continue
+				} else if len(nodeChildren) > 1 && u.strict {
+					return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldName), nil)
 				}
 
-				continue
-			} else if len(nodeChildren) > 1 && u.strict {
-				return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldName), nil)
-			}
+				nodeForField := nodeChildren[0]
 
-			nodeForField := nodeChildren[0]
+				err := u.node(nodeForField, field)
+				if err != nil {
+					return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
+				}
+			case unmarshalAttribute:
+				if node.Attributes.Has(fieldName) {
+					// We have everything ready to set the attribute.
+					// We want to handle integers and strings easily so we recurse here by creating a fake node.
+					// As this node is a string, it can *only* be parsed as a primitive type, everything else
+					// will return an error, just like we want.
+					fakeNode := parser.NewStringNode(node.Attributes[fieldName])
 
-			err := u.node(nodeForField, field)
-			if err != nil {
-				return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
+					err := u.node(fakeNode, field)
+					if err != nil {
+						// We throw away the error, as it was created with a fake node containing useless information.
+						return NewUnmarshalError(node, fmt.Sprintf("attribute '%s' requires primitve type", fieldName), nil)
+					}
+				} else if u.strict {
+					return NewUnmarshalError(node, fmt.Sprintf("attribute '%s' required", fieldName), nil)
+				}
+			default:
+				// Should never happen. We provide a helpful message just in case.
+				return fmt.Errorf("marshal in invalid state: unmarshalType=%v", unmarshalAs)
 			}
 		}
 	default:
