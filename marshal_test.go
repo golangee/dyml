@@ -169,8 +169,10 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type SimpleAttributeInner struct {
-		Attribute string `tadl:",attr"`
-		Renamed   int    `tadl:"x,attr"`
+		Attribute string  `tadl:",attr"`
+		Renamed   int     `tadl:"x,attr"`
+		Boolean   bool    `tadl:"b,attr"`
+		Float     float64 `tadl:"f,attr"`
 	}
 
 	type SimpleAttribute struct {
@@ -179,12 +181,14 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "simple attribute",
-		text: `#item @Attribute{Hello world!} @x{123}`,
+		text: `#item @Attribute{Hello world!} @x{123} @b{true} @f{123.456}`,
 		into: &SimpleAttribute{},
 		want: &SimpleAttribute{
 			Inner: SimpleAttributeInner{
 				Attribute: "Hello world!",
 				Renamed:   123,
+				Boolean:   true,
+				Float:     123.456,
 			},
 		},
 	})
@@ -202,6 +206,80 @@ func TestUnmarshal(t *testing.T) {
 		text:    `#item`,
 		into:    &RequiredAttributeStrict{},
 		strict:  true,
+		wantErr: true,
+	})
+
+	type TextDirectly struct {
+		Text string `tadl:",text"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "plain text in root element",
+		text: `Hello world!`,
+		into: &TextDirectly{},
+		want: &TextDirectly{
+			Text: "Hello world!",
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "empty text zero value",
+		text: ``,
+		into: &TextDirectly{},
+		want: &TextDirectly{
+			Text: "",
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name:    "text required in strict mode",
+		text:    ``,
+		strict:  true,
+		into:    &TextDirectly{},
+		wantErr: true,
+	})
+
+	type TextNestedInner struct {
+		Value string `tadl:",text"`
+	}
+
+	type TextNested struct {
+		Text  string          `tadl:",text"`
+		Inner TextNestedInner `tadl:"inner"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "text in some elements",
+		text: `Hello world! #inner Lots of text here :)`,
+		into: &TextNested{},
+		want: &TextNested{
+			Text: "Hello world! ",
+			Inner: TextNestedInner{
+				Value: "Lots of text here :)",
+			},
+		},
+	})
+
+	type LotsOfText struct {
+		Text    string `tadl:",text"`
+		Element Empty  `tadl:"item"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "scattered text will be concatenated",
+		text: `hello #item{} this is text`,
+		into: &LotsOfText{},
+		want: &LotsOfText{
+			Text:    "hello this is text",
+			Element: Empty{},
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name:    "scattered text is forbidden in strict mode",
+		text:    `hello #item{} this is text`,
+		strict:  true,
+		into:    &LotsOfText{},
 		wantErr: true,
 	})
 

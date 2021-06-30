@@ -11,7 +11,42 @@ import (
 
 // Unmarshal takes Tadl input and parses it into the given struct.
 // If "into" is not a struct, this method will fail.
-// Strict mode requires that all fields of the struct are set and defined only once.
+// As this uses go's reflect package, only exported names can be unmarshalled.
+// Strict mode requires that all fields of the struct are set and defined exactly once.
+// You can set struct tags to influence the unmarshalling process.
+// All tags must have the form `tadl:"..."` and are a list of comma separated identifiers.
+//
+// The first identifier can be used to rename the field, so that an element with the renamed
+// name is parsed, and not the name of the struct field.
+//
+//  // This tadl snippet...
+//  #!{item{...}}
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      SomeName Content `tadl:"item"`
+//  }
+//
+// The second identifier is used to specify what kind of thing is being parsed.
+// This can be used to parse attributes (attr) or text (text).
+//
+// Attributes can be parsed into primitive types: string, bool and the integer (signed & unsigned) and float types.
+// Should the value not be valid for the target type, e.g. an integer that is too large or a negative value for an uint,
+// an error is returned describing the issue.
+//
+//  // This tadl snippet...
+//  #item @key{value} @X{123}
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      SomeName string `tadl:"key,attr"` // Notice how you can rename an attribute
+//      X        int    `tadl:",attr"` // You can choose to not rename it, by omitting the rename parameter.
+//  }
+//
+// Text can be parsed into fields marked with 'text'.
+// In normal mode the field will have all text that occurred in the element concatenated or an empty string if no
+// text was inside the element.
+// In strict mode exactly one text item with length > 0 is expected.
+// Renaming a text parameter is not an error but pointless, so best leave the rename parameter empty.
+//
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
 
@@ -46,6 +81,7 @@ type unmarshalType int
 const (
 	unmarshalNormal unmarshalType = iota
 	unmarshalAttribute
+	unmarshalText
 )
 
 // UnmarshalError is an error that occurred during unmarshaling.
@@ -91,7 +127,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		text, err := getTextChild(node)
 		if err != nil {
-			return NewUnmarshalError(node, fmt.Sprintf("integer required for type '%s'", valueType.Name()), err)
+			return NewUnmarshalError(node, fmt.Sprintf("integer required for '%s'", valueType.Name()), err)
 		}
 
 		i, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
@@ -107,7 +143,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		text, err := getTextChild(node)
 		if err != nil {
-			return NewUnmarshalError(node, fmt.Sprintf("unsigned integer required for type '%s'", valueType.Name()), err)
+			return NewUnmarshalError(node, fmt.Sprintf("unsigned integer required for '%s'", valueType.Name()), err)
 		}
 
 		i, err := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
@@ -120,6 +156,39 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 		}
 
 		value.SetUint(i)
+	case reflect.Bool:
+		text, err := getTextChild(node)
+		if err != nil {
+			return NewUnmarshalError(node, fmt.Sprintf("boolean required for '%s'", valueType.Name()), err)
+		}
+
+		b, err := strconv.ParseBool(strings.TrimSpace(text))
+		if err != nil {
+			return NewUnmarshalError(node, fmt.Sprintf("'%s' is not a valid boolean", text), err)
+		}
+
+		value.SetBool(b)
+	case reflect.Float64, reflect.Float32:
+		text, err := getTextChild(node)
+		if err != nil {
+			return NewUnmarshalError(node, fmt.Sprintf("float required for '%s'", valueType.Name()), err)
+		}
+
+		var bitSize int
+
+		switch value.Kind() {
+		case reflect.Float32:
+			bitSize = 32
+		case reflect.Float64:
+			bitSize = 64
+		}
+
+		f, err := strconv.ParseFloat(strings.TrimSpace(text), bitSize)
+		if err != nil {
+			return NewUnmarshalError(node, fmt.Sprintf("'%s' is not a valid float", text), err)
+		}
+
+		value.SetFloat(f)
 	case reflect.Ptr:
 		// Dereference pointer
 		return u.node(node, value.Elem())
@@ -163,6 +232,8 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 					switch as {
 					case "attr":
 						unmarshalAs = unmarshalAttribute
+					case "text":
+						unmarshalAs = unmarshalText
 					case "":
 						unmarshalAs = unmarshalNormal
 					default:
@@ -173,23 +244,16 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 			switch unmarshalAs {
 			case unmarshalNormal:
-				nodeChildren := findChildrenByName(node, fieldName)
-
-				// There might be several children with a matching name inside the node.
-				// In strict mode exactly one is required, otherwise more than one is okay.
-				if len(nodeChildren) < 1 {
-					if u.strict {
-						return NewUnmarshalError(node, fmt.Sprintf("child '%s' required", fieldName), nil)
-					}
-
-					continue
-				} else if len(nodeChildren) > 1 && u.strict {
-					return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldName), nil)
+				nodeForField, err := u.findSingleChild(node, fieldName)
+				if err != nil {
+					return err
 				}
 
-				nodeForField := nodeChildren[0]
+				if nodeForField == nil {
+					continue
+				}
 
-				err := u.node(nodeForField, field)
+				err = u.node(nodeForField, field)
 				if err != nil {
 					return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
 				}
@@ -209,6 +273,32 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 				} else if u.strict {
 					return NewUnmarshalError(node, fmt.Sprintf("attribute '%s' required", fieldName), nil)
 				}
+			case unmarshalText:
+				if field.Kind() != reflect.String {
+					return NewUnmarshalError(node, fmt.Sprintf("'%s' needs to have type string", fieldType.Name), nil)
+				}
+
+				foundAny := false
+
+				var text strings.Builder
+
+				for _, c := range node.Children {
+					if c.IsText() {
+						if foundAny && u.strict {
+							return NewUnmarshalError(node, "multiple occurrences of text, where only one is allowed", nil)
+						}
+
+						foundAny = true
+
+						text.WriteString(*c.Text)
+					}
+				}
+
+				if u.strict && !foundAny {
+					return NewUnmarshalError(node, "text inside element required", nil)
+				}
+
+				field.SetString(text.String())
 			default:
 				// Should never happen. We provide a helpful message just in case.
 				return fmt.Errorf("marshal in invalid state: unmarshalType=%v", unmarshalAs)
@@ -221,18 +311,33 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	return nil
 }
 
-// findChildrenByName returns all direct children of the given node that have
-// the given name.
-func findChildrenByName(node *parser.TreeNode, name string) []*parser.TreeNode {
-	var result []*parser.TreeNode
+// findSingleChild returns the child with the given name or an error in strict mode when there is no
+// such child or there are multiple children.
+// In non-strict mode this method might return (nil, nil) which means that no such child exists, or it will
+// return the first item with that name.
+func (u *unmarshaler) findSingleChild(node *parser.TreeNode, name string) (*parser.TreeNode, error) {
+	var child *parser.TreeNode
 
-	for _, child := range node.Children {
-		if child.Name == name {
-			result = append(result, child)
+	for _, c := range node.Children {
+		if c.Name == name {
+			if child == nil {
+				child = c
+
+				if !u.strict {
+					// We found a child and don't care if there are other ones in non-strict mode.
+					break
+				}
+			} else {
+				return nil, NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", name), nil)
+			}
 		}
 	}
 
-	return result
+	if u.strict && child == nil {
+		return nil, NewUnmarshalError(node, fmt.Sprintf("child '%s' required", name), nil)
+	}
+
+	return child, nil
 }
 
 // getTextChild will return a string from the CharData that is the child of the given node.
