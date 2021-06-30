@@ -16,9 +16,13 @@ import (
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
 
+	if into == nil {
+		return fmt.Errorf("cannot unmarshal into nil")
+	}
+
 	tree, err := parse.Parse()
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal because of parser error: %w", err)
+		return NewUnmarshalError(tree, "parser error", err)
 	}
 
 	value := reflect.ValueOf(into)
@@ -130,18 +134,33 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 			fieldType := value.Type().Field(i)
 			field := value.Field(i)
 
+			fieldName := fieldType.Name
+
+			// Some tags will change the behavior of how this field will be processed.
+			if structTag, ok := fieldType.Tag.Lookup("tadl"); ok {
+				tags := strings.Split(structTag, ",")
+
+				// The first tag will rename the field
+				if len(tags) > 0 {
+					rename := tags[0]
+					if len(rename) > 0 {
+						fieldName = tags[0]
+					}
+				}
+			}
+
 			// There might be several children with a matching name inside the node.
 			// In strict mode exactly one is required, otherwise more than one is okay.
-			nodeChildren := findChildrenByName(node, fieldType.Name)
+			nodeChildren := findChildrenByName(node, fieldName)
 
 			if len(nodeChildren) < 1 {
 				if u.strict {
-					return NewUnmarshalError(node, fmt.Sprintf("child of type '%s' required", fieldType.Name), nil)
+					return NewUnmarshalError(node, fmt.Sprintf("child '%s' required", fieldName), nil)
 				}
 
 				continue
 			} else if len(nodeChildren) > 1 && u.strict {
-				return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldType.Name), nil)
+				return NewUnmarshalError(node, fmt.Sprintf("'%s' defined multiple times", fieldName), nil)
 			}
 
 			nodeForField := nodeChildren[0]

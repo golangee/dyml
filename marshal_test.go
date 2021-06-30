@@ -75,6 +75,19 @@ func TestUnmarshal(t *testing.T) {
 		},
 	})
 
+	type SimpleText struct {
+		Text string
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "simple test",
+		text: "#Text hello",
+		into: &SimpleText{},
+		want: &SimpleText{
+			Text: "hello",
+		},
+	})
+
 	testCases = append(testCases, TestCase{
 		name: "absent empty element is correctly parsed in non-strict mode",
 		text: "",
@@ -120,6 +133,24 @@ func TestUnmarshal(t *testing.T) {
 		want: &EmptyStructSlice{
 			Things: []Empty{{}, {}, {}},
 		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name:    "do not unmarshal into nil",
+		text:    "whatever",
+		into:    nil,
+		wantErr: true,
+	})
+
+	type SimpleRename struct {
+		Field string `tadl:"item"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "field rename",
+		text: `#item hello`,
+		into: &SimpleRename{},
+		want: &SimpleRename{Field: "hello"},
 	})
 
 	// Run all test cases
