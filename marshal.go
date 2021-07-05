@@ -222,7 +222,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 				if len(tags) > 0 {
 					rename := tags[0]
 					if len(rename) > 0 {
-						fieldName = tags[0]
+						fieldName = rename
 					}
 				}
 
@@ -274,6 +274,8 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 					return NewUnmarshalError(node, fmt.Sprintf("attribute '%s' required", fieldName), nil)
 				}
 			case unmarshalText:
+				// Text needs a string field to get parsed into. We then collect any text inside this node or
+				// expect exactly one text in strict mode.
 				if field.Kind() != reflect.String {
 					return NewUnmarshalError(node, fmt.Sprintf("'%s' needs to have type string", fieldType.Name), nil)
 				}
@@ -301,7 +303,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 				field.SetString(text.String())
 			default:
 				// Should never happen. We provide a helpful message just in case.
-				return fmt.Errorf("marshal in invalid state: unmarshalType=%v", unmarshalAs)
+				return fmt.Errorf("unmarshal in invalid state: unmarshalType=%v", unmarshalAs)
 			}
 		}
 	default:
