@@ -57,7 +57,9 @@ type Lexer struct {
 	r      *bufio.Reader
 	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
 	bufPos int
-	pos    Pos // current position
+	// pos is the current lexer position.
+	// It is the position of the rune that would be read next by nextR.
+	pos Pos
 	// started is only used to detect if the first token is the G2Preamble
 	started bool
 	mode    GrammarMode
@@ -296,7 +298,13 @@ func (l *Lexer) nextR() (rune, error) {
 		r := l.buf[l.bufPos]
 		l.bufPos++
 		l.pos.Line = int(r.line)
-		l.pos.Col = int(r.col)
+		// col needs to be incremented so that the lexer points to the next rune.
+		l.pos.Col = int(r.col) + 1
+
+		if r.r == '\n' {
+			l.pos.Line++
+			l.pos.Col = 1
+		}
 
 		return r.r, nil
 	}
