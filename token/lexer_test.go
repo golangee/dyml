@@ -19,6 +19,8 @@ func TestLexer(t *testing.T) {
 		text    string
 		want    *TestSet
 		wantErr bool
+		// positions is optional to test the correct lexing of positions.
+		positions []Position
 	}{
 		{
 			name: "empty",
@@ -27,9 +29,10 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "space",
-			text: " ",
-			want: NewTestSet().CharData(" "),
+			name:      "space",
+			text:      " ",
+			want:      NewTestSet().CharData(" "),
+			positions: newTestPositions(1, 1, 1, 2),
 		},
 
 		{
@@ -55,6 +58,42 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
+			name: "multiline positions",
+			text: `#A
+#B
+#C`,
+			want: NewTestSet().
+				DefineElement(false).
+				Identifier("A").
+				DefineElement(false).
+				Identifier("B").
+				DefineElement(false).
+				Identifier("C"),
+			positions: newTestPositions(
+				1, 1, 1, 2,
+				1, 2, 1, 3,
+				2, 1, 2, 2,
+				2, 2, 2, 3,
+				3, 1, 3, 2,
+				3, 2, 3, 3,
+			),
+		},
+
+		{
+			name: "simple element and text",
+			text: `#hello world`,
+			want: NewTestSet().
+				DefineElement(false).
+				Identifier("hello").
+				CharData("world"),
+			positions: newTestPositions(
+				1, 1, 1, 2,
+				1, 2, 1, 7,
+				1, 8, 1, 13,
+			),
+		},
+
+		{
 			name: "simple element with attribute and no spaces",
 			text: `#hello@id{world}`,
 			want: NewTestSet().
@@ -65,6 +104,15 @@ func TestLexer(t *testing.T) {
 				BlockStart().
 				CharData("world").
 				BlockEnd(),
+			positions: newTestPositions(
+				1, 1, 1, 2,
+				1, 2, 1, 7,
+				1, 7, 1, 8,
+				1, 8, 1, 10,
+				1, 10, 1, 11,
+				1, 11, 1, 16,
+				1, 16, 1, 17,
+			),
 		},
 
 		{
@@ -158,7 +206,7 @@ func TestLexer(t *testing.T) {
 			name: "empty g2",
 			text: "#!{}",
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				BlockEnd(),
 		},
@@ -167,7 +215,7 @@ func TestLexer(t *testing.T) {
 			name: "basic g2 with a single element",
 			text: "#!{hello }",
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				Identifier("hello").
 				BlockEnd(),
@@ -177,7 +225,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with a multiple elements",
 			text: "#!{ list another}",
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				Identifier("list").
 				Identifier("another").
@@ -188,7 +236,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with a string",
 			text: `#!{"hello\"\n"}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				CharData(`hello"\n`).
 				BlockEnd(),
@@ -198,7 +246,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with attributes",
 			text: `#!{x @key="value" @@num="5" y}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				Identifier("x").
 				DefineAttribute(false).
@@ -217,7 +265,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with g1 line",
 			text: `#!{# here is another #item @color{blue}}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				DefineElement(false).
 				CharData("here is another ").
@@ -241,7 +289,7 @@ func TestLexer(t *testing.T) {
 						#
 					}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				DefineElement(false).
 				DefineElement(false).
@@ -282,7 +330,7 @@ func TestLexer(t *testing.T) {
 			}
 			`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				DefineElement(true).
 				CharData("This is a list with some items").
@@ -313,7 +361,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with separated elements",
 			text: `#!{item, item ,item , item}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				Identifier("item").
 				Comma().
@@ -329,7 +377,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 with simple groups",
 			text: `#!{ ( ) < >()<> }`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				GroupStart().
 				GroupEnd().
@@ -346,7 +394,7 @@ func TestLexer(t *testing.T) {
 			name: "incomplete g2",
 			text: `#!{#`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				DefineElement(false),
 		},
@@ -358,7 +406,7 @@ func TestLexer(t *testing.T) {
 				item // Another } comment # with { special characters
 			}`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				G2Comment().
 				CharData("This is a comment").
@@ -384,6 +432,22 @@ func TestLexer(t *testing.T) {
 					t.Error(err)
 				} else {
 					tt.want.Assert(tokens, t)
+				}
+			}
+
+			// Compare token positions, if any are given
+			if len(tt.positions) > 0 {
+				if len(tt.positions) != len(tokens) {
+					t.Fatalf("expected %d token positions, but got %d", len(tt.positions), len(tokens))
+				}
+
+				for i := 0; i < len(tt.positions); i++ {
+					expected := tt.positions[i]
+					actual := *tokens[i].Pos()
+
+					if !comparePos(expected, actual) {
+						t.Errorf("token positions for %s differ, expected: %v, actual: %v", tokens[i].TokenType(), expected, actual)
+					}
 				}
 			}
 		})
@@ -504,7 +568,7 @@ func (ts *TestSet) GenericEnd() *TestSet {
 	return ts
 }
 
-func (ts *TestSet) G2Preambel() *TestSet {
+func (ts *TestSet) G2Preamble() *TestSet {
 	ts.checker = append(ts.checker, func(t Token) error {
 		if _, ok := t.(*G2Preamble); ok {
 			return nil
@@ -627,12 +691,46 @@ func (ts *TestSet) Assert(tokens []Token, t *testing.T) {
 	}
 }
 
-func newTestDec(text string) *Lexer {
+// newTestPositions creates new positional information.
+// It expects info to have a length divisible by 4, otherwise it will panic.
+// The integers are interpreted as repeating instances of Position like this:
+// [beginLine, beginCol, endLine, endCol].
+func newTestPositions(info ...int) []Position {
+	if len(info)%4 != 0 {
+		panic("newTestPositions needs length divisible by 4")
+	}
+
+	var result []Position
+
+	for i := 0; i < len(info); i += 4 {
+		result = append(result, Position{
+			BeginPos: Pos{
+				Line: info[i],
+				Col:  info[i+1],
+			},
+			EndPos: Pos{
+				Line: info[i+2],
+				Col:  info[i+3],
+			},
+		})
+	}
+
+	return result
+}
+
+// comparePos compares the line and col attributes of the given positions
+// and returns true if they are equal.
+func comparePos(a, b Position) bool {
+	return a.Begin().Col == b.Begin().Col && a.Begin().Line == b.Begin().Line &&
+		a.End().Col == b.End().Col && a.End().Line == b.End().Line
+}
+
+func newTestLexer(text string) *Lexer {
 	return NewLexer("lexer_test.go", bytes.NewBuffer([]byte(text)))
 }
 
 func parseTokens(text string) ([]Token, error) {
-	dec := newTestDec(text)
+	dec := newTestLexer(text)
 
 	var res []Token
 
