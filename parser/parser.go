@@ -20,6 +20,7 @@ type TreeNode struct {
 	Attributes AttributeMap
 	Children   []*TreeNode
 	// BlockType describes the type of brackets the children were surrounded with.
+	// This may be BlockNone in which case this node either has no or one children.
 	BlockType BlockType
 	// Range will span all tokens that were processed to build this node.
 	Range token.Position
@@ -30,7 +31,7 @@ func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
 		Attributes: NewAttributeMap(),
-		BlockType:  BlockNormal,
+		BlockType:  BlockNone,
 	}
 }
 
@@ -401,7 +402,7 @@ func (p *Parser) g1Node() (*TreeNode, error) {
 		// Optional children enclosed in brackets
 		p.next() // Pop the token, we know it's a BlockStart
 
-		node.BlockType = BlockNormal
+		node.Block(BlockNormal)
 
 		// Append children until we encounter a TokenBlockEnd
 		for {
@@ -590,48 +591,15 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 
 		node.AddChildren(children...)
 	case *token.BlockStart, *token.GenericStart, *token.GroupStart:
-		p.next()
-
-		// Set BlockType
-		switch t.(type) {
-		case *token.BlockStart:
-			node.BlockType = BlockNormal
-		case *token.GroupStart:
-			node.BlockType = BlockGroup
-		case *token.GenericStart:
-			node.BlockType = BlockGeneric
+		if err := p.g2ParseBlock(node); err != nil {
+			return nil, err
 		}
 
-		// Parse children
-		for {
-			if err := p.g2EatComments(); err != nil {
+		// There might be an arrow after this block
+		tok, err = p.peek()
+		if tok != nil && tok.TokenType() == token.TokenG2Arrow {
+			if err := p.g2ParseArrow(node); err != nil {
 				return nil, err
-			}
-
-			p.g2AppendComments(node)
-
-			tok, err = p.peek()
-			if err != nil {
-				return nil, err
-			}
-
-			if node.isClosedBy(tok) {
-				p.next() // pop closing token
-
-				break
-			} else if tok.TokenType() == token.TokenDefineElement {
-				children, err := p.g1LineNodes()
-				if err != nil {
-					return nil, err
-				}
-				node.AddChildren(children...)
-			} else {
-				child, err := p.g2Node()
-				if err != nil {
-					return nil, err
-				}
-
-				node.AddChildren(child)
 			}
 		}
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
@@ -639,6 +607,10 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 	case *token.Comma:
 		// Comma ends a node definition
 		p.next()
+	case *token.G2Arrow:
+		if err := p.g2ParseArrow(node); err != nil {
+			return nil, err
+		}
 	default:
 		child, err := p.g2Node()
 		if err != nil {
@@ -700,6 +672,93 @@ func (p *Parser) g2EatComments() error {
 func (p *Parser) g2AppendComments(node *TreeNode) {
 	node.Children = append(node.Children, p.g2Comments...)
 	p.g2Comments = nil
+}
+
+// g2ParseBlock parses a block and its children into the given node.
+// The blockType of the node will be set to the type of the block.
+func (p *Parser) g2ParseBlock(node *TreeNode) error {
+	tok, err := p.next()
+	if err != nil {
+		return err
+	}
+
+	// Set BlockType
+	switch tok.(type) {
+	case *token.BlockStart:
+		node.Block(BlockNormal)
+	case *token.GroupStart:
+		node.Block(BlockGroup)
+	case *token.GenericStart:
+		node.Block(BlockGeneric)
+	default:
+		return token.NewPosError(tok.Pos(), "expected a BlockStart")
+	}
+
+	// Parse children
+	for {
+		if err := p.g2EatComments(); err != nil {
+			return err
+		}
+
+		p.g2AppendComments(node)
+
+		tok, err = p.peek()
+		if err != nil {
+			return err
+		}
+
+		if node.isClosedBy(tok) {
+			p.next() // pop closing token
+
+			break
+		} else if tok.TokenType() == token.TokenDefineElement {
+			children, err := p.g1LineNodes()
+			if err != nil {
+				return err
+			}
+			node.AddChildren(children...)
+		} else {
+			child, err := p.g2Node()
+			if err != nil {
+				return err
+			}
+
+			node.AddChildren(child)
+		}
+	}
+
+	return nil
+}
+
+// g2ParseArrow is used to parse the return arrow, which has special semantics.
+// It is used to append a "ret" element containing function return values to a
+// function definition. For this to work, the function must be defined as:
+//     name(...) -> (...)
+// or
+//     name -> (...)
+// The "name" element will get a new child named "ret" appended that contains
+// all children in the block after "->".
+// The block "(...)" is required after the arrow, but can be any valid block.
+func (p *Parser) g2ParseArrow(node *TreeNode) error {
+	// Expect arrow
+	tok, err := p.next()
+	if err != nil {
+		return err
+	}
+
+	if tok.TokenType() != token.TokenG2Arrow {
+		return token.NewPosError(tok.Pos(), "'->' expected")
+	}
+
+	retNode := NewNode("ret")
+
+	if err := p.g2ParseBlock(retNode); err != nil {
+		return err
+	}
+
+	node.AddChildren(retNode)
+
+	return nil
 }
 
 // parseAttributes eats consecutive attributes from the lexer and returns them in an AttributeMap.

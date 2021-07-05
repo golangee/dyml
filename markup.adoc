@@ -226,7 +226,7 @@ This shows, how neat the _node first_ DSL is
         ## ...come get some.
         @@stuff ...is the stuff parameter.
         @@other="...os the other parameter."
-        func Get(stuff string, other []int, list Map<X,Y>) ->(int32|error) // note the different closing rules here
+        func Get(stuff string, other int, list Map<X,Y>) -> (int32, error)
     }
 }
 ----
@@ -248,16 +248,14 @@ This shows, how neat the _node first_ DSL is
                     ...come get some.
                     <Get _groupType="()">
                         <stuff><string/></stuff>
-                        <other>
-                            <SLICE><int/></SLICE>
-                        </other>
+                        <other><int/></other>
                         <list><Map _groupType="<>"><X/><Y/></List></list>
+                        <ret _token="->" _groupType="()">
+                            <int32/>
+                            <error/>
+                        </ret>
                     </Get>
-                    <ret _token="->" _groupType="()">
-                        <int32/>
-                        <error/>
-                    </ret>
-                </func> <!-- note the different closing rules here-->
+                </func>
             </struct>
         </Person>
     </type>

@@ -261,6 +261,9 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.g2CommentStart()
 			l.want = WantCommentLine
 			l.gSkipWhitespace('\n')
+		} else if r1 == '-' && r2 == '>' {
+			tok, err = l.g2Arrow()
+			l.gSkipWhitespace()
 		} else if l.gIdentChar(r1) {
 			tok, err = l.gIdent()
 			l.gSkipWhitespace()

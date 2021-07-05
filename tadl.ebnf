@@ -8,8 +8,6 @@
 
 grammar tadl;
 
-// TODO G2 "->" return arrow
-
 // Root is the implicit root element. It contains either a grammar G1
 // or a grammar G2, which is indicated by the preamble '#!'.
 Root: G2 | G1;
@@ -55,7 +53,7 @@ G2BlockGeneric: '<' G2BlockBody '>';
 // The same applies to strings which will also stop
 // following elements form nesting.
 // Example: "A "hello" B will be parsed as <A>hello</A><B/>.
-G2BlockBody: ( G2Elements (',' | G2Block | QuotedString) | QuotedString )* G2Elements?;
+G2BlockBody: ( G2Elements (',' | G2Block (G2Arrow G2Block)? | G2Arrow G2Block | QuotedString) | QuotedString )* G2Elements?;
 G2Elements: (WS G2Element WS)+;
 // G2Element is the simplest building block of an element,
 // consisting only of an identifier as a name and optional attributes.
@@ -71,7 +69,23 @@ G1Line: '#' G1LineElement* G1LineEnd;
 G1ForwardLine: '#' G1Line;
 G1LineElement: (G1ForwardAttribute Spaces)* ('#' | '##') Identifier Spaces (G1Attribute Spaces)* ('{' G1Element* '}' Spaces)? | Text;
 
-G2Comment: '//' 'TODO';
+// G2Arrow can be used to define a return value for a function.
+// It is used to append a "ret" element containing function return values to a
+// function definition. For this to work, the function must be defined as:
+//     name -> (...)
+// or
+//     name(...) -> (...)
+// Which would get parsed as:
+//     <name>
+//         <ret>...</ret>
+//     </name>
+// or
+//     <name>
+//         ...
+//         <ret>...</ret>
+//     </name>
+// Where the blocks can be any block, (),<> or {}.
+G2Arrow: '->';
 
 G2Preamble: '#!';
 G1LineEnd: '\n';

@@ -18,6 +18,7 @@ const (
 	TokenComma           TokenType = "TokenComma"
 	TokenG1Comment       TokenType = "TokenG1Comment"
 	TokenG2Comment       TokenType = "TokenG2Comment"
+	TokenG2Arrow         TokenType = "TokenG2Arrow"
 )
 
 func (t *CharData) TokenType() TokenType {
@@ -145,5 +146,13 @@ func (t *G2Comment) TokenType() TokenType {
 }
 
 func (t *G2Comment) Pos() *Position {
+	return &t.Position
+}
+
+func (t *G2Arrow) TokenType() TokenType {
+	return TokenG2Arrow
+}
+
+func (t *G2Arrow) Pos() *Position {
 	return &t.Position
 }
