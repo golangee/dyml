@@ -594,11 +594,23 @@ func (p *Parser) g2Node() (*TreeNode, error) {
 		if err := p.g2ParseBlock(node); err != nil {
 			return nil, err
 		}
+
+		// There might be an arrow after this block
+		tok, err = p.peek()
+		if tok != nil && tok.TokenType() == token.TokenG2Arrow {
+			if err := p.g2ParseArrow(node); err != nil {
+				return nil, err
+			}
+		}
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
 		// Any closing token ends this node and will be handled by the parent.
 	case *token.Comma:
 		// Comma ends a node definition
 		p.next()
+	case *token.G2Arrow:
+		if err := p.g2ParseArrow(node); err != nil {
+			return nil, err
+		}
 	default:
 		child, err := p.g2Node()
 		if err != nil {
@@ -699,10 +711,6 @@ func (p *Parser) g2ParseBlock(node *TreeNode) error {
 			p.next() // pop closing token
 
 			break
-		} else if tok.TokenType() == token.TokenG2Arrow {
-			if err := p.g2ParseArrow(node); err != nil {
-				return err
-			}
 		} else if tok.TokenType() == token.TokenDefineElement {
 			children, err := p.g1LineNodes()
 			if err != nil {
@@ -725,11 +733,12 @@ func (p *Parser) g2ParseBlock(node *TreeNode) error {
 // g2ParseArrow is used to parse the return arrow, which has special semantics.
 // It is used to append a "ret" element containing function return values to a
 // function definition. For this to work, the function must be defined as:
-//     func name(...) -> (...)
-// The "func" element can be named differently, but it must be there, as the
-// "ret" element will be placed inside it. "ret" will contain everything defined
-// in the block after "->".
-// The blocks "(...)" are required, but can be any valid blocks.
+//     name(...) -> (...)
+// or
+//     name -> (...)
+// The "name" element will get a new child named "ret" appended that contains
+// all children in the block after "->".
+// The block "(...)" is required after the arrow, but can be any valid block.
 func (p *Parser) g2ParseArrow(node *TreeNode) error {
 	// Expect arrow
 	tok, err := p.next()
@@ -741,29 +750,13 @@ func (p *Parser) g2ParseArrow(node *TreeNode) error {
 		return token.NewPosError(tok.Pos(), "'->' expected")
 	}
 
-	// Arrow cannot be the first element in a block
-	if len(node.Children) == 0 {
-		return token.NewPosError(tok.Pos(), "'->' not allowed by itself")
-	}
-
-	parent := node.Children[len(node.Children)-1]
-
-	// Verify that the last child of the element we want to place "ret" in has a block.
-	if len(parent.Children) == 0 {
-		return token.NewPosError(tok.Pos(), "'->' not allowed by itself")
-	}
-
-	if parent.Children[len(parent.Children)-1].BlockType == BlockNone {
-		return token.NewPosError(tok.Pos(), "'->' requires previous element to have a block")
-	}
-
 	retNode := NewNode("ret")
 
 	if err := p.g2ParseBlock(retNode); err != nil {
 		return err
 	}
 
-	parent.AddChildren(retNode)
+	node.AddChildren(retNode)
 
 	return nil
 }

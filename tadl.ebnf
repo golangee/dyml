@@ -53,7 +53,7 @@ G2BlockGeneric: '<' G2BlockBody '>';
 // The same applies to strings which will also stop
 // following elements form nesting.
 // Example: "A "hello" B will be parsed as <A>hello</A><B/>.
-G2BlockBody: ( G2Elements (',' | G2Block (G2Arrow G2Block)? | QuotedString) | QuotedString )* G2Elements?;
+G2BlockBody: ( G2Elements (',' | G2Block (G2Arrow G2Block)? | G2Arrow G2Block | QuotedString) | QuotedString )* G2Elements?;
 G2Elements: (WS G2Element WS)+;
 // G2Element is the simplest building block of an element,
 // consisting only of an identifier as a name and optional attributes.
@@ -72,11 +72,19 @@ G1LineElement: (G1ForwardAttribute Spaces)* ('#' | '##') Identifier Spaces (G1At
 // G2Arrow can be used to define a return value for a function.
 // It is used to append a "ret" element containing function return values to a
 // function definition. For this to work, the function must be defined as:
-//     func name(...) -> (...)
-// The "func" element can be named differently, but it must be there, as the
-// "ret" element will be placed inside it. "ret" will contain everything defined
-// in the block after "->".
-// The blocks "(...)" are required, but can be any valid blocks.
+//     name -> (...)
+// or
+//     name(...) -> (...)
+// Which would get parsed as:
+//     <name>
+//         <ret>...</ret>
+//     </name>
+// or
+//     <name>
+//         ...
+//         <ret>...</ret>
+//     </name>
+// Where the blocks can be any block, (),<> or {}.
 G2Arrow: '->';
 
 G2Preamble: '#!';

@@ -484,13 +484,11 @@ func TestParser(t *testing.T) {
 		{
 			name: "g2 return arrow",
 			text: `#!{
-						func hello(string) -> (int)
+						hello(string) -> (int)
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("func").AddChildren(
-					NewNode("hello").Block(BlockGroup).AddChildren(
-						NewNode("string"),
-					),
+				NewNode("hello").Block(BlockGroup).AddChildren(
+					NewNode("string"),
 					NewNode("ret").Block(BlockGroup).AddChildren(
 						NewNode("int"),
 					),
@@ -505,14 +503,20 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "g2 invalid return arrow after element",
+			name: "g2 return arrow after element without block",
 			text: `#!{
 						x -> (y)
 					}`,
-			wantErr: true,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("x").AddChildren(
+					NewNode("ret").Block(BlockGroup).AddChildren(
+						NewNode("y"),
+					),
+				),
+			),
 		},
 		{
-			name: "g2 invalid return arrow after element without block",
+			name: "g2 invalid return arrow after comma",
 			text: `#!{
 						x, -> (y)
 					}`,
@@ -527,9 +531,9 @@ func TestParser(t *testing.T) {
 				NewNode("fn").AddChildren(
 					NewNode("x").Block(BlockGeneric).AddChildren(
 						NewNode("y"),
-					),
-					NewNode("ret").Block(BlockGeneric).AddChildren(
-						NewNode("z"),
+						NewNode("ret").Block(BlockGeneric).AddChildren(
+							NewNode("z"),
+						),
 					),
 				),
 			),
@@ -562,10 +566,10 @@ func TestParser(t *testing.T) {
 							NewNode("x").AddChildren(NewNode("int")),
 							NewNode("y").AddChildren(NewNode("int")),
 							NewNode("z").AddChildren(NewNode("string")),
-						),
-						NewNode("ret").Block(BlockGroup).AddChildren(
-							NewNode("int"),
-							NewNode("error"),
+							NewNode("ret").Block(BlockGroup).AddChildren(
+								NewNode("int"),
+								NewNode("error"),
+							),
 						),
 					),
 			),
