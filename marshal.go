@@ -87,11 +87,11 @@ const (
 	unmarshalText
 )
 
-// UnmarshalError is an error that occurred during unmarshaling.
+// UnmarshalError is an error that occurred during unmarshalling.
 // It contains the offending node, a string with details and an underlying error (if any).
 type UnmarshalError struct {
-	node     *parser.TreeNode
-	detail   string
+	Node     *parser.TreeNode
+	Detail   string
 	wrapping error
 }
 
@@ -105,10 +105,10 @@ func NewUnmarshalError(node *parser.TreeNode, detail string, wrapping error) Unm
 
 func (u UnmarshalError) Error() string {
 	if u.wrapping != nil {
-		return fmt.Sprintf("cannot unmarshal into '%s', %s: %s", u.node.Name, u.detail, u.wrapping.Error())
+		return fmt.Sprintf("cannot unmarshal into '%s', %s: %s", u.Node.Name, u.Detail, u.wrapping.Error())
 	}
 
-	return fmt.Sprintf("cannot unmarshal into '%s', %s", u.node.Name, u.detail)
+	return fmt.Sprintf("cannot unmarshal into '%s', %s", u.Node.Name, u.Detail)
 }
 
 func (u *UnmarshalError) Unwrap() error {
