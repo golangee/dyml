@@ -11,6 +11,22 @@ import (
 	"testing"
 )
 
+func ExampleUnmarshal() {
+	type Animal struct {
+		Name string `tadl:"name"`
+		Age  uint   `tadl:"age"`
+	}
+
+	input := strings.NewReader("#name Gopher #age 3")
+
+	var animal Animal
+
+	Unmarshal(input, &animal, false)
+
+	fmt.Printf("Hello %d year old %s!", animal.Age, animal.Name)
+	// Output: Hello 3 year old Gopher !
+}
+
 func TestUnmarshal(t *testing.T) {
 	// Base for testing
 	type TestCase struct {

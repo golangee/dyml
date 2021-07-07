@@ -420,7 +420,7 @@ func TestLexer(t *testing.T) {
 			name: "g2 arrow",
 			text: `#!{ -> }`,
 			want: NewTestSet().
-				G2Preambel().
+				G2Preamble().
 				BlockStart().
 				G2Arrow().
 				BlockEnd(),
