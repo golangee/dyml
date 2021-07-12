@@ -483,6 +483,7 @@ func TestParser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
+			fmt.Println(parser, parser.visitor, parser.visitor.visitMe)
 			tree, err := parser.Parse()
 			if tt.name == "BlockNoBrackets" {
 				for _, child := range tree.Children {

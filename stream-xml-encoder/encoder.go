@@ -1,6 +1,7 @@
 package streamxmlencoder
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -11,9 +12,10 @@ import (
 
 // XMLEncoder translates tadl-input to corresponding XML
 type XMLEncoder struct {
-	lexer  *parser2.Lexer
-	tokens []parser2.Token
-	writer io.Writer
+	lexer      *parser2.Lexer
+	tokens     []parser2.Token
+	writer     io.Writer
+	buffWriter *bufio.Writer
 
 	tadlText string
 	xmlText  string
@@ -36,7 +38,7 @@ const (
 
 func (x *XMLEncoder) write(in ...string) {
 	for _, text := range in {
-		x.writer.Write([]byte(text))
+		x.buffWriter.Write([]byte(text))
 	}
 }
 
@@ -54,22 +56,20 @@ func NewEncoder(filename string, r io.Reader, w io.Writer) XMLEncoder {
 	fmt.Println("buffer ", buffer)
 	fmt.Println("-")*/
 	lexer := parser2.NewLexer("default", r)
-
-	return XMLEncoder{
+	encoder := XMLEncoder{
 		lexer: lexer,
 		//tadlText: buffer.String(),
-		writer: w,
+		writer:     w,
+		buffWriter: bufio.NewWriter(w),
 	}
+	encoder.write(lt, "root", gt)
+	return encoder
 }
 
 // EncodeToXml uses a parser2.parser to create a syntax tree,
 // utilizes the encodeRek method to translate it and returns the result
 func (x *XMLEncoder) EncodeToXML() (string, error) {
-	//err := x.Tokenize()
 	var err error
-	/*if err != nil {
-		return "", err
-	}*/
 	var output string
 	var parser = parser2.NewParser("test", bytes.NewBuffer([]byte(x.tadlText)))
 	var tree *parser2.TreeNode
@@ -82,30 +82,6 @@ func (x *XMLEncoder) EncodeToXML() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return output, nil
-
-	/*for i, Token := range x.tokens {
-		if i == 0 {
-
-		}
-	}
-	/*for{
-		currentToken, err := x.getNextToken()
-
-		if err != nil {
-			return "", err
-		}
-		if currentToken == nil {
-			break
-		}
-
-		x.tokens = append(x.tokens, currentToken)
-		XMLElement, err := x.TokenToXML(currentToken)
-		if err != nil {
-			return "", err
-		}
-		output += XMLElement
-	}*/
 	return output, nil
 }
 
@@ -176,14 +152,19 @@ func (x *XMLEncoder) Tokenize() error {
 
 // Next returns the next XML Translation
 // to the corresponding TADL token in the input stream.
-func (x *XMLEncoder) Next() (string, error) {
+func (x *XMLEncoder) Next() error {
 	token, err := x.getNextToken()
 	fmt.Println("Token, err, tokentype ", token, err, (*token).TokenType())
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return x.tokenToXML(token)
+	err = x.tokenToXML(token)
+	if err != nil {
+		return err
+	}
+	x.buffWriter.Flush()
+	return nil
 }
 
 // getNextToken uses a Lexer to read the next consecutive Token
@@ -198,17 +179,18 @@ func (x *XMLEncoder) getNextToken() (*parser2.Token, error) {
 
 // tokenToXML encodes the given Token and writes the corresponding
 // XML translation to the io.Writer in x.writer
-func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) (string, error) {
+func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) error {
 	x.xmlText = ""
 	switch (*currentToken).TokenType() {
 	case parser2.TokenIdentifier:
 		ct, _ := (*currentToken).(*parser2.Identifier)
+		fmt.Printf("found identifier, translating to %s %s", lt, ct.Value)
 		x.pushToStack(x.identifiers, ct.Value)
-		x.write(gt, ct.Value)
+		x.write(lt, ct.Value)
 
 		nextToken, err := x.getNextToken()
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		switch (*currentToken).TokenType() {
@@ -218,51 +200,51 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) (string, error) {
 			//TODO: multiple forwarded Attributes
 			if forward {
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenIdentifier {
-					return "", errors.New("Unexpected Token, expected Identifier")
+					return errors.New("Unexpected Token, expected Identifier")
 				}
 
 				nextTokenIdent, forward := (*nextToken).(*parser2.Identifier)
 				if forward {
-					return "", errors.New("Unexpected Forward, expected unforwarded Identifier")
+					return errors.New("Unexpected Forward, expected unforwarded Identifier")
 				}
 				x.write(whitespace, nextTokenIdent.Value, equals)
 
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenBlockStart {
-					return "", errors.New("Unexpected Token, expected BlockStart")
+					return errors.New("Unexpected Token, expected BlockStart")
 				}
 				if err != nil {
-					return "", err
+					return err
 				}
 
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenCharData {
-					return "", errors.New("Unexpected Token, expected Chardata")
+					return errors.New("Unexpected Token, expected Chardata")
 				}
 				if err != nil {
-					return "", err
+					return err
 				}
 				x.write(dquotes, (*nextToken).(*parser2.CharData).Value, dquotes)
 
 			} else {
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenIdentifier {
-					return "", errors.New("Unexpected Token, expected Identifier")
+					return errors.New("Unexpected Token, expected Identifier")
 				}
 				if err != nil {
-					return "", err
+					return err
 				}
 				//identifier := nextToken.(*parser2.Identifier).Value
 
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenBlockStart {
-					return "", errors.New("Unexpected Token, expected BlockStart")
+					return errors.New("Unexpected Token, expected BlockStart")
 				}
 				if err != nil {
-					return "", err
+					return err
 				}
 
 				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenCharData {
-					return "", errors.New("Unexpected Token, expected Chardata")
+					return errors.New("Unexpected Token, expected Chardata")
 				}
 				if err != nil {
-					return "", err
+					return err
 				}
 
 				//x.pushToStack(x.attributeBuffer, nextToken.(*parser2.CharData).Value)
@@ -272,7 +254,7 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) (string, error) {
 		case parser2.TokenBlockStart:
 			x.write(lt)
 		case parser2.TokenIdentifier:
-			x.write(gt, lt, ct.Value, slash, gt)
+			x.write(gt, lt, slash, ct.Value, gt)
 		}
 
 	}
@@ -314,20 +296,8 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) (string, error) {
 		case parser2.TokenG1LineEnd:
 		}
 		fmt.Print(currentToken.TokenType())*/
-	return "", nil
+	return nil
 }
-
-/*func (x *XMLEncoder) encodeIdentifier(position *token.Position) (string, error) {
-	fmt.Println(position)
-	fmt.Println(position.BeginPos.Line)
-	fmt.Println(position.BeginPos.Col)
-	fmt.Println(position.BeginPos.Offset)
-	fmt.Println(position.EndPos.Line)
-	fmt.Println(position.EndPos.Col)
-	fmt.Println(position.EndPos.Offset)
-	fmt.Println(x.tadlText[position.BeginPos.Offset-2 : position.EndPos.Offset-1])
-	return "Identifier", nil
-}*/
 
 // getIdentifier returns the last pushed Identifier
 func (x *XMLEncoder) getFromStack(stack []string) (string, error) {

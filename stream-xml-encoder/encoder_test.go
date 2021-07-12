@@ -354,12 +354,11 @@ func TestEncoderStream(t *testing.T) {
 		},*/
 	}
 	for _, test := range tests {
+		fmt.Println("1")
 		t.Run("stream - "+test.name, func(t *testing.T) {
-			var output string
-			var b bytes.Buffer
 			var err error
 
-			writer := bufio.NewWriter(&b)
+			var writer strings.Builder
 			reader := bytes.NewBuffer([]byte(test.text))
 
 			/*lexer := parser2.NewLexer("default", reader)
@@ -368,23 +367,41 @@ func TestEncoderStream(t *testing.T) {
 			fmt.Println("token, err ", tok, err)
 			fmt.Println("tokentype, err ", tok.TokenType(), err)*/
 
-			encoder = NewEncoder(test.name, reader, writer)
-			fmt.Println("encoder, output ", encoder, output)
+			encoder = NewEncoder(test.name, reader, &writer)
 
 			i := 0
-			for output, err := encoder.Next(); output == "" || err != io.EOF || err != nil; i++ {
-				fmt.Println(output)
+			fmt.Println("start")
+			err = encoder.Next()
+			fmt.Println(err)
+			fmt.Println(writer.String())
+			for err := encoder.Next(); true; i++ {
 
-				if output != test.want[i] {
-					t.Errorf("Test %s failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, output, test.want)
+				if err == io.EOF {
+					if test.want[i] == "" {
+						break
+					} else {
+						t.Errorf("Test '%s' failed, unexpected EOF", test.name)
+						break
+					}
+				}
+
+				if writer.String() == "" {
+					t.Errorf("Test '%s' failed, unexpected empty Writer", test.name)
+					break
+				}
+
+				if writer.String() != test.want[i] {
+					t.Errorf("Test '%s' failed: \n%s\n\n\n does not equal \n\n\n%s \n(Ignoring Whitespaces, Tabs, newlines)", test.name, writer.String(), test.want)
+					break
 				} else {
 					fmt.Printf("Successfully translated Element: " + test.want[i])
 				}
-				output, err = encoder.Next()
 			}
+			fmt.Println("fin")
 			if err != nil {
 				t.Error(err)
 			}
+			t.Errorf("")
 
 		})
 	}
