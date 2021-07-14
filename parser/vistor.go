@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/golangee/tadl/token"
@@ -22,6 +21,7 @@ type Visitable interface {
 	GetForwardingLength() int
 	GetForwardingPosition(i int) token.Node
 	SetNodeName(name string)
+	SetNodeText(text string)
 	SetBlockType(t BlockType)
 	GetBlockType() BlockType
 	Open()
@@ -29,6 +29,7 @@ type Visitable interface {
 	AppendSubTree()
 	AppendSubTreeForward()
 	SetEndPos(pos token.Pos)
+	GetPointerPosition() token.Position
 }
 
 type Visitor struct {
@@ -65,6 +66,7 @@ func (v *Visitor) SetVisitable(vis Visitable) {
 }
 
 func (v *Visitor) Run() error {
+	v.newNode = true
 	// Peek the first token to check if we should set G2 mode.
 	tok, err := v.peek()
 
@@ -73,7 +75,7 @@ func (v *Visitor) Run() error {
 		v.next()
 	}
 
-	var tree *TreeNode
+	v.visitMe.NewNode("root")
 
 	if tok != nil && tok.TokenType() == token.TokenG2Preamble {
 		// Prepare G2 by switching out the preamble for a root identifier.
@@ -107,23 +109,17 @@ func (v *Visitor) Run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("2")
 	}
 
-	fmt.Println("21")
 	// All forwarding nodes should have been processed earlier.
 	if v.visitMe.GetForwardingLength() > 0 {
-		fmt.Println("22")
 		return token.NewPosError(v.visitMe.GetForwardingPosition(0), "there is no node to forward this node into")
 	}
-	fmt.Println("23")
 
 	// The root element should always have curly brackets.
 	if v.visitMe.GetBlockType() != BlockNormal {
-		fmt.Println("24")
-		return token.NewPosError(tree.Range, "root element must have curly brackets")
+		return token.NewPosError(v.visitMe.GetPointerPosition(), "root element must have curly brackets")
 	}
-	fmt.Println("25")
 
 	return nil
 }
@@ -189,9 +185,8 @@ func (v *Visitor) peek() (token.Token, error) {
 
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
-	v.newNode = true
 	forwardingNode := false
-	//v.visitMe.NewNode("invalid name") // name will be set later
+	v.visitMe.NewNode("invalid name") // name will be set later
 	v.position.BeginPos = v.lexer.Pos()
 
 	// Parse forwarding attributes
@@ -210,7 +205,7 @@ func (v *Visitor) g1Node() error {
 	case *token.DefineElement:
 		forwardingNode = t.Forward
 	case *token.CharData:
-		v.visitMe.NewTextNode(t)
+		v.visitMe.SetNodeText(t.Value)
 		v.newNode = false
 
 		return nil
@@ -223,7 +218,9 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
+			v.visitMe.Close()
 			v.newNode = false
+			v.visitMe.Close()
 			return nil
 		} else {
 			return token.NewPosError(
@@ -246,7 +243,7 @@ func (v *Visitor) g1Node() error {
 
 	if id, ok := tok.(*token.Identifier); ok {
 		if v.newNode {
-			v.visitMe.NewNode("invalid name")
+			v.visitMe.NewNode(id.Value)
 			v.newNode = false
 		} else {
 			v.visitMe.SetNodeName(id.Value)
@@ -319,6 +316,7 @@ func (v *Visitor) g1Node() error {
 	}
 
 	v.visitMe.SetEndPos(v.lexer.Pos())
+	v.visitMe.Close()
 	return nil
 }
 

@@ -209,9 +209,7 @@ type Parser struct {
 	root   *TreeNode
 	parent *TreeNode
 
-	// rootN and parentN are pointers to work with new built trees, to be added to the main tree
-	rootN   *TreeNode
-	parentN *TreeNode
+
 
 	visitor Visitor
 
@@ -222,10 +220,9 @@ func NewParser(filename string, r io.Reader) *Parser {
 	parser := &Parser{
 		visitor: *NewVisitor(nil, token.NewLexer(filename, r)),
 		root:    NewNode("root"),
-		rootN:   NewNode(""),
 	}
 	parser.parent = parser.root
-	parser.parentN = parser.rootN
+	parser.parent = parser.root
 	parser.visitor.SetVisitable(parser)
 	parser.firstNode = true
 	return parser
@@ -250,40 +247,36 @@ func (p *Parser) Parse() (*TreeNode, error) {
 }
 
 func (p *Parser) Open() {
-	p.parentN = p.parentN.Children[len(p.parentN.Children)-1]
+	p.parent = p.parent.Children[len(p.parent.Children)-1]
 }
 
 func (p *Parser) NewNode(name string) {
 	if p.firstNode {
 		p.firstNode = false
+		p.parent.Name = name
 		return
 	}
-	p.parentN.AddChildren(NewNode(name))
-	p.Open()
+	p.parent.AddChildren(NewNode(name))
 }
 
 func (p *Parser) NewStringNode(name string) {
-	p.parentN.AddChildren(NewStringNode(name))
-	p.Open()
+	p.parent.AddChildren(NewStringNode(name))
 }
 
 func (p *Parser) NewTextNode(cd *token.CharData) {
-	p.parentN.AddChildren(NewTextNode(cd))
-	p.Open()
+	p.parent.AddChildren(NewTextNode(cd))
 }
 
 func (p *Parser) NewCommentNode(cd *token.CharData) {
-	p.parentN.AddChildren(NewCommentNode(cd))
-	p.Open()
+	p.parent.AddChildren(NewCommentNode(cd))
 }
 
 func (p *Parser) NewStringCommentNode(text string) {
-	p.parentN.AddChildren(NewStringCommentNode(text))
-	p.Open()
+	p.parent.AddChildren(NewStringCommentNode(text))
 }
 
 func (p *Parser) AddAttribute(key, value string) {
-	p.rootN.Attributes.Set(key, value)
+	p.root.Attributes.Set(key, value)
 }
 
 func (p *Parser) AddForwardAttribute(m AttributeMap) {
@@ -291,11 +284,11 @@ func (p *Parser) AddForwardAttribute(m AttributeMap) {
 }
 
 func (p *Parser) Block(blockType BlockType) {
-	p.parentN.Block(blockType)
+	p.parent.Block(blockType)
 }
 
 func (p *Parser) Close() {
-	p.parentN = p.parentN.parent
+	p.parent = p.parent.parent
 }
 
 func (p *Parser) AddForwardNode(name string) {
@@ -304,13 +297,13 @@ func (p *Parser) AddForwardNode(name string) {
 
 func (p *Parser) AppendForwardingNodes() {
 	for _, node := range p.forwardingNodes {
-		p.parentN.Children = append(p.forwardingNodes, node)
+		p.parent.Children = append(p.forwardingNodes, node)
 	}
 	p.forwardingNodes = nil
 }
 
 func (p *Parser) MergeAttributes(m AttributeMap) {
-	p.parentN.Attributes = p.forwardingAttributes.Merge(m)
+	p.parent.Attributes = p.forwardingAttributes.Merge(m)
 }
 
 func (p *Parser) GetForwardingLength() int {
@@ -322,25 +315,25 @@ func (p *Parser) GetForwardingPosition(i int) token.Node {
 }
 
 func (p *Parser) SetNodeName(name string) {
-	p.parentN.Name = name
+	p.parent.Name = name
 }
 
 func (p *Parser) SetBlockType(b BlockType) {
-	p.parentN.BlockType = b
+	p.root.BlockType = b
 }
 
 func (p *Parser) GetBlockType() BlockType {
-	return p.parentN.BlockType
+	return p.root.BlockType
 }
 
 func (p *Parser) AppendSubTree() {
-	p.parent.AddChildren(p.rootN)
-	p.rootN = nil
+	p.parent.AddChildren(p.root)
+	p.root = nil
 }
 
 func (p *Parser) AppendSubTreeForward() {
-	p.forwardingNodes = append(p.forwardingNodes, p.rootN)
-	p.rootN = nil
+	p.forwardingNodes = append(p.forwardingNodes, p.root)
+	p.root = nil
 }
 
 func (p *Parser) SetEndPos(pos token.Pos) {
@@ -349,4 +342,13 @@ func (p *Parser) SetEndPos(pos token.Pos) {
 
 func (p *Parser) InsertForwardNodes(nodes []*TreeNode) {
 	p.parent.Children = nodes
+}
+
+func (p *Parser) SetNodeText(text string) {
+	p.parent.Text = &text
+}
+
+func (p *Parser) GetPointerPosition() token.Position {
+	return p.parent.Range
+
 }
