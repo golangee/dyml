@@ -220,7 +220,7 @@ type Parser struct {
 
 func NewParser(filename string, r io.Reader) *Parser {
 	parser := &Parser{
-		visitor: *NewVisitor(nil, NewLexer(filename, r)),
+		visitor: *NewVisitor(nil, token.NewLexer(filename, r)),
 		root:    NewNode("root"),
 		rootN:   NewNode(""),
 	}
@@ -267,12 +267,12 @@ func (p *Parser) NewStringNode(name string) {
 	p.Open()
 }
 
-func (p *Parser) NewTextNode(cd *CharData) {
+func (p *Parser) NewTextNode(cd *token.CharData) {
 	p.parentN.AddChildren(NewTextNode(cd))
 	p.Open()
 }
 
-func (p *Parser) NewCommentNode(cd *CharData) {
+func (p *Parser) NewCommentNode(cd *token.CharData) {
 	p.parentN.AddChildren(NewCommentNode(cd))
 	p.Open()
 }

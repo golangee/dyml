@@ -13,8 +13,8 @@ type Visitable interface {
 	AppendForwardingNodes()
 	NewNode(name string)
 	NewStringNode(name string)
-	NewTextNode(cd *CharData)
-	NewCommentNode(cd *CharData)
+	NewTextNode(cd *token.CharData)
+	NewCommentNode(cd *token.CharData)
 	NewStringCommentNode(name string)
 	MergeAttributes(m AttributeMap)
 	AddAttribute(key, value string)
@@ -34,8 +34,8 @@ type Visitable interface {
 type Visitor struct {
 	visitMe Visitable
 
-	lexer *Lexer
-	mode  GrammarMode
+	lexer *token.Lexer
+	mode  token.GrammarMode
 	// tokenBuffer contains all tokens that need to be processed next.
 	// These could be peeked tokens or tokens that were added in the parser.
 	// When it is empty, we can call lexer.Token() to get the next token.
@@ -52,7 +52,7 @@ type Visitor struct {
 	newNode     bool
 }
 
-func NewVisitor(visit Visitable, lexer *Lexer) *Visitor {
+func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 	return &Visitor{
 		visitMe: visit,
 		lexer:   lexer,
@@ -75,12 +75,12 @@ func (v *Visitor) Run() error {
 
 	var tree *TreeNode
 
-	if tok != nil && tok.TokenType() == TokenG2Preamble {
+	if tok != nil && tok.TokenType() == token.TokenG2Preamble {
 		// Prepare G2 by switching out the preamble for a root identifier.
-		v.mode = G2
+		v.mode = token.G2
 		v.next()
 		v.tokenBuffer = append(v.tokenBuffer,
-			tokenWithError{tok: &Identifier{Value: "root"}},
+			tokenWithError{tok: &token.Identifier{Value: "root"}},
 		)
 
 		err = v.g2Node()
@@ -92,15 +92,15 @@ func (v *Visitor) Run() error {
 		// Prepend and append tokens for the root element.
 		// This makes the root just another element, which simplifies parsing a lot.
 		v.tokenBuffer = append([]tokenWithError{
-			{tok: &DefineElement{}},
-			{tok: &Identifier{Value: "root"}},
-			{tok: &BlockStart{}},
+			{tok: &token.DefineElement{}},
+			{tok: &token.Identifier{Value: "root"}},
+			{tok: &token.BlockStart{}},
 		},
 			v.tokenBuffer...,
 		)
 
 		v.tokenTailBuffer = append(v.tokenTailBuffer,
-			tokenWithError{tok: &BlockEnd{}},
+			tokenWithError{tok: &token.BlockEnd{}},
 		)
 
 		err = v.g1Node()
@@ -134,7 +134,7 @@ func (v *Visitor) prep() {
 
 // next returns the next token or (nil, io.EOF) if there are no more tokens.
 // Repeatedly calling this can be used to get all tokens by advancing the lexer.
-func (v *Visitor) next() (Token, error) {
+func (v *Visitor) next() (token.Token, error) {
 	// Check the buffer for tokens
 	if len(v.tokenBuffer) > 0 {
 		twe := v.tokenBuffer[0]
@@ -169,7 +169,7 @@ func (v *Visitor) next() (Token, error) {
 // peek lets you look at the next token without advancing the lexer.
 // Under the hood it does advance the lexer, but by using only next() and peek()
 // you will get expected behaviour.
-func (v *Visitor) peek() (Token, error) {
+func (v *Visitor) peek() (token.Token, error) {
 	// Check the buffer for tokens
 	if len(v.tokenBuffer) > 0 {
 		twe := v.tokenBuffer[0]
@@ -207,21 +207,21 @@ func (v *Visitor) g1Node() error {
 	}
 
 	switch t := tok.(type) {
-	case *DefineElement:
+	case *token.DefineElement:
 		forwardingNode = t.Forward
-	case *CharData:
+	case *token.CharData:
 		v.visitMe.NewTextNode(t)
 		v.newNode = false
 
 		return nil
-	case *G1Comment:
+	case *token.G1Comment:
 		// Expect CharData as comment
 		tok, err = v.next()
 		if err != nil {
 			return err
 		}
 
-		if cd, ok := tok.(*CharData); ok {
+		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
 			v.newNode = false
 			return nil
@@ -229,13 +229,13 @@ func (v *Visitor) g1Node() error {
 			return token.NewPosError(
 				tok.Pos(),
 				"expected a comment",
-			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 	default:
 		return token.NewPosError(
 			tok.Pos(),
 			"this token is not valid here",
-		).SetCause(NewUnexpectedTokenError(tok, TokenDefineElement, TokenCharData))
+		).SetCause(NewUnexpectedTokenError(tok, token.TokenDefineElement, token.TokenCharData))
 	}
 
 	// Expect identifier for new element
@@ -244,7 +244,7 @@ func (v *Visitor) g1Node() error {
 		return err
 	}
 
-	if id, ok := tok.(*Identifier); ok {
+	if id, ok := tok.(*token.Identifier); ok {
 		if v.newNode {
 			v.visitMe.NewNode("invalid name")
 			v.newNode = false
@@ -255,7 +255,7 @@ func (v *Visitor) g1Node() error {
 		return token.NewPosError(
 			tok.Pos(),
 			"this token is not valid here",
-		).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
+		).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 	}
 
 	// We now have a valid node.
@@ -274,7 +274,7 @@ func (v *Visitor) g1Node() error {
 
 	// Optional children enclosed in brackets
 	tok, _ = v.peek()
-	if tok.TokenType() == TokenBlockStart {
+	if tok.TokenType() == token.TokenBlockStart {
 		v.next() // Pop the token, we know it's a BlockStart
 
 		v.visitMe.SetBlockType(BlockNormal)
@@ -282,7 +282,7 @@ func (v *Visitor) g1Node() error {
 		// Append children until we encounter a TokenBlockEnd
 		for {
 			tok, _ = v.peek()
-			if tok.TokenType() == TokenBlockEnd {
+			if tok.TokenType() == token.TokenBlockEnd {
 				v.visitMe.Close()
 				break
 			}
@@ -299,11 +299,11 @@ func (v *Visitor) g1Node() error {
 			return err
 		}
 
-		if tok.TokenType() != TokenBlockEnd {
+		if tok.TokenType() != token.TokenBlockEnd {
 			return token.NewPosError(
 				tok.Pos(),
 				"use a '}' here to close the element",
-			).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockEnd))
 		}
 	}
 
@@ -333,20 +333,20 @@ func (v *Visitor) g1LineNodes() error {
 
 	var forward bool
 
-	if de, ok := tok.(*DefineElement); ok {
+	if de, ok := tok.(*token.DefineElement); ok {
 		forward = de.Forward
 	} else {
 		return token.NewPosError(
 			tok.Pos(),
 			"start of G1 line expected",
-		).SetCause(NewUnexpectedTokenError(tok, TokenDefineElement))
+		).SetCause(NewUnexpectedTokenError(tok, token.TokenDefineElement))
 	}
 
-	v.mode = G1Line
+	v.mode = token.G1Line
 
 	for {
 		tok, _ := v.peek()
-		if tok != nil && tok.TokenType() == TokenG1LineEnd {
+		if tok != nil && tok.TokenType() == token.TokenG1LineEnd {
 			v.next()
 			break
 		}
@@ -358,7 +358,7 @@ func (v *Visitor) g1LineNodes() error {
 		}
 	}
 
-	v.mode = G2
+	v.mode = token.G2
 
 	// Should this be a forwarding G1 line, we will store the children for later
 	// and return an empty array here.
@@ -389,17 +389,17 @@ func (v *Visitor) g2Node() error {
 	}
 
 	switch t := tok.(type) {
-	case *Identifier:
+	case *token.Identifier:
 		node.Name = t.Value
 		// Insert forwarded nodes
 		v.visitMe.AppendForwardingNodes()
-	case *CharData:
+	case *token.CharData:
 		if len(forwardedAttributes) > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
 			return token.NewPosError(
 				tok.Pos(),
 				"attributes cannot be forwarded into this text",
-			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 		v.visitMe.NewTextNode(t)
 		return nil
@@ -407,7 +407,7 @@ func (v *Visitor) g2Node() error {
 		return token.NewPosError(
 			tok.Pos(),
 			"this token is not valid here",
-		).SetCause(NewUnexpectedTokenError(tok, TokenCharData, TokenIdentifier))
+		).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData, token.TokenIdentifier))
 	}
 
 	// Read attributes
@@ -425,27 +425,27 @@ func (v *Visitor) g2Node() error {
 	}
 
 	switch t := tok.(type) {
-	case *CharData:
+	case *token.CharData:
 		v.next()
 
 		node.AddChildren(NewTextNode(t))
-	case *DefineElement:
+	case *token.DefineElement:
 		err := v.g1LineNodes()
 		if err != nil {
 			return err
 		}
 
 		v.visitMe.AppendSubTree()
-	case *BlockStart, *GenericStart, *GroupStart:
+	case *token.BlockStart, *token.GenericStart, *token.GroupStart:
 		v.next()
 
 		// Set BlockType
 		switch t.(type) {
-		case *BlockStart:
+		case *token.BlockStart:
 			node.BlockType = BlockNormal
-		case *GroupStart:
+		case *token.GroupStart:
 			node.BlockType = BlockGroup
-		case *GenericStart:
+		case *token.GenericStart:
 			node.BlockType = BlockGeneric
 		}
 
@@ -460,7 +460,7 @@ func (v *Visitor) g2Node() error {
 				v.next() // pop closing token
 
 				break
-			} else if tok.TokenType() == TokenDefineElement {
+			} else if tok.TokenType() == token.TokenDefineElement {
 				err := v.g1LineNodes()
 				if err != nil {
 					return err
@@ -475,9 +475,9 @@ func (v *Visitor) g2Node() error {
 				v.visitMe.AppendSubTree()
 			}
 		}
-	case *BlockEnd, *GroupEnd, *GenericEnd:
+	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
 		// Any closing token ends this node and will be handled by the parent.
-	case *Comma:
+	case *token.Comma:
 		// Comma ends a node definition
 		v.next()
 	default:
@@ -502,7 +502,7 @@ func (v *Visitor) g2Node() error {
 func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 	result := NewAttributeMap()
 
-	isG1 := v.mode == G1 || v.mode == G1Line
+	isG1 := v.mode == token.G1 || v.mode == token.G1Line
 
 	for {
 		tok, err := v.peek()
@@ -510,7 +510,7 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 			break
 		}
 
-		if attr, ok := tok.(*DefineAttribute); ok {
+		if attr, ok := tok.(*token.DefineAttribute); ok {
 			if wantForward && !attr.Forward {
 				return nil, token.NewPosError(
 					tok.Pos(),
@@ -543,13 +543,13 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 			return nil, err
 		}
 
-		if ident, ok := tok.(*Identifier); ok {
+		if ident, ok := tok.(*token.Identifier); ok {
 			attrKey = ident.Value
 		} else {
 			return nil, token.NewPosError(
 				tok.Pos(),
 				"an identifier is required as an attribute key",
-			).SetCause(NewUnexpectedTokenError(tok, TokenIdentifier))
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 		}
 
 		if result.Has(attrKey) {
@@ -564,18 +564,18 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		tok, _ = v.next()
 		if isG1 {
-			if tok.TokenType() != TokenBlockStart {
+			if tok.TokenType() != token.TokenBlockStart {
 				return nil, token.NewPosError(
 					tok.Pos(),
 					"attribute value must be enclosed in '{}'",
-				).SetCause(NewUnexpectedTokenError(tok, TokenBlockStart))
+				).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockStart))
 			}
 		} else {
-			if tok.TokenType() != TokenAssign {
+			if tok.TokenType() != token.TokenAssign {
 				return nil, token.NewPosError(
 					tok.Pos(),
 					"'=' is expected here",
-				).SetCause(NewUnexpectedTokenError(tok, TokenAssign))
+				).SetCause(NewUnexpectedTokenError(tok, token.TokenAssign))
 			}
 		}
 
@@ -584,24 +584,24 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 			return nil, err
 		}
 
-		if cd, ok := tok.(*CharData); ok {
+		if cd, ok := tok.(*token.CharData); ok {
 			attrValue = cd.Value
 		} else {
 			return nil, token.NewPosError(
 				tok.Pos(),
 				"attribute value is required",
-			).SetCause(NewUnexpectedTokenError(tok, TokenCharData))
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 
 		result.Set(attrKey, attrValue)
 
 		if isG1 {
 			tok, _ = v.next()
-			if tok.TokenType() != TokenBlockEnd {
+			if tok.TokenType() != token.TokenBlockEnd {
 				return nil, token.NewPosError(
 					tok.Pos(),
 					"attribute value needs to be closed with '}'",
-				).SetCause(NewUnexpectedTokenError(tok, TokenBlockEnd))
+				).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockEnd))
 			}
 		}
 	}

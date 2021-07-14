@@ -8,12 +8,13 @@ import (
 	"io"
 
 	"github.com/golangee/tadl/parser"
+	"github.com/golangee/tadl/token"
 )
 
 // XMLEncoder translates tadl-input to corresponding XML
 type XMLEncoder struct {
-	lexer      *parser2.Lexer
-	tokens     []parser2.Token
+	lexer      *token.Lexer
+	tokens     []token.Token
 	writer     io.Writer
 	buffWriter *bufio.Writer
 
@@ -24,7 +25,7 @@ type XMLEncoder struct {
 
 	identifiers     []string
 	postfixes       []string
-	attributeBuffer []parser2.Token
+	attributeBuffer []token.Token
 }
 
 const (
@@ -55,7 +56,7 @@ func NewEncoder(filename string, r io.Reader, w io.Writer) XMLEncoder {
 	fmt.Println("-")
 	fmt.Println("buffer ", buffer)
 	fmt.Println("-")*/
-	lexer := parser2.NewLexer("default", r)
+	lexer := token.NewLexer("default", r)
 	encoder := XMLEncoder{
 		lexer: lexer,
 		//tadlText: buffer.String(),
@@ -71,9 +72,9 @@ func NewEncoder(filename string, r io.Reader, w io.Writer) XMLEncoder {
 func (x *XMLEncoder) EncodeToXML() (string, error) {
 	var err error
 	var output string
-	var parser = parser2.NewParser("test", bytes.NewBuffer([]byte(x.tadlText)))
-	var tree *parser2.TreeNode
-	tree, err = parser.Parse()
+	var pars = parser.NewParser("test", bytes.NewBuffer([]byte(x.tadlText)))
+	var tree *parser.TreeNode
+	tree, err = pars.Parse()
 	if err != nil {
 		return "", err
 	}
@@ -87,7 +88,7 @@ func (x *XMLEncoder) EncodeToXML() (string, error) {
 
 // encodeRek recursively translates the syntax tree
 // given by its root Element to the corresponding XML.
-func encodeRek(root parser2.TreeNode) (string, error) {
+func encodeRek(root parser.TreeNode) (string, error) {
 	if root.IsComment() {
 		return "<!-- " + *root.Comment + " -->", nil
 	} else if root.IsText() {
@@ -95,13 +96,13 @@ func encodeRek(root parser2.TreeNode) (string, error) {
 	} else if root.IsNode() {
 		var outString, postfix string
 
-		if root.BlockType == parser2.BlockNormal || root.BlockType == parser2.BlockNone {
+		if root.BlockType == parser.BlockNormal || root.BlockType == parser.BlockNone {
 			outString += "<" + root.Name
 			postfix = "</" + root.Name + ">"
-		} else if root.BlockType == parser2.BlockGroup {
+		} else if root.BlockType == parser.BlockGroup {
 			outString += "<" + root.Name + ` _groupType="()"`
 			postfix = "</" + root.Name + ">"
-		} else if root.BlockType == parser2.BlockGeneric {
+		} else if root.BlockType == parser.BlockGeneric {
 			outString += "<" + root.Name + ` _groupType="<>"`
 			postfix = "</" + root.Name + ">"
 		}
@@ -168,7 +169,7 @@ func (x *XMLEncoder) Next() error {
 }
 
 // getNextToken uses a Lexer to read the next consecutive Token
-func (x *XMLEncoder) getNextToken() (*parser2.Token, error) {
+func (x *XMLEncoder) getNextToken() (*token.Token, error) {
 	token, err := x.lexer.Token()
 	if err != nil {
 		return nil, err
@@ -179,11 +180,11 @@ func (x *XMLEncoder) getNextToken() (*parser2.Token, error) {
 
 // tokenToXML encodes the given Token and writes the corresponding
 // XML translation to the io.Writer in x.writer
-func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) error {
+func (x *XMLEncoder) tokenToXML(currentToken *token.Token) error {
 	x.xmlText = ""
 	switch (*currentToken).TokenType() {
-	case parser2.TokenIdentifier:
-		ct, _ := (*currentToken).(*parser2.Identifier)
+	case token.TokenIdentifier:
+		ct, _ := (*currentToken).(*token.Identifier)
 		fmt.Printf("found identifier, translating to %s %s", lt, ct.Value)
 		x.pushToStack(x.identifiers, ct.Value)
 		x.write(lt, ct.Value)
@@ -194,38 +195,38 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) error {
 		}
 
 		switch (*currentToken).TokenType() {
-		case parser2.TokenDefineAttribute:
-			_, forward := (*currentToken).(*parser2.DefineAttribute)
+		case token.TokenDefineAttribute:
+			_, forward := (*currentToken).(*token.DefineAttribute)
 
 			//TODO: multiple forwarded Attributes
 			if forward {
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenIdentifier {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenIdentifier {
 					return errors.New("Unexpected Token, expected Identifier")
 				}
 
-				nextTokenIdent, forward := (*nextToken).(*parser2.Identifier)
+				nextTokenIdent, forward := (*nextToken).(*token.Identifier)
 				if forward {
 					return errors.New("Unexpected Forward, expected unforwarded Identifier")
 				}
 				x.write(whitespace, nextTokenIdent.Value, equals)
 
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenBlockStart {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenBlockStart {
 					return errors.New("Unexpected Token, expected BlockStart")
 				}
 				if err != nil {
 					return err
 				}
 
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenCharData {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenCharData {
 					return errors.New("Unexpected Token, expected Chardata")
 				}
 				if err != nil {
 					return err
 				}
-				x.write(dquotes, (*nextToken).(*parser2.CharData).Value, dquotes)
+				x.write(dquotes, (*nextToken).(*token.CharData).Value, dquotes)
 
 			} else {
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenIdentifier {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenIdentifier {
 					return errors.New("Unexpected Token, expected Identifier")
 				}
 				if err != nil {
@@ -233,14 +234,14 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) error {
 				}
 				//identifier := nextToken.(*parser2.Identifier).Value
 
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenBlockStart {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenBlockStart {
 					return errors.New("Unexpected Token, expected BlockStart")
 				}
 				if err != nil {
 					return err
 				}
 
-				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != parser2.TokenCharData {
+				if nextToken, err = x.getNextToken(); (*nextToken).TokenType() != token.TokenCharData {
 					return errors.New("Unexpected Token, expected Chardata")
 				}
 				if err != nil {
@@ -251,9 +252,9 @@ func (x *XMLEncoder) tokenToXML(currentToken *parser2.Token) error {
 				//x.pushToStack(x.attributeBuffer, identifier)
 			}
 
-		case parser2.TokenBlockStart:
+		case token.TokenBlockStart:
 			x.write(lt)
-		case parser2.TokenIdentifier:
+		case token.TokenIdentifier:
 			x.write(gt, lt, slash, ct.Value, gt)
 		}
 
