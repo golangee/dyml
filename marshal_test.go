@@ -50,7 +50,6 @@ func ExampleUnmarshal_Slice() {
 // Values will be placed in the correct slices because they
 // have a rename tag set.
 func ExampleUnmarshal_ComplexSlice() {
-
 	type Animal struct {
 		Name string `tadl:"name,attr"`
 		Age  uint   `tadl:"age"`
