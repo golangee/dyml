@@ -302,6 +302,55 @@ func TestUnmarshal(t *testing.T) {
 		wantErr: true,
 	})
 
+	type StringStringMap struct {
+		Things map[string]string
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map[string]string",
+		text: `#!{
+					Things {
+						key1 value,
+						key2 "string value"
+					}
+				}`,
+		into: &StringStringMap{},
+		want: &StringStringMap{Things: map[string]string{
+			"key1": "value",
+			"key2": "string value",
+		}},
+	})
+
+	type BoolFloatMap struct {
+		Things map[bool]float64
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map with primitive types",
+		text: `#!{
+					Things {
+						true 123,
+						false "123.456"
+					}
+				}`,
+		into: &BoolFloatMap{},
+		want: &BoolFloatMap{map[bool]float64{
+			true:  123,
+			false: 123.456,
+		}},
+	})
+
+	type InvalidMapKey struct {
+		Things map[*InvalidMapKey]int
+	}
+
+	testCases = append(testCases, TestCase{
+		name:    "invalid map key",
+		text:    "#Things",
+		into:    &InvalidMapKey{},
+		wantErr: true,
+	})
+
 	// Run all test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

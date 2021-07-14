@@ -50,6 +50,26 @@ import (
 // In strict mode exactly one text item with length > 0 is expected.
 // Renaming a text parameter is not an error but pointless, so best leave the rename parameter empty.
 //
+// Tadl can also be unmarshalled into maps. The map key must be a primitive type. The map value must be a primitive
+// type, parser.TreeNode or *parser.TreeNode.
+// Parsing maps will read first level elements as map keys and the first child of each as the map value.
+// In strict mode the map key is required to have exactly one child.
+// By specifying parser.TreeNode (or a pointer to it) as the value type you can access the raw tree that would be
+// parsed as a value. This is useful if you want to have more control over the value for doing more complex
+// manipulations than just parsing a primitive.
+//
+//  // This tadl snippet...
+//  #! {
+//      SomeMap {
+//          a 123,  // Numbers are valid identifiers, so this works
+//          b "1.5" // but all other values should be enclosed in quotes.
+//      }
+//  }
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      SomeMap map[string]float64
+//  }
+//
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
 
@@ -59,7 +79,7 @@ func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 
 	tree, err := parse.Parse()
 	if err != nil {
-		return NewUnmarshalError(tree, "parser error", err)
+		return err
 	}
 
 	value := reflect.ValueOf(into)
@@ -85,6 +105,15 @@ const (
 	unmarshalNormal unmarshalType = iota
 	unmarshalAttribute
 	unmarshalText
+)
+
+// unmarshalMapValue is a helper to decide what kind of map value should be unmarshalled.
+type unmarshalMapValue int
+
+const (
+	mapValueIsPrimitive unmarshalMapValue = iota
+	mapValueIsNode
+	mapValueIsNodePointer
 )
 
 // UnmarshalError is an error that occurred during unmarshalling.
@@ -195,6 +224,88 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	case reflect.Ptr:
 		// Dereference pointer
 		return u.node(node, value.Elem())
+	case reflect.Map:
+		mapKeyType := valueType.Key()
+		mapValueType := valueType.Elem()
+
+		// Maps must have primitive key.
+		if !u.isPrimitive(mapKeyType) {
+			return NewUnmarshalError(node, fmt.Sprintf("map key type '%s' is not primitive", mapKeyType.String()), nil)
+		}
+
+		// Map value must be primitive or a (pointer to) parser.TreeNode
+		var valueMode unmarshalMapValue
+		if u.isPrimitive(mapValueType) {
+			valueMode = mapValueIsPrimitive
+		} else if mapValueType == reflect.TypeOf(parser.TreeNode{}) {
+			valueMode = mapValueIsNode
+		} else if mapValueType == reflect.TypeOf(&parser.TreeNode{}) {
+			valueMode = mapValueIsNodePointer
+		} else {
+			return NewUnmarshalError(node, "map value must be primitive type or (*)parser.TreeNode", nil)
+		}
+
+		value.Set(reflect.MakeMap(valueType))
+		// A map will parse first level children as the key and the first child of those as the value.
+		for _, keyNode := range node.Children {
+
+			if !keyNode.IsNode() {
+				return NewUnmarshalError(node, "map key must be a node", nil)
+			}
+
+			// Make mapKey be a zero value of the maps key type
+			mapKey := reflect.New(mapKeyType).Elem()
+
+			// In order to recursively use u.node() to parse values, we will forge a fake text node here
+			// and use that to recurse. We use this trick to parse both the key and the value.
+			fakeNode := parser.NewStringNode(keyNode.Name)
+			if err := u.node(fakeNode, mapKey); err != nil {
+				return NewUnmarshalError(node, "invalid map key", err)
+			}
+
+			// Now that we parsed the key we continue with parsing the value
+			if len(keyNode.Children) == 0 {
+				return NewUnmarshalError(node, fmt.Sprintf("no value in map for key '%v'", mapKey), nil)
+			} else if u.strict && len(keyNode.Children) != 1 {
+				return NewUnmarshalError(node, fmt.Sprintf("key '%v' needs exactly one value", mapKey), nil)
+			}
+
+			valueNode := keyNode.Children[0]
+
+			// Make mapValue be a zero value of the maps value type
+			mapValue := reflect.New(mapValueType).Elem()
+
+			switch valueMode {
+			case mapValueIsNodePointer:
+				mapValue = reflect.ValueOf(valueNode)
+			case mapValueIsNode:
+				mapValue = reflect.ValueOf(*valueNode)
+			case mapValueIsPrimitive:
+				if u.strict && len(valueNode.Children) > 0 {
+					return NewUnmarshalError(node, fmt.Sprintf("value for key '%v' must have no children", mapKey), nil)
+				}
+
+				var primitiveValueToParse string
+
+				if valueNode.IsNode() {
+					primitiveValueToParse = valueNode.Name
+				} else if valueNode.IsText() {
+					primitiveValueToParse = *valueNode.Text
+				} else {
+					return NewUnmarshalError(node, fmt.Sprintf("value for key '%v' must be node or text", mapKey), nil)
+				}
+
+				fakeNode := parser.NewStringNode(primitiveValueToParse)
+				if err := u.node(fakeNode, mapValue); err != nil {
+					return NewUnmarshalError(node, "value is incompatible with map type", err)
+				}
+
+			default:
+				return NewUnmarshalError(node, fmt.Sprintf("unmarshal has invalid map value mode (%d). this is a bug", valueMode), nil)
+			}
+
+			value.SetMapIndex(mapKey, mapValue)
+		}
 	case reflect.Slice:
 		// Create, process and append children
 		elementType := value.Type().Elem()
@@ -314,6 +425,18 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 	}
 
 	return nil
+}
+
+// isPrimitive returns true if the given type is a primitive one.
+func (u *unmarshaler) isPrimitive(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Bool, reflect.Float32, reflect.Float64, reflect.String:
+		return true
+	}
+
+	return false
 }
 
 // findSingleChild returns the child with the given name or an error in strict mode when there is no
