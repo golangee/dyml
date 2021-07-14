@@ -27,6 +27,52 @@ func ExampleUnmarshal() {
 	// Output: Hello 3 year old Gopher !
 }
 
+func ExampleUnmarshal_Slice() {
+	type SimpleSlice struct {
+		Nums []int
+	}
+
+	input := strings.NewReader(`#!{
+		Nums {
+			1, 2, 3
+		}
+	}`)
+
+	var result SimpleSlice
+
+	Unmarshal(input, &result, false)
+
+	fmt.Print(result.Nums)
+	// Output: [1 2 3]
+}
+
+// ExampleComplexSlice demonstrates more complex slice usage.
+// Values will be placed in the correct slices because they
+// have a rename tag set.
+func ExampleUnmarshal_ComplexSlice() {
+
+	type ComplexArray struct {
+		Animals []string `tadl:"animal"`
+		Planets []string `tadl:"planet"`
+	}
+
+	input := strings.NewReader(`#!{
+		animal Dog,
+		planet Earth,
+		animal Cat,
+		animal Gopher,
+		planet Venus,
+		planet Mars
+	}`)
+
+	var result ComplexArray
+
+	Unmarshal(input, &result, false)
+
+	fmt.Printf("Animals: %s. Planets: %s.", strings.Join(result.Animals, ", "), strings.Join(result.Planets, ", "))
+	// Output: Animals: Dog, Cat, Gopher. Planets: Earth, Venus, Mars.
+}
+
 func TestUnmarshal(t *testing.T) {
 	// Base for testing
 	type TestCase struct {
@@ -135,7 +181,7 @@ func TestUnmarshal(t *testing.T) {
 	testCases = append(testCases, TestCase{
 		name: "int slice",
 		text: `#!{
-					Nums {"1" "2" "3" "4"}
+					Nums {1, 2, 3, 4}
 				}`,
 		into: &IntSlice{},
 		want: &IntSlice{
@@ -155,6 +201,28 @@ func TestUnmarshal(t *testing.T) {
 		into: &EmptyStructSlice{},
 		want: &EmptyStructSlice{
 			Things: []Empty{{}, {}, {}},
+		},
+	})
+
+	type FilteredSlice struct {
+		Ints []int `tadl:"i"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "filtered slice",
+		text: `#!{
+					i 1,
+					i 2,
+					hello 123,
+					i 3,
+					someitem 456,
+					"don't mind me"
+					some nested things,
+					i 4
+				}`,
+		into: &FilteredSlice{},
+		want: &FilteredSlice{
+			Ints: []int{1, 2, 3, 4},
 		},
 	})
 

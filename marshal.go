@@ -70,6 +70,33 @@ import (
 //      SomeMap map[string]float64
 //  }
 //
+// Tadl also supports unmarshalling slices. When no tag is specified in the struct, elements in Tadl
+// are unmarshalled into the slice directly:
+//
+//  // This tadl snippet...
+//  #! {
+//      Nums {1, 2, 3, 4}
+//  }
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      Nums []int
+//  }
+//
+// Should you specify a tag on the field in your struct, then only elements with that tag will be parsed.
+// The element of which you specified the name will not be included, so the following works:
+//
+//  // This tadl snippet...
+//  #! {
+//      animal Dog,
+//      planet Earth,
+//  }
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      Animals []string `tadl:"animal"` // This slice will contain a single string "Dog".
+//  }
+//
+// See the examples for more complete usage of slices.
+//
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
 
@@ -145,19 +172,20 @@ func (u *UnmarshalError) Unwrap() error {
 }
 
 // node will place contents of the tadl node inside the given value.
-func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
+// tags are any field tags that may be relevant to process the current node.
+func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...string) error {
 	valueType := value.Type()
 
 	switch value.Kind() {
 	case reflect.String:
-		text, err := getTextChild(node)
+		text, err := getText(node)
 		if err != nil {
 			return NewUnmarshalError(node, "expected string", err)
 		}
 
 		value.SetString(text)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		text, err := getTextChild(node)
+		text, err := getText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("integer required for '%s'", valueType.Name()), err)
 		}
@@ -173,7 +201,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 		value.SetInt(i)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		text, err := getTextChild(node)
+		text, err := getText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("unsigned integer required for '%s'", valueType.Name()), err)
 		}
@@ -189,7 +217,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 		value.SetUint(i)
 	case reflect.Bool:
-		text, err := getTextChild(node)
+		text, err := getText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("boolean required for '%s'", valueType.Name()), err)
 		}
@@ -201,7 +229,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 		value.SetBool(b)
 	case reflect.Float64, reflect.Float32:
-		text, err := getTextChild(node)
+		text, err := getText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("float required for '%s'", valueType.Name()), err)
 		}
@@ -307,9 +335,21 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 			value.SetMapIndex(mapKey, mapValue)
 		}
 	case reflect.Slice:
+		// Figure out type for elements. Should this be a slice we want to know what type is stored in it.
+		elementType := valueType.Elem()
+		if elementType.Kind() == reflect.Slice {
+			elementType = elementType.Elem()
+		}
+
 		// Create, process and append children
-		elementType := value.Type().Elem()
 		for _, child := range node.Children {
+			if len(tags) > 0 {
+				// Use rename tag to filter for slice elements with the given name.
+				if child.Name != tags[0] {
+					continue
+				}
+			}
+
 			element := reflect.New(elementType).Elem()
 			if err := u.node(child, element); err != nil {
 				return NewUnmarshalError(node, fmt.Sprintf("cannot read slice children for '%s'", node.Name), err)
@@ -328,9 +368,11 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 			fieldName := fieldType.Name
 			unmarshalAs := unmarshalNormal
 
+			var tags []string
+
 			// Some tags will change the behavior of how this field will be processed.
 			if structTag, ok := fieldType.Tag.Lookup("tadl"); ok {
-				tags := strings.Split(structTag, ",")
+				tags = strings.Split(structTag, ",")
 
 				// The first tag will rename the field
 				if len(tags) > 0 {
@@ -358,18 +400,26 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value) error {
 
 			switch unmarshalAs {
 			case unmarshalNormal:
-				nodeForField, err := u.findSingleChild(node, fieldName)
-				if err != nil {
-					return err
-				}
+				// Should the field be a slice and a rename param is set, then we need to pass the whole node in,
+				// not just a subnode, to allow for filtering of elements.
+				if field.Kind() == reflect.Slice && len(tags) > 0 && len(tags[0]) > 0 {
+					if err := u.node(node, field, tags...); err != nil {
+						return err
+					}
+				} else {
+					nodeForField, err := u.findSingleChild(node, fieldName)
+					if err != nil {
+						return err
+					}
 
-				if nodeForField == nil {
-					continue
-				}
+					if nodeForField == nil {
+						continue
+					}
 
-				err = u.node(nodeForField, field)
-				if err != nil {
-					return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
+					err = u.node(nodeForField, field, tags...)
+					if err != nil {
+						return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
+					}
 				}
 			case unmarshalAttribute:
 				if node.Attributes.Has(fieldName) {
@@ -468,23 +518,42 @@ func (u *unmarshaler) findSingleChild(node *parser.TreeNode, name string) (*pars
 	return child, nil
 }
 
-// getTextChild will return a string from the CharData that is the child of the given node.
-// If node has more than 1 children this will return an error.
-// If the single child is not text, this will return an error.
-// If node itself is a text, its text will be returned instead.
-func getTextChild(node *parser.TreeNode) (string, error) {
+// getText will return a string from the given node.
+// This can either be from the node itself should it either:
+//  - Be text, in which case that is returned
+//  - Be a node with no children, in which case the node's name is returned.
+// If node has exactly one child then the text from that will be returned according
+// to the same rules.
+func getText(node *parser.TreeNode) (string, error) {
 	if node.IsText() {
 		return *node.Text, nil
 	}
 
-	if len(node.Children) != 1 {
-		return "", NewUnmarshalError(node, "exactly one text child required", nil)
+	if node.IsNode() {
+		if len(node.Children) == 0 {
+			return node.Name, nil
+		}
+
+		if len(node.Children) == 1 {
+			child := node.Children[0]
+
+			if child.IsText() {
+				return *child.Text, nil
+			}
+
+			if child.IsNode() {
+				if len(child.Children) == 0 {
+					return child.Name, nil
+				}
+
+				return "", NewUnmarshalError(node, "child must not have children", nil)
+			}
+
+			return "", NewUnmarshalError(node, "child is not text", nil)
+		}
+
+		return "", NewUnmarshalError(node, "more than one child found", nil)
 	}
 
-	textChild := node.Children[0]
-	if !textChild.IsText() {
-		return "", NewUnmarshalError(node, "child is not text", nil)
-	}
-
-	return *textChild.Text, nil
+	return "", NewUnmarshalError(node, "must be node or text-node", nil)
 }
