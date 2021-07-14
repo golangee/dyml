@@ -51,26 +51,35 @@ func ExampleUnmarshal_Slice() {
 // have a rename tag set.
 func ExampleUnmarshal_ComplexSlice() {
 
+	type Animal struct {
+		Name string `tadl:"name,attr"`
+		Age  uint   `tadl:"age"`
+	}
+
 	type ComplexArray struct {
-		Animals []string `tadl:"animal"`
+		Animals []Animal `tadl:"animal"`
 		Planets []string `tadl:"planet"`
 	}
 
 	input := strings.NewReader(`#!{
-		animal Dog,
-		planet Earth,
-		animal Cat,
-		animal Gopher,
-		planet Venus,
-		planet Mars
+		animal @name="Dog" {
+			age 6
+		}
+		planet "Earth"
+		animal @name="Cat",
+		animal @name="Gopher" {
+			age 3
+		}
+		planet "Venus"
+		planet "Mars"
 	}`)
 
 	var result ComplexArray
 
 	Unmarshal(input, &result, false)
 
-	fmt.Printf("Animals: %s. Planets: %s.", strings.Join(result.Animals, ", "), strings.Join(result.Planets, ", "))
-	// Output: Animals: Dog, Cat, Gopher. Planets: Earth, Venus, Mars.
+	fmt.Printf("%s, %s", result.Animals[2].Name, result.Planets[0])
+	// Output: Gopher, Earth
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -297,7 +306,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextDirectly struct {
-		Text string `tadl:",text"`
+		Text string `tadl:",inner"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -327,28 +336,28 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextNestedInner struct {
-		Value string `tadl:",text"`
+		Value string `tadl:",inner"`
 	}
 
 	type TextNested struct {
-		Text  string          `tadl:",text"`
-		Inner TextNestedInner `tadl:"inner"`
+		Text   string          `tadl:",inner"`
+		Inside TextNestedInner `tadl:"inside"`
 	}
 
 	testCases = append(testCases, TestCase{
 		name: "text in some elements",
-		text: `Hello world! #inner Lots of text here :)`,
+		text: `Hello world! #inside Lots of text here :)`,
 		into: &TextNested{},
 		want: &TextNested{
 			Text: "Hello world! ",
-			Inner: TextNestedInner{
+			Inside: TextNestedInner{
 				Value: "Lots of text here :)",
 			},
 		},
 	})
 
 	type LotsOfText struct {
-		Text    string `tadl:",text"`
+		Text    string `tadl:",inner"`
 		Element Empty  `tadl:"item"`
 	}
 
@@ -462,7 +471,7 @@ func TestUnmarshal(t *testing.T) {
 						continue
 					}
 
-					t.Errorf("property '%s' %s, expected %v but got %v",
+					t.Errorf("property '%s' %s, expected '%v' but got '%v'",
 						nicePath,
 						changeTypeDescription[d.Type],
 						d.From, d.To)

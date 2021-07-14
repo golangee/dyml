@@ -44,13 +44,35 @@ import (
 //      X        int    `tadl:",attr"` // You can choose to not rename it, by omitting the rename parameter.
 //  }
 //
-// Text can be parsed into fields marked with 'text'.
-// In normal mode the field will have all text that occurred in the element concatenated or an empty string if no
-// text was inside the element.
-// In strict mode exactly one text item with length > 0 is expected.
-// Renaming a text parameter is not an error but pointless, so best leave the rename parameter empty.
+// 'inner' can be used to parse elements that are the contents of the surrounding element.
+// Consider this example to parse plain text without surrounding elements:
 //
-// Tadl can also be unmarshalled into maps. The map key must be a primitive type. The map value must be a primitive
+//  // This tadl snippet...
+//  #! {
+//      "hello"
+//      "more text"
+//  }
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      Something string `tadl:",inner"`
+//  }
+//
+// When collecting text this way all text inside the node will be concatenated in non-strict mode ("hellomore text" in
+// the above example). In strict mode exactly one text child is required.
+// In the following example inner is used to parse a map-like Tadl definition into a map without a supporting element.
+//
+//  // This tadl snippet...
+//  #! {
+//      A "B"
+//      C "D"
+//  }
+//  // could be unmarshalled into this go struct.
+//  type Example struct {
+//      Something map[string]string `tadl:",inner"`
+//  }
+//
+//
+// Tadl can unmarshal into maps. The map key must be a primitive type. The map value must be a primitive
 // type, parser.TreeNode or *parser.TreeNode.
 // Parsing maps will read first level elements as map keys and the first child of each as the map value.
 // In strict mode the map key is required to have exactly one child.
@@ -71,31 +93,8 @@ import (
 //  }
 //
 // Tadl also supports unmarshalling slices. When no tag is specified in the struct, elements in Tadl
-// are unmarshalled into the slice directly:
-//
-//  // This tadl snippet...
-//  #! {
-//      Nums {1, 2, 3, 4}
-//  }
-//  // could be unmarshalled into this go struct.
-//  type Example struct {
-//      Nums []int
-//  }
-//
-// Should you specify a tag on the field in your struct, then only elements with that tag will be parsed.
-// The element of which you specified the name will not be included, so the following works:
-//
-//  // This tadl snippet...
-//  #! {
-//      animal Dog,
-//      planet Earth,
-//  }
-//  // could be unmarshalled into this go struct.
-//  type Example struct {
-//      Animals []string `tadl:"animal"` // This slice will contain a single string "Dog".
-//  }
-//
-// See the examples for more complete usage of slices.
+// are unmarshalled into the slice directly. Should you specify a tag on the field in your struct,
+// then only elements with that tag will be parsed. See the examples for more details.
 //
 func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 	parse := parser.NewParser("", r)
@@ -131,7 +130,7 @@ type unmarshalType int
 const (
 	unmarshalNormal unmarshalType = iota
 	unmarshalAttribute
-	unmarshalText
+	unmarshalInner
 )
 
 // unmarshalMapValue is a helper to decide what kind of map value should be unmarshalled.
@@ -178,14 +177,14 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 	switch value.Kind() {
 	case reflect.String:
-		text, err := getText(node)
+		text, err := u.findText(node)
 		if err != nil {
 			return NewUnmarshalError(node, "expected string", err)
 		}
 
 		value.SetString(text)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		text, err := getText(node)
+		text, err := getAsText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("integer required for '%s'", valueType.Name()), err)
 		}
@@ -201,7 +200,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 		value.SetInt(i)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		text, err := getText(node)
+		text, err := getAsText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("unsigned integer required for '%s'", valueType.Name()), err)
 		}
@@ -217,7 +216,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 		value.SetUint(i)
 	case reflect.Bool:
-		text, err := getText(node)
+		text, err := getAsText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("boolean required for '%s'", valueType.Name()), err)
 		}
@@ -229,7 +228,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 		value.SetBool(b)
 	case reflect.Float64, reflect.Float32:
-		text, err := getText(node)
+		text, err := getAsText(node)
 		if err != nil {
 			return NewUnmarshalError(node, fmt.Sprintf("float required for '%s'", valueType.Name()), err)
 		}
@@ -388,8 +387,8 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 					switch as {
 					case "attr":
 						unmarshalAs = unmarshalAttribute
-					case "text":
-						unmarshalAs = unmarshalText
+					case "inner":
+						unmarshalAs = unmarshalInner
 					case "":
 						unmarshalAs = unmarshalNormal
 					default:
@@ -437,37 +436,13 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 				} else if u.strict {
 					return NewUnmarshalError(node, fmt.Sprintf("attribute '%s' required", fieldName), nil)
 				}
-			case unmarshalText:
-				// Text needs a string field to get parsed into. We then collect any text inside this node or
-				// expect exactly one text in strict mode.
-				if field.Kind() != reflect.String {
-					return NewUnmarshalError(node, fmt.Sprintf("'%s' needs to have type string", fieldType.Name), nil)
+			case unmarshalInner:
+				if err := u.node(node, field); err != nil {
+					return NewUnmarshalError(node, "'inner' struct tag caused an error", err)
 				}
-
-				foundAny := false
-
-				var text strings.Builder
-
-				for _, c := range node.Children {
-					if c.IsText() {
-						if foundAny && u.strict {
-							return NewUnmarshalError(node, "multiple occurrences of text, where only one is allowed", nil)
-						}
-
-						foundAny = true
-
-						text.WriteString(*c.Text)
-					}
-				}
-
-				if u.strict && !foundAny {
-					return NewUnmarshalError(node, "text inside element required", nil)
-				}
-
-				field.SetString(text.String())
 			default:
 				// Should never happen. We provide a helpful message just in case.
-				return fmt.Errorf("unmarshal in invalid state: unmarshalType=%v", unmarshalAs)
+				return fmt.Errorf("unmarshal in invalid state: unmarshalType=%v. this is a bug", unmarshalAs)
 			}
 		}
 	default:
@@ -518,13 +493,45 @@ func (u *unmarshaler) findSingleChild(node *parser.TreeNode, name string) (*pars
 	return child, nil
 }
 
-// getText will return a string from the given node.
+// findText will find text inside the children of the given node or will return the text of a text node directly.
+// In strict mode exactly one text child is required.
+// In non-strict mode all text children will be concatenated. This might then return an empty string
+// if there are no text children.
+func (u *unmarshaler) findText(node *parser.TreeNode) (string, error) {
+	if node.IsText() {
+		return *node.Text, nil
+	}
+
+	foundAny := false
+
+	var text strings.Builder
+
+	for _, c := range node.Children {
+		if c.IsText() {
+			if foundAny && u.strict {
+				return "", NewUnmarshalError(node, "multiple occurrences of text, where only one is allowed", nil)
+			}
+
+			foundAny = true
+
+			text.WriteString(*c.Text)
+		}
+	}
+
+	if u.strict && !foundAny {
+		return "", NewUnmarshalError(node, "text inside element required", nil)
+	}
+
+	return text.String(), nil
+}
+
+// getAsText will return a string from the given node.
 // This can either be from the node itself should it either:
 //  - Be text, in which case that is returned
 //  - Be a node with no children, in which case the node's name is returned.
 // If node has exactly one child then the text from that will be returned according
 // to the same rules.
-func getText(node *parser.TreeNode) (string, error) {
+func getAsText(node *parser.TreeNode) (string, error) {
 	if node.IsText() {
 		return *node.Text, nil
 	}
