@@ -27,6 +27,60 @@ func ExampleUnmarshal() {
 	// Output: Hello 3 year old Gopher !
 }
 
+func ExampleUnmarshal_Slice() {
+	type SimpleSlice struct {
+		Nums []int
+	}
+
+	input := strings.NewReader(`#!{
+		Nums {
+			1, 2, 3
+		}
+	}`)
+
+	var result SimpleSlice
+
+	Unmarshal(input, &result, false)
+
+	fmt.Print(result.Nums)
+	// Output: [1 2 3]
+}
+
+// ExampleComplexSlice demonstrates more complex slice usage.
+// Values will be placed in the correct slices because they
+// have a rename tag set.
+func ExampleUnmarshal_ComplexSlice() {
+	type Animal struct {
+		Name string `tadl:"name,attr"`
+		Age  uint   `tadl:"age"`
+	}
+
+	type ComplexArray struct {
+		Animals []Animal `tadl:"animal"`
+		Planets []string `tadl:"planet"`
+	}
+
+	input := strings.NewReader(`#!{
+		animal @name="Dog" {
+			age 6
+		}
+		planet "Earth"
+		animal @name="Cat",
+		animal @name="Gopher" {
+			age 3
+		}
+		planet "Venus"
+		planet "Mars"
+	}`)
+
+	var result ComplexArray
+
+	Unmarshal(input, &result, false)
+
+	fmt.Printf("%s, %s", result.Animals[2].Name, result.Planets[0])
+	// Output: Gopher, Earth
+}
+
 func TestUnmarshal(t *testing.T) {
 	// Base for testing
 	type TestCase struct {
@@ -135,7 +189,7 @@ func TestUnmarshal(t *testing.T) {
 	testCases = append(testCases, TestCase{
 		name: "int slice",
 		text: `#!{
-					Nums {"1" "2" "3" "4"}
+					Nums {1, 2, 3, 4}
 				}`,
 		into: &IntSlice{},
 		want: &IntSlice{
@@ -155,6 +209,28 @@ func TestUnmarshal(t *testing.T) {
 		into: &EmptyStructSlice{},
 		want: &EmptyStructSlice{
 			Things: []Empty{{}, {}, {}},
+		},
+	})
+
+	type FilteredSlice struct {
+		Ints []int `tadl:"i"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "filtered slice",
+		text: `#!{
+					i 1,
+					i 2,
+					hello 123,
+					i 3,
+					someitem 456,
+					"don't mind me"
+					some nested things,
+					i 4
+				}`,
+		into: &FilteredSlice{},
+		want: &FilteredSlice{
+			Ints: []int{1, 2, 3, 4},
 		},
 	})
 
@@ -229,7 +305,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextDirectly struct {
-		Text string `tadl:",text"`
+		Text string `tadl:",inner"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -259,28 +335,28 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextNestedInner struct {
-		Value string `tadl:",text"`
+		Value string `tadl:",inner"`
 	}
 
 	type TextNested struct {
-		Text  string          `tadl:",text"`
-		Inner TextNestedInner `tadl:"inner"`
+		Text   string          `tadl:",inner"`
+		Inside TextNestedInner `tadl:"inside"`
 	}
 
 	testCases = append(testCases, TestCase{
 		name: "text in some elements",
-		text: `Hello world! #inner Lots of text here :)`,
+		text: `Hello world! #inside Lots of text here :)`,
 		into: &TextNested{},
 		want: &TextNested{
 			Text: "Hello world! ",
-			Inner: TextNestedInner{
+			Inside: TextNestedInner{
 				Value: "Lots of text here :)",
 			},
 		},
 	})
 
 	type LotsOfText struct {
-		Text    string `tadl:",text"`
+		Text    string `tadl:",inner"`
 		Element Empty  `tadl:"item"`
 	}
 
@@ -299,6 +375,55 @@ func TestUnmarshal(t *testing.T) {
 		text:    `hello #item{} this is text`,
 		strict:  true,
 		into:    &LotsOfText{},
+		wantErr: true,
+	})
+
+	type StringStringMap struct {
+		Things map[string]string
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map[string]string",
+		text: `#!{
+					Things {
+						key1 value,
+						key2 "string value"
+					}
+				}`,
+		into: &StringStringMap{},
+		want: &StringStringMap{Things: map[string]string{
+			"key1": "value",
+			"key2": "string value",
+		}},
+	})
+
+	type BoolFloatMap struct {
+		Things map[bool]float64
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map with primitive types",
+		text: `#!{
+					Things {
+						true 123,
+						false "123.456"
+					}
+				}`,
+		into: &BoolFloatMap{},
+		want: &BoolFloatMap{map[bool]float64{
+			true:  123,
+			false: 123.456,
+		}},
+	})
+
+	type InvalidMapKey struct {
+		Things map[*InvalidMapKey]int
+	}
+
+	testCases = append(testCases, TestCase{
+		name:    "invalid map key",
+		text:    "#Things",
+		into:    &InvalidMapKey{},
 		wantErr: true,
 	})
 
@@ -345,7 +470,7 @@ func TestUnmarshal(t *testing.T) {
 						continue
 					}
 
-					t.Errorf("property '%s' %s, expected %v but got %v",
+					t.Errorf("property '%s' %s, expected '%v' but got '%v'",
 						nicePath,
 						changeTypeDescription[d.Type],
 						d.From, d.To)
