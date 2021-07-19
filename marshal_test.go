@@ -197,6 +197,21 @@ func TestUnmarshal(t *testing.T) {
 		},
 	})
 
+	testCases = append(testCases, TestCase{
+		name: "int slice with comments",
+		text: `#!{
+					Nums {
+						1,
+						2, 3, // This comment should be ignored.
+						4
+					}
+				}`,
+		into: &IntSlice{},
+		want: &IntSlice{
+			Nums: []int{1, 2, 3, 4},
+		},
+	})
+
 	type EmptyStructSlice struct {
 		Things []Empty
 	}
@@ -221,6 +236,7 @@ func TestUnmarshal(t *testing.T) {
 		text: `#!{
 					i 1,
 					i 2,
+					// please ignore this comment
 					hello 123,
 					i 3,
 					someitem 456,
@@ -388,6 +404,24 @@ func TestUnmarshal(t *testing.T) {
 					Things {
 						key1 value,
 						key2 "string value"
+					}
+				}`,
+		into: &StringStringMap{},
+		want: &StringStringMap{Things: map[string]string{
+			"key1": "value",
+			"key2": "string value",
+		}},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "map with comments",
+		text: `#!{
+					Things {
+						// This comment should be ignored
+						key1 value,
+						// This comment should also be ignored
+						key2 "string value"
+						// This comment shall too be ignored
 					}
 				}`,
 		into: &StringStringMap{},

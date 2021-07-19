@@ -274,7 +274,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 		value.Set(reflect.MakeMap(valueType))
 		// A map will parse first level children as the key and the first child of those as the value.
-		for _, keyNode := range node.Children {
+		for _, keyNode := range nonCommentChildren(node) {
 			if !keyNode.IsNode() {
 				return NewUnmarshalError(node, "map key must be a node", nil)
 			}
@@ -290,13 +290,14 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 			}
 
 			// Now that we parsed the key we continue with parsing the value
-			if len(keyNode.Children) == 0 {
+			keyNodeChildren := nonCommentChildren(keyNode)
+			if len(keyNodeChildren) == 0 {
 				return NewUnmarshalError(node, fmt.Sprintf("no value in map for key '%v'", mapKey), nil)
-			} else if u.strict && len(keyNode.Children) != 1 {
+			} else if u.strict && len(keyNodeChildren) != 1 {
 				return NewUnmarshalError(node, fmt.Sprintf("key '%v' needs exactly one value", mapKey), nil)
 			}
 
-			valueNode := keyNode.Children[0]
+			valueNode := keyNodeChildren[0]
 
 			// Make mapValue be a zero value of the maps value type
 			mapValue := reflect.New(mapValueType).Elem()
@@ -307,7 +308,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 			case mapValueIsNode:
 				mapValue = reflect.ValueOf(*valueNode)
 			case mapValueIsPrimitive:
-				if u.strict && len(valueNode.Children) > 0 {
+				if u.strict && len(nonCommentChildren(valueNode)) > 0 {
 					return NewUnmarshalError(node, fmt.Sprintf("value for key '%v' must have no children", mapKey), nil)
 				}
 
@@ -340,7 +341,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 		}
 
 		// Create, process and append children
-		for _, child := range node.Children {
+		for _, child := range nonCommentChildren(node) {
 			if len(tags) > 0 {
 				// Use rename tag to filter for slice elements with the given name.
 				if child.Name != tags[0] {
@@ -463,6 +464,19 @@ func (u *unmarshaler) isPrimitive(t reflect.Type) bool {
 	return false
 }
 
+// nonCommentChildren returns all children of the given node that are not comments.
+func nonCommentChildren(node *parser.TreeNode) []*parser.TreeNode {
+	var result []*parser.TreeNode
+
+	for _, child := range node.Children {
+		if !child.IsComment() {
+			result = append(result, child)
+		}
+	}
+
+	return result
+}
+
 // findSingleChild returns the child with the given name or an error in strict mode when there is no
 // such child or there are multiple children.
 // In non-strict mode this method might return (nil, nil) which means that no such child exists, or it will
@@ -470,7 +484,7 @@ func (u *unmarshaler) isPrimitive(t reflect.Type) bool {
 func (u *unmarshaler) findSingleChild(node *parser.TreeNode, name string) (*parser.TreeNode, error) {
 	var child *parser.TreeNode
 
-	for _, c := range node.Children {
+	for _, c := range nonCommentChildren(node) {
 		if c.Name == name {
 			if child == nil {
 				child = c
@@ -505,7 +519,7 @@ func (u *unmarshaler) findText(node *parser.TreeNode) (string, error) {
 
 	var text strings.Builder
 
-	for _, c := range node.Children {
+	for _, c := range nonCommentChildren(node) {
 		if c.IsText() {
 			if foundAny && u.strict {
 				return "", NewUnmarshalError(node, "multiple occurrences of text, where only one is allowed", nil)
@@ -535,20 +549,22 @@ func getAsText(node *parser.TreeNode) (string, error) {
 		return *node.Text, nil
 	}
 
+	children := nonCommentChildren(node)
+
 	if node.IsNode() {
-		if len(node.Children) == 0 {
+		if len(children) == 0 {
 			return node.Name, nil
 		}
 
-		if len(node.Children) == 1 {
-			child := node.Children[0]
+		if len(children) == 1 {
+			child := children[0]
 
 			if child.IsText() {
 				return *child.Text, nil
 			}
 
 			if child.IsNode() {
-				if len(child.Children) == 0 {
+				if len(nonCommentChildren(child)) == 0 {
 					return child.Name, nil
 				}
 
