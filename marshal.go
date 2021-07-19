@@ -249,6 +249,11 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 		value.SetFloat(f)
 	case reflect.Ptr:
+		// Create value for nil pointer
+		if value.IsNil() {
+			v := reflect.New(valueType.Elem())
+			value.Set(v)
+		}
 		// Dereference pointer
 		return u.node(node, value.Elem())
 	case reflect.Map:

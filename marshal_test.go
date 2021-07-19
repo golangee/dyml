@@ -461,6 +461,24 @@ func TestUnmarshal(t *testing.T) {
 		wantErr: true,
 	})
 
+	type NillableThing struct {
+		Thing *Empty `tadl:"thing"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "nillable field is nil",
+		text: "",
+		into: &NillableThing{},
+		want: &NillableThing{Thing: nil},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "nillable field is set",
+		text: "#thing",
+		into: &NillableThing{},
+		want: &NillableThing{Thing: &Empty{}},
+	})
+
 	// Run all test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
