@@ -24,6 +24,7 @@ type Visitable interface {
 	SetNodeText(text string)
 	SetBlockType(t BlockType)
 	GetBlockType() BlockType
+	GetRootBlockType() BlockType
 	Open()
 	Close()
 	AppendSubTree()
@@ -75,8 +76,6 @@ func (v *Visitor) Run() error {
 		v.next()
 	}
 
-	v.visitMe.NewNode("root")
-
 	if tok != nil && tok.TokenType() == token.TokenG2Preamble {
 		// Prepare G2 by switching out the preamble for a root identifier.
 		v.mode = token.G2
@@ -117,7 +116,7 @@ func (v *Visitor) Run() error {
 	}
 
 	// The root element should always have curly brackets.
-	if v.visitMe.GetBlockType() != BlockNormal {
+	if v.visitMe.GetRootBlockType() != BlockNormal {
 		return token.NewPosError(v.visitMe.GetPointerPosition(), "root element must have curly brackets")
 	}
 
@@ -186,7 +185,7 @@ func (v *Visitor) peek() (token.Token, error) {
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
 	forwardingNode := false
-	v.visitMe.NewNode("invalid name") // name will be set later
+	v.visitMe.NewNode("") // name will be set later
 	v.position.BeginPos = v.lexer.Pos()
 
 	// Parse forwarding attributes
@@ -206,8 +205,6 @@ func (v *Visitor) g1Node() error {
 		forwardingNode = t.Forward
 	case *token.CharData:
 		v.visitMe.SetNodeText(t.Value)
-		v.newNode = false
-
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -218,8 +215,6 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
-			v.visitMe.Close()
-			v.newNode = false
 			v.visitMe.Close()
 			return nil
 		} else {
@@ -242,12 +237,7 @@ func (v *Visitor) g1Node() error {
 	}
 
 	if id, ok := tok.(*token.Identifier); ok {
-		if v.newNode {
-			v.visitMe.NewNode(id.Value)
-			v.newNode = false
-		} else {
-			v.visitMe.SetNodeName(id.Value)
-		}
+		v.visitMe.SetNodeName(id.Value)
 	} else {
 		return token.NewPosError(
 			tok.Pos(),
@@ -278,6 +268,7 @@ func (v *Visitor) g1Node() error {
 
 		// Append children until we encounter a TokenBlockEnd
 		for {
+
 			tok, _ = v.peek()
 			if tok.TokenType() == token.TokenBlockEnd {
 				v.visitMe.Close()
@@ -288,6 +279,8 @@ func (v *Visitor) g1Node() error {
 			if err != nil {
 				return err
 			}
+			v.visitMe.Close()
+
 		}
 
 		// Expect a BlockEnd
@@ -316,7 +309,6 @@ func (v *Visitor) g1Node() error {
 	}
 
 	v.visitMe.SetEndPos(v.lexer.Pos())
-	v.visitMe.Close()
 	return nil
 }
 

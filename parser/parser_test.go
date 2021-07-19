@@ -17,24 +17,24 @@ func TestParser(t *testing.T) {
 		text    string
 		want    *TreeNode
 		wantErr bool
-	}{
-		{
-			name: "empty",
-			text: "",
-			want: NewNode("root").Block(BlockNormal),
-		},
-		{
-			name: "just text",
-			text: "hello world",
-			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringNode("hello world"),
-			),
-		},
-		{
-			name: "BlockNoBrackets",
-			text: "#title Chapter Two",
-			want: NewNode("root").AddChildren(NewNode("title").AddChildren(NewStringNode("ChapterTwo"))),
-		},
+	}{ /*
+			{
+				name: "empty",
+				text: "",
+				want: NewNode("root").Block(BlockNormal),
+			},
+			{
+				name: "just text",
+				text: "hello world",
+				want: NewNode("root").Block(BlockNormal).AddChildren(
+					NewStringNode("hello world"),
+				),
+			},
+			{
+				name: "BlockNoBrackets",
+				text: "#title Chapter Two",
+				want: NewNode("root").Block(BlockNormal).AddChildren(NewNode("title").AddChildren(NewStringNode("Chapter Two"))),
+			},*/
 		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
@@ -49,7 +49,7 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
-		{
+		/*{
 			name: "recursion and whitespace",
 			text: "#A   { #B{#C  #D{#E }} } #F",
 			want: NewNode("root").Block(BlockNormal).AddChildren(
@@ -578,19 +578,18 @@ func TestParser(t *testing.T) {
 						),
 					),
 			),
-		},
+		},*/
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
-			fmt.Println(parser, parser.visitor, parser.visitor.visitMe)
 			tree, err := parser.Parse()
-			if tt.name == "BlockNoBrackets" {
+			/*if tt.name == "BlockNoBrackets" {
 				for _, child := range tree.Children {
 					fmt.Println(child.Name, child.Text, child.Comment)
 				}
-			}
+			}*/
 
 			if !tt.wantErr && err != nil {
 				t.Error(err)

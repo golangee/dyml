@@ -4,7 +4,6 @@
 package parser
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/golangee/tadl/token"
@@ -137,7 +136,6 @@ func (t *TreeNode) IsNode() bool {
 
 func (t *TreeNode) Print() string {
 	text := t.Name
-	fmt.Println(t.Name, t.Text)
 	for _, child := range t.Children {
 		text += child.Print()
 	}
@@ -209,8 +207,6 @@ type Parser struct {
 	root   *TreeNode
 	parent *TreeNode
 
-
-
 	visitor Visitor
 
 	firstNode bool
@@ -219,7 +215,7 @@ type Parser struct {
 func NewParser(filename string, r io.Reader) *Parser {
 	parser := &Parser{
 		visitor: *NewVisitor(nil, token.NewLexer(filename, r)),
-		root:    NewNode("root"),
+		root:    NewNode(""),
 	}
 	parser.parent = parser.root
 	parser.parent = parser.root
@@ -257,26 +253,36 @@ func (p *Parser) NewNode(name string) {
 		return
 	}
 	p.parent.AddChildren(NewNode(name))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 func (p *Parser) NewStringNode(name string) {
 	p.parent.AddChildren(NewStringNode(name))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 func (p *Parser) NewTextNode(cd *token.CharData) {
 	p.parent.AddChildren(NewTextNode(cd))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 func (p *Parser) NewCommentNode(cd *token.CharData) {
 	p.parent.AddChildren(NewCommentNode(cd))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 func (p *Parser) NewStringCommentNode(text string) {
 	p.parent.AddChildren(NewStringCommentNode(text))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 func (p *Parser) AddAttribute(key, value string) {
-	p.root.Attributes.Set(key, value)
+	p.parent.Attributes.Set(key, value)
 }
 
 func (p *Parser) AddForwardAttribute(m AttributeMap) {
@@ -288,7 +294,9 @@ func (p *Parser) Block(blockType BlockType) {
 }
 
 func (p *Parser) Close() {
-	p.parent = p.parent.parent
+	if p.parent.parent != nil {
+		p.parent = p.parent.parent
+	}
 }
 
 func (p *Parser) AddForwardNode(name string) {
@@ -319,10 +327,14 @@ func (p *Parser) SetNodeName(name string) {
 }
 
 func (p *Parser) SetBlockType(b BlockType) {
-	p.root.BlockType = b
+	p.parent.BlockType = b
 }
 
 func (p *Parser) GetBlockType() BlockType {
+	return p.parent.BlockType
+}
+
+func (p *Parser) GetRootBlockType() BlockType {
 	return p.root.BlockType
 }
 
