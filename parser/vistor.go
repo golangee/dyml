@@ -7,32 +7,43 @@ import (
 	"github.com/golangee/tadl/token"
 )
 
+// Visitable defines the method signature of Objects
+// that want to utilize the visitor
 type Visitable interface {
-	AddForwardNode(name string)
-	AppendForwardingNodes()
+	Open()
+	Close()
+
 	NewNode(name string)
 	NewStringNode(name string)
 	NewTextNode(cd *token.CharData)
 	NewCommentNode(cd *token.CharData)
 	NewStringCommentNode(name string)
-	MergeAttributes(m AttributeMap)
+
 	AddAttribute(key, value string)
-	AddForwardAttribute(m AttributeMap)
-	GetForwardingLength() int
-	GetForwardingPosition(i int) token.Node
+	MergeAttributes(m AttributeMap)
 	SetNodeName(name string)
 	SetNodeText(text string)
 	SetBlockType(t BlockType)
 	GetBlockType() BlockType
 	GetRootBlockType() BlockType
-	Open()
-	Close()
-	AppendSubTree()
-	AppendSubTreeForward()
 	SetEndPos(pos token.Pos)
-	GetPointerPosition() token.Position
+	GetRange() token.Position
+
+	GetForwardingLength() int
+	GetForwardingPosition(i int) token.Node
+	AddForwardAttribute(m AttributeMap)
+	AddForwardNode(name string)
+	AppendForwardingNodes()
+	MergeAttributesForwarded(m AttributeMap)
+
+	SetGlobalForwarding(f bool)
+	AppendSubTreeForward()
+	AppendSubTree()
 }
 
+// Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
+// Visitor calls the Methods defined in the Visitable interface to allow the
+// overlying class to work with the tree.
 type Visitor struct {
 	visitMe Visitable
 
@@ -117,7 +128,7 @@ func (v *Visitor) Run() error {
 
 	// The root element should always have curly brackets.
 	if v.visitMe.GetRootBlockType() != BlockNormal {
-		return token.NewPosError(v.visitMe.GetPointerPosition(), "root element must have curly brackets")
+		return token.NewPosError(v.visitMe.GetRange(), "root element must have curly brackets")
 	}
 
 	return nil
@@ -185,7 +196,7 @@ func (v *Visitor) peek() (token.Token, error) {
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
 	forwardingNode := false
-	v.visitMe.NewNode("") // name will be set later
+	//v.visitMe.NewNode("") // name will be set later
 	v.position.BeginPos = v.lexer.Pos()
 
 	// Parse forwarding attributes
@@ -204,7 +215,9 @@ func (v *Visitor) g1Node() error {
 	case *token.DefineElement:
 		forwardingNode = t.Forward
 	case *token.CharData:
-		v.visitMe.SetNodeText(t.Value)
+		v.visitMe.NewStringNode(t.Value)
+		//v.visitMe.SetNodeText(t.Value)
+		v.visitMe.Close()
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -237,7 +250,12 @@ func (v *Visitor) g1Node() error {
 	}
 
 	if id, ok := tok.(*token.Identifier); ok {
-		v.visitMe.SetNodeName(id.Value)
+		if forwardingNode {
+			v.visitMe.AddForwardNode(id.Value)
+		} else {
+			v.visitMe.NewNode(id.Value)
+		}
+		//v.visitMe.SetNodeName(id.Value)
 	} else {
 		return token.NewPosError(
 			tok.Pos(),
@@ -257,7 +275,11 @@ func (v *Visitor) g1Node() error {
 		return err
 	}
 
-	v.visitMe.MergeAttributes(attributes.Merge(forwardedAttributes))
+	if forwardingNode {
+		v.visitMe.MergeAttributesForwarded(attributes.Merge(forwardedAttributes))
+	} else {
+		v.visitMe.MergeAttributes(attributes.Merge(forwardedAttributes))
+	}
 
 	// Optional children enclosed in brackets
 	tok, _ = v.peek()
@@ -270,6 +292,9 @@ func (v *Visitor) g1Node() error {
 		for {
 
 			tok, _ = v.peek()
+			if tok == nil {
+				return errors.New("Token not identified, is nil")
+			}
 			if tok.TokenType() == token.TokenBlockEnd {
 				v.visitMe.Close()
 				break
@@ -279,6 +304,7 @@ func (v *Visitor) g1Node() error {
 			if err != nil {
 				return err
 			}
+
 			v.visitMe.Close()
 
 		}
@@ -295,6 +321,11 @@ func (v *Visitor) g1Node() error {
 				"use a '}' here to close the element",
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockEnd))
 		}
+	} else if tok.TokenType() == token.TokenCharData {
+		v.next()
+
+		v.visitMe.NewTextNode(tok.(*token.CharData))
+		v.visitMe.Close()
 	}
 
 	if forwardingNode {
@@ -302,8 +333,7 @@ func (v *Visitor) g1Node() error {
 		// as it needs to be placed inside the next non-forwarding node.
 		// We will parse another node to make it opaque to our caller that this happened.
 
-		//v.visitMe.CurrentToGlobalTree
-		v.visitMe.AppendSubTreeForward()
+		//v.visitMe.AppendSubTreeForward()
 		v.g1Node()
 		return nil
 	}
@@ -334,6 +364,7 @@ func (v *Visitor) g1LineNodes() error {
 
 	v.mode = token.G1Line
 
+	v.visitMe.SetGlobalForwarding(true)
 	for {
 		tok, _ := v.peek()
 		if tok != nil && tok.TokenType() == token.TokenG1LineEnd {
@@ -347,6 +378,7 @@ func (v *Visitor) g1LineNodes() error {
 			return err
 		}
 	}
+	v.visitMe.SetGlobalForwarding(false)
 
 	v.mode = token.G2
 
@@ -363,8 +395,8 @@ func (v *Visitor) g1LineNodes() error {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
-	node := NewNode("invalid name") // name will be set later
-	node.Range.BeginPos = v.lexer.Pos()
+	//node := NewNode("invalid name") // name will be set later
+	//node.Range.BeginPos = v.lexer.Pos() // TODO set Position method in interface and Parser
 
 	// Read forward attributes
 	forwardedAttributes, err := v.parseAttributes(true)
@@ -380,7 +412,7 @@ func (v *Visitor) g2Node() error {
 
 	switch t := tok.(type) {
 	case *token.Identifier:
-		node.Name = t.Value
+		v.visitMe.NewNode(t.Value)
 		// Insert forwarded nodes
 		v.visitMe.AppendForwardingNodes()
 	case *token.CharData:
@@ -392,6 +424,7 @@ func (v *Visitor) g2Node() error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 		v.visitMe.NewTextNode(t)
+		v.visitMe.Close()
 		return nil
 	default:
 		return token.NewPosError(
@@ -406,7 +439,8 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
-	node.Attributes = forwardedAttributes.Merge(attributes)
+	v.addAttributes(attributes)
+	v.visitMe.MergeAttributes(nil)
 
 	// Process children
 	tok, err = v.peek()
@@ -418,7 +452,7 @@ func (v *Visitor) g2Node() error {
 	case *token.CharData:
 		v.next()
 
-		node.AddChildren(NewTextNode(t))
+		v.visitMe.NewTextNode(t)
 	case *token.DefineElement:
 		err := v.g1LineNodes()
 		if err != nil {
@@ -432,11 +466,11 @@ func (v *Visitor) g2Node() error {
 		// Set BlockType
 		switch t.(type) {
 		case *token.BlockStart:
-			node.BlockType = BlockNormal
+			v.visitMe.SetBlockType(BlockNormal)
 		case *token.GroupStart:
-			node.BlockType = BlockGroup
+			v.visitMe.SetBlockType(BlockGroup)
 		case *token.GenericStart:
-			node.BlockType = BlockGeneric
+			v.visitMe.SetBlockType(BlockGeneric)
 		}
 
 		// Parse children
@@ -446,7 +480,8 @@ func (v *Visitor) g2Node() error {
 				return err
 			}
 
-			if node.isClosedBy(tok) {
+			// TODO: merge with main, adapt to visitor
+			if true { //node.isClosedBy(tok) {
 				v.next() // pop closing token
 
 				break
@@ -479,7 +514,7 @@ func (v *Visitor) g2Node() error {
 		v.visitMe.AppendSubTree()
 	}
 
-	node.Range.EndPos = v.lexer.Pos()
+	//node.Range.EndPos = v.lexer.Pos()
 
 	return nil
 }
@@ -597,4 +632,10 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 	}
 
 	return result, nil
+}
+
+func (v *Visitor) addAttributes(m AttributeMap) {
+	for key, val := range m {
+		v.visitMe.AddAttribute(key, val)
+	}
 }
