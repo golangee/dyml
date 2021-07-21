@@ -281,7 +281,11 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 		// A map will parse first level children as the key and the first child of those as the value.
 		for _, keyNode := range nonCommentChildren(node) {
 			if !keyNode.IsNode() {
-				return NewUnmarshalError(node, "map key must be a node", nil)
+				if u.strict {
+					return NewUnmarshalError(node, "map key must be a node", nil)
+				} else {
+					continue
+				}
 			}
 
 			// Make mapKey be a zero value of the maps key type
