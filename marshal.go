@@ -309,9 +309,9 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 
 			switch valueMode {
 			case mapValueIsNodePointer:
-				mapValue = reflect.ValueOf(valueNode)
+				mapValue = reflect.ValueOf(keyNode)
 			case mapValueIsNode:
-				mapValue = reflect.ValueOf(*valueNode)
+				mapValue = reflect.ValueOf(*keyNode)
 			case mapValueIsPrimitive:
 				if u.strict && len(nonCommentChildren(valueNode)) > 0 {
 					return NewUnmarshalError(node, fmt.Sprintf("value for key '%v' must have no children", mapKey), nil)
