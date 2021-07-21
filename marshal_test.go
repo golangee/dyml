@@ -479,6 +479,44 @@ func TestUnmarshal(t *testing.T) {
 		want: &NillableThing{Thing: &Empty{}},
 	})
 
+	type CustomMapValue struct {
+		Name  string
+		Value int
+	}
+
+	type MapWithCustomValue struct {
+		Map map[string]CustomMapValue
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map with custom type as value",
+		text: `#!{
+					Map {
+						thingA {
+							Name "this is thing A"
+							Value 3
+						}
+						thingB {
+							Name "this is thing B"
+							Value 5
+						}
+					}
+				}`,
+		into: &MapWithCustomValue{},
+		want: &MapWithCustomValue{
+			map[string]CustomMapValue{
+				"thingA": {
+					Name:  "this is thing A",
+					Value: 3,
+				},
+				"thingB": {
+					Name:  "this is thing B",
+					Value: 5,
+				},
+			},
+		},
+	})
+
 	// Run all test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

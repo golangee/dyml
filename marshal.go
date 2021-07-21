@@ -138,6 +138,7 @@ type unmarshalMapValue int
 
 const (
 	mapValueIsPrimitive unmarshalMapValue = iota
+	mapValueIsCustomType
 	mapValueIsNode
 	mapValueIsNodePointer
 )
@@ -274,7 +275,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 		} else if mapValueType == reflect.TypeOf(&parser.TreeNode{}) {
 			valueMode = mapValueIsNodePointer
 		} else {
-			return NewUnmarshalError(node, "map value must be primitive type or (*)parser.TreeNode", nil)
+			valueMode = mapValueIsCustomType
 		}
 
 		value.Set(reflect.MakeMap(valueType))
@@ -316,6 +317,10 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 				mapValue = reflect.ValueOf(keyNode)
 			case mapValueIsNode:
 				mapValue = reflect.ValueOf(*keyNode)
+			case mapValueIsCustomType:
+				if err := u.node(keyNode, mapValue, tags...); err != nil {
+					return err
+				}
 			case mapValueIsPrimitive:
 				if u.strict && len(nonCommentChildren(valueNode)) > 0 {
 					return NewUnmarshalError(node, fmt.Sprintf("value for key '%v' must have no children", mapKey), nil)
