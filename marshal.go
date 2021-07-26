@@ -12,6 +12,11 @@ import (
 	"strings"
 )
 
+// Unmarshaler can be implemented on a struct to define custom unmarshalling behavior.
+type Unmarshaler interface {
+	UnmarshalTadl(node *parser.TreeNode) error
+}
+
 // Unmarshal takes Tadl input and parses it into the given struct.
 // If "into" is not a struct or a pointer to a struct, this method will panic.
 // As this uses go's reflect package, only exported names can be unmarshalled.
@@ -174,6 +179,19 @@ func (u *UnmarshalError) Unwrap() error {
 // doAny will parse arbitrary contents of the tadl node into the given value.
 // tags are any field tags that may be relevant to process the current node.
 func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...string) error {
+	// Check for custom unmarshalling method.
+	iUnmarshal := reflect.TypeOf((*Unmarshaler)(nil)).Elem()
+	if value.Type().Implements(iUnmarshal) {
+		method := value.MethodByName("UnmarshalTadl")
+		params := []reflect.Value{reflect.ValueOf(node)}
+
+		// UnmarshalTadl might return an error.
+		errValue := method.Call(params)[0]
+		if !errValue.IsNil() {
+			return errValue.Interface().(error)
+		}
+	}
+
 	switch value.Kind() {
 	case reflect.String:
 		err := u.doString(node, value)
