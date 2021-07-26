@@ -518,6 +518,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type StringA = string
+
 	type StringB string
 
 	type TypeAlias struct {
