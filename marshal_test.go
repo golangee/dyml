@@ -517,6 +517,27 @@ func TestUnmarshal(t *testing.T) {
 		},
 	})
 
+	type StringA = string
+	type StringB string
+
+	type TypeAlias struct {
+		StringA StringA
+		StringB StringB
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map with custom type as value",
+		text: `#!{
+					StringA "hello"
+					StringB "world"
+				}`,
+		into: &TypeAlias{},
+		want: &TypeAlias{
+			StringA: "hello",
+			StringB: "world",
+		},
+	})
+
 	// Run all test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
