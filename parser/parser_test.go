@@ -18,7 +18,7 @@ func TestParser(t *testing.T) {
 		want    *TreeNode
 		wantErr bool
 	}{
-		{
+		/*{
 			name: "empty",
 			text: "",
 			want: NewNode("root").Block(BlockNormal),
@@ -178,11 +178,11 @@ func TestParser(t *testing.T) {
 				NewStringNode("This is not."),
 			),
 		},
-		/*{
+		{
 			name: "empty G2",
 			text: `#!{}`,
 			want: NewNode("root").Block(BlockNormal),
-		},
+		},*/
 		{
 			name: "simple G2",
 			text: `#!{item}`,

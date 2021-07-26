@@ -220,6 +220,10 @@ type Parser struct {
 	rootForward   *TreeNode
 	parentForward *TreeNode
 
+	// g2Comments contains all comments in G2 that were eaten from the input,
+	// but are not yet placed in a sensible position.
+	g2Comments []*TreeNode
+
 	visitor Visitor
 
 	firstNode     bool
@@ -452,4 +456,23 @@ func (p *Parser) SwitchActiveTree() {
 	cache = p.root
 	p.root = p.rootForward
 	p.rootForward = cache
+}
+
+// NodeIsClosedBy checks if the current Node is being closed by the given token.
+func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
+	return p.parent.isClosedBy(tok)
+}
+
+// g2AppendComments will append all comments that were parsed with g2EatComments as children
+// into the given node.
+func (p *Parser) G2AppendComments() {
+
+	p.parent.Children = append(p.parent.Children, p.g2Comments...)
+	p.g2Comments = nil
+}
+
+// G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
+// to be added to the tree later
+func (p *Parser) G2AddComments(cd *token.CharData) {
+	p.g2Comments = append(p.g2Comments, NewCommentNode(cd))
 }

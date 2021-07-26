@@ -18,6 +18,7 @@ type Visitable interface {
 	NewTextNode(cd *token.CharData)
 	NewCommentNode(cd *token.CharData)
 	NewStringCommentNode(name string)
+	NodeIsClosedBy(tok token.Token) bool
 
 	AddAttribute(key, value string)
 	MergeAttributes()
@@ -41,6 +42,8 @@ type Visitable interface {
 	SetGlobalForwarding(f bool)
 	AppendSubTreeForward()
 	AppendSubTree()
+	G2AddComments(cd *token.CharData)
+	G2AppendComments()
 }
 
 // Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
@@ -501,6 +504,10 @@ func (v *Visitor) g2Node() error {
 	case *token.Comma:
 		// Comma ends a node definition
 		v.next()
+	case *token.G2Arrow:
+		if err := v.g2ParseArrow(); err != nil {
+			return err
+		}
 	default:
 		err := v.g2Node()
 		if err != nil {
@@ -511,7 +518,126 @@ func (v *Visitor) g2Node() error {
 	}
 
 	//node.Range.EndPos = v.lexer.Pos()
+	v.visitMe.Close()
+	return nil
+}
 
+// g2EatComments will read all G2 comments from the current lexer position and store them in
+// p.g2Comments so that the can be placed in a sensible node with g2AppendComments.
+func (v *Visitor) g2EatComments() error {
+	for {
+		tok, err := v.peek()
+		if err != nil {
+			// Do not report an error at this point, as some other function will handle it.
+			break
+		}
+
+		if tok.TokenType() != token.TokenG2Comment {
+			// The next thing is not a comment, which means that we are done.
+			break
+		}
+
+		v.next() // Pop G2Comment
+
+		tok, err = v.next()
+		if err != nil {
+			return err
+		}
+
+		// Expect CharData as comment
+		if cd, ok := tok.(*token.CharData); ok {
+			v.visitMe.G2AddComments(cd)
+		} else {
+			return token.NewPosError(
+				tok.Pos(),
+				"empty comment is not valid",
+			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
+		}
+	}
+
+	return nil
+}
+
+// g2ParseBlock parses a block and its children into the given node.
+// The blockType of the node will be set to the type of the block.
+func (v *Visitor) g2ParseBlock() error {
+	tok, err := v.next()
+	if err != nil {
+		return err
+	}
+
+	// Set BlockType
+	switch tok.(type) {
+	case *token.BlockStart:
+		v.visitMe.SetBlockType(BlockNormal)
+	case *token.GroupStart:
+		v.visitMe.SetBlockType(BlockGroup)
+	case *token.GenericStart:
+		v.visitMe.SetBlockType(BlockGeneric)
+	default:
+		return token.NewPosError(tok.Pos(), "expected a BlockStart")
+	}
+
+	// Parse children
+	for {
+		if err := v.g2EatComments(); err != nil {
+			return err
+		}
+
+		v.visitMe.G2AppendComments()
+
+		tok, err = v.peek()
+		if err != nil {
+			return err
+		}
+
+		if v.visitMe.NodeIsClosedBy(tok) {
+			v.next() // pop closing token
+
+			break
+		} else if tok.TokenType() == token.TokenDefineElement {
+			err := v.g1LineNodes()
+			if err != nil {
+				return err
+			}
+		} else {
+			err := v.g2Node()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// g2ParseArrow is used to parse the return arrow, which has special semantics.
+// It is used to append a "ret" element containing function return values to a
+// function definition. For this to work, the function must be defined as:
+//     name(...) -> (...)
+// or
+//     name -> (...)
+// The "name" element will get a new child named "ret" appended that contains
+// all children in the block after "->".
+// The block "(...)" is required after the arrow, but can be any valid block.
+func (v *Visitor) g2ParseArrow() error {
+	// Expect arrow
+	tok, err := v.next()
+	if err != nil {
+		return err
+	}
+
+	if tok.TokenType() != token.TokenG2Arrow {
+		return token.NewPosError(tok.Pos(), "'->' expected")
+	}
+
+	v.visitMe.NewNode("ret")
+
+	if err := v.g2ParseBlock(); err != nil {
+		return err
+	}
+
+	v.visitMe.Close()
 	return nil
 }
 
