@@ -552,7 +552,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	testCases = append(testCases, TestCase{
-		name: "map with custom type as value",
+		name: "type alias",
 		text: `#!{
 					StringA "hello"
 					StringB "world"
