@@ -20,7 +20,7 @@ type Visitable interface {
 	NewStringCommentNode(name string)
 
 	AddAttribute(key, value string)
-	MergeAttributes(m AttributeMap)
+	MergeAttributes()
 	SetNodeName(name string)
 	SetNodeText(text string)
 	SetBlockType(t BlockType)
@@ -29,12 +29,14 @@ type Visitable interface {
 	SetEndPos(pos token.Pos)
 	GetRange() token.Position
 
+	SwitchActiveTree()
 	GetForwardingLength() int
+	GetForwardingAttributesLength() int
 	GetForwardingPosition(i int) token.Node
 	AddForwardAttribute(m AttributeMap)
 	AddForwardNode(name string)
 	AppendForwardingNodes()
-	MergeAttributesForwarded(m AttributeMap)
+	MergeAttributesForwarded()
 
 	SetGlobalForwarding(f bool)
 	AppendSubTreeForward()
@@ -200,7 +202,7 @@ func (v *Visitor) g1Node() error {
 	v.position.BeginPos = v.lexer.Pos()
 
 	// Parse forwarding attributes
-	forwardedAttributes, err := v.parseAttributes(true)
+	err := v.parseAttributes(true)
 	if err != nil {
 		return err
 	}
@@ -215,9 +217,7 @@ func (v *Visitor) g1Node() error {
 	case *token.DefineElement:
 		forwardingNode = t.Forward
 	case *token.CharData:
-		v.visitMe.NewStringNode(t.Value)
-		//v.visitMe.SetNodeText(t.Value)
-		v.visitMe.Close()
+		v.visitMe.NewTextNode(t)
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -228,7 +228,6 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
-			v.visitMe.Close()
 			return nil
 		} else {
 			return token.NewPosError(
@@ -270,15 +269,15 @@ func (v *Visitor) g1Node() error {
 	}
 
 	// Process non-forwarding attributes.
-	attributes, err := v.parseAttributes(false)
+	err = v.parseAttributes(false)
 	if err != nil {
 		return err
 	}
 
 	if forwardingNode {
-		v.visitMe.MergeAttributesForwarded(attributes.Merge(forwardedAttributes))
+		v.visitMe.MergeAttributesForwarded()
 	} else {
-		v.visitMe.MergeAttributes(attributes.Merge(forwardedAttributes))
+		v.visitMe.MergeAttributes()
 	}
 
 	// Optional children enclosed in brackets
@@ -325,7 +324,6 @@ func (v *Visitor) g1Node() error {
 		v.next()
 
 		v.visitMe.NewTextNode(tok.(*token.CharData))
-		v.visitMe.Close()
 	}
 
 	if forwardingNode {
@@ -378,7 +376,7 @@ func (v *Visitor) g1LineNodes() error {
 			return err
 		}
 	}
-	v.visitMe.SetGlobalForwarding(false)
+	v.visitMe.SwitchActiveTree()
 
 	v.mode = token.G2
 
@@ -399,7 +397,7 @@ func (v *Visitor) g2Node() error {
 	//node.Range.BeginPos = v.lexer.Pos() // TODO set Position method in interface and Parser
 
 	// Read forward attributes
-	forwardedAttributes, err := v.parseAttributes(true)
+	err := v.parseAttributes(true)
 	if err != nil {
 		return err
 	}
@@ -416,7 +414,7 @@ func (v *Visitor) g2Node() error {
 		// Insert forwarded nodes
 		v.visitMe.AppendForwardingNodes()
 	case *token.CharData:
-		if len(forwardedAttributes) > 0 {
+		if v.visitMe.GetForwardingAttributesLength() > 0 {
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
 			return token.NewPosError(
 				tok.Pos(),
@@ -424,7 +422,6 @@ func (v *Visitor) g2Node() error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 		v.visitMe.NewTextNode(t)
-		v.visitMe.Close()
 		return nil
 	default:
 		return token.NewPosError(
@@ -434,13 +431,12 @@ func (v *Visitor) g2Node() error {
 	}
 
 	// Read attributes
-	attributes, err := v.parseAttributes(false)
+	err = v.parseAttributes(false)
 	if err != nil {
 		return err
 	}
 
-	v.addAttributes(attributes)
-	v.visitMe.MergeAttributes(nil)
+	v.visitMe.MergeAttributes()
 
 	// Process children
 	tok, err = v.peek()
@@ -524,7 +520,7 @@ func (v *Visitor) g2Node() error {
 // The function returns when a non-attribute is encountered. Should an attribute be parsed
 // that is the wrong type of forwarding, it will return an error.
 // This function can read attributes in modes G1, G2.
-func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
+func (v *Visitor) parseAttributes(wantForward bool) error {
 	result := NewAttributeMap()
 
 	isG1 := v.mode == token.G1 || v.mode == token.G1Line
@@ -537,7 +533,7 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		if attr, ok := tok.(*token.DefineAttribute); ok {
 			if wantForward && !attr.Forward {
-				return nil, token.NewPosError(
+				return token.NewPosError(
 					tok.Pos(),
 					"this should be a forward attribute or removed",
 				).SetCause(NewForwardAttrError())
@@ -565,20 +561,20 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 		// Read attribute key
 		tok, err = v.next()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if ident, ok := tok.(*token.Identifier); ok {
 			attrKey = ident.Value
 		} else {
-			return nil, token.NewPosError(
+			return token.NewPosError(
 				tok.Pos(),
 				"an identifier is required as an attribute key",
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 		}
 
 		if result.Has(attrKey) {
-			return nil, token.NewPosError(
+			return token.NewPosError(
 				tok.Pos(),
 				"cannot define same attribute twice",
 			)
@@ -590,14 +586,14 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 		tok, _ = v.next()
 		if isG1 {
 			if tok.TokenType() != token.TokenBlockStart {
-				return nil, token.NewPosError(
+				return token.NewPosError(
 					tok.Pos(),
 					"attribute value must be enclosed in '{}'",
 				).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockStart))
 			}
 		} else {
 			if tok.TokenType() != token.TokenAssign {
-				return nil, token.NewPosError(
+				return token.NewPosError(
 					tok.Pos(),
 					"'=' is expected here",
 				).SetCause(NewUnexpectedTokenError(tok, token.TokenAssign))
@@ -606,13 +602,13 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 
 		tok, err = v.next()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if cd, ok := tok.(*token.CharData); ok {
 			attrValue = cd.Value
 		} else {
-			return nil, token.NewPosError(
+			return token.NewPosError(
 				tok.Pos(),
 				"attribute value is required",
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
@@ -623,7 +619,7 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 		if isG1 {
 			tok, _ = v.next()
 			if tok.TokenType() != token.TokenBlockEnd {
-				return nil, token.NewPosError(
+				return token.NewPosError(
 					tok.Pos(),
 					"attribute value needs to be closed with '}'",
 				).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockEnd))
@@ -631,7 +627,15 @@ func (v *Visitor) parseAttributes(wantForward bool) (AttributeMap, error) {
 		}
 	}
 
-	return result, nil
+	if wantForward {
+		v.visitMe.AddForwardAttribute(result)
+	} else {
+		for key, val := range result {
+			v.visitMe.AddAttribute(key, val)
+		}
+	}
+
+	return nil
 }
 
 func (v *Visitor) addAttributes(m AttributeMap) {

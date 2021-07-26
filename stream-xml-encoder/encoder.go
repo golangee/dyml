@@ -2,7 +2,6 @@ package streamxmlencoder
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -46,44 +45,13 @@ func (x *XMLEncoder) write(in ...string) {
 // NewEncoder creades a new XMLEncoder
 // tadl-input is given as an io.Reader instance
 func NewEncoder(filename string, r io.Reader, w io.Writer) XMLEncoder {
-	/*buffer := new(strings.Builder)
-	_, err := io.Copy(buffer, r)
-	if err != nil {
-		log.Fatal("Could not read from Reader. Aborting")
-	}
-	r = bytes.NewBuffer([]byte(`#? saying hello world #hello{world}`))
-
-	fmt.Println("-")
-	fmt.Println("buffer ", buffer)
-	fmt.Println("-")*/
-	lexer := token.NewLexer("default", r)
-	encoder := XMLEncoder{
-		lexer: lexer,
-		//tadlText: buffer.String(),
-		writer:     w,
-		buffWriter: bufio.NewWriter(w),
-	}
-	encoder.write(lt, "root", gt)
-	return encoder
+	return nil
 }
 
 // EncodeToXml uses a parser2.parser to create a syntax tree,
 // utilizes the encodeRek method to translate it and returns the result
 func (x *XMLEncoder) EncodeToXML() (string, error) {
-	var err error
-	var output string
-	var pars = parser.NewParser("test", bytes.NewBuffer([]byte(x.tadlText)))
-	var tree *parser.TreeNode
-	tree, err = pars.Parse()
-	if err != nil {
-		return "", err
-	}
-
-	output, err = encodeRek(*tree)
-	if err != nil {
-		return "", err
-	}
-	return output, nil
+	return "", errors.New("Encoding not implemented yet")
 }
 
 // encodeRek recursively translates the syntax tree

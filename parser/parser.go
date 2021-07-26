@@ -229,11 +229,10 @@ type Parser struct {
 func NewParser(filename string, r io.Reader) *Parser {
 	parser := &Parser{
 		visitor:       *NewVisitor(nil, token.NewLexer(filename, r)),
-		root:          NewNode(""),
 		globalForward: false,
+		rootForward:   NewNode("root").Block(BlockNormal),
 	}
-	parser.parent = parser.root
-	parser.parent = parser.root
+	parser.parentForward = parser.rootForward
 	parser.visitor.SetVisitable(parser)
 	parser.firstNode = true
 	return parser
@@ -260,151 +259,101 @@ func (p *Parser) Parse() (*TreeNode, error) {
 
 // Open sets the parent pointer to the latest Child of it's current Node
 func (p *Parser) Open() {
-	if p.globalForward {
-		p.parentForward = p.parentForward.Children[len(p.parentForward.Children)-1]
-	} else {
-		p.parent = p.parent.Children[len(p.parent.Children)-1]
-	}
+	p.parent = p.parent.Children[len(p.parent.Children)-1]
 }
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewNode(name string) {
-	if p.firstNode {
-		p.firstNode = false
-		p.parent.Name = name
+	if p.root == nil || p.firstNode {
+		p.root = NewNode(name)
+		p.parent = p.root
+
+		if p.firstNode {
+			p.firstNode = false
+		}
 		return
 	}
-	if p.globalForward {
-		p.parentForward.AddChildren(NewNode(name))
-		p.parentForward.Children[len(p.parentForward.Children)-1].parent = p.parentForward
-		p.Open()
-	} else {
-		p.parent.AddChildren(NewNode(name))
-		p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-		p.Open()
-	}
 
+	p.parent.AddChildren(NewNode(name))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewStringNode(name string) {
-	if p.globalForward {
-		p.parentForward.AddChildren(NewStringNode(name))
-		p.parentForward.Children[len(p.parentForward.Children)-1].parent = p.parentForward
-		p.Open()
-	} else {
-		p.parent.AddChildren(NewStringNode(name))
-		p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-		p.Open()
-	}
+	p.parent.AddChildren(NewStringNode(name))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewTextNode(cd *token.CharData) {
-	if p.globalForward {
-		p.parentForward.AddChildren(NewTextNode(cd))
-		p.parentForward.Children[len(p.parentForward.Children)-1].parent = p.parentForward
-		p.Open()
-	} else {
-		p.parent.AddChildren(NewTextNode(cd))
-		p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-		p.Open()
-	}
+	p.parent.AddChildren(NewTextNode(cd))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
 }
 
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewCommentNode(cd *token.CharData) {
-	if p.globalForward {
-		p.parentForward.AddChildren(NewCommentNode(cd))
-		p.parentForward.Children[len(p.parentForward.Children)-1].parent = p.parentForward
-		p.Open()
-	} else {
-		p.parent.AddChildren(NewCommentNode(cd))
-		p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-		p.Open()
-	}
+	p.parent.AddChildren(NewCommentNode(cd))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
 }
 
 // NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewStringCommentNode(text string) {
-	if p.globalForward {
-		p.parentForward.AddChildren(NewStringCommentNode(text))
-		p.parentForward.Children[len(p.parentForward.Children)-1].parent = p.parentForward
-		p.Open()
-	} else {
-		p.parent.AddChildren(NewStringCommentNode(text))
-		p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-		p.Open()
-	}
-
+	p.parent.AddChildren(NewStringCommentNode(text))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.Open()
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (p *Parser) AddAttribute(key, value string) {
-	if p.globalForward {
-		p.parentForward.Attributes.Set(key, value)
-	} else {
-		p.parent.Attributes.Set(key, value)
-	}
+	p.parent.Attributes.Set(key, value)
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
 func (p *Parser) AddForwardAttribute(m AttributeMap) {
-	p.forwardingAttributes.Merge(m)
+	p.forwardingAttributes = p.forwardingAttributes.Merge(m)
 }
 
 // Block sets the current parent Nodes BlockType from given parameter
 func (p *Parser) Block(blockType BlockType) {
-	if p.globalForward {
-		p.parentForward.Block(blockType)
-	} else {
-		p.parent.Block(blockType)
-	}
+	p.parent.Block(blockType)
 }
 
 // Close moves the parent pointer to its current parent Node
 func (p *Parser) Close() {
-	if p.globalForward {
-		if p.parentForward.parent != nil {
-			p.parentForward = p.parentForward.parent
-		}
-	} else {
-		if p.parent.parent != nil {
-			p.parent = p.parent.parent
-		}
+	if p.parent.parent != nil {
+		p.parent = p.parent.parent
 	}
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
 func (p *Parser) AddForwardNode(name string) {
-	p.forwardingNodes = append(p.forwardingNodes, NewNode(name))
+	p.SwitchActiveTree()
+	p.parent = p.root
+	p.NewNode(name)
+	p.SwitchActiveTree()
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes
 // as Children to the current parent Node
 func (p *Parser) AppendForwardingNodes() {
-	if p.globalForward {
-		p.parentForward.Children = append(p.parentForward.Children, p.forwardingNodes...)
-		p.forwardingNodes = nil
-	} else {
-		p.parent.Children = append(p.parent.Children, p.forwardingNodes...)
-		p.forwardingNodes = nil
+	if p.rootForward != nil && p.rootForward.Children != nil && len(p.rootForward.Children) != 0 {
+		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
+		p.rootForward.Children = nil
+		p.parentForward = p.rootForward
 	}
 }
 
-// MergeAttributes appends a given AttributeMap, as well as the list of forwarded Attributes
-// to the current parent Nodes Attributes
-func (p *Parser) MergeAttributes(m AttributeMap) {
-	if p.globalForward {
-		p.parentForward.Attributes = p.forwardingAttributes.Merge(m).Merge(p.parentForward.Attributes)
-	} else {
-		p.parent.Attributes = p.forwardingAttributes.Merge(m).Merge(p.parent.Attributes)
-	}
+// MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
+func (p *Parser) MergeAttributes() {
+	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
+	p.forwardingAttributes = nil
 }
 
 // GetForwardingLenght returns the lenght of the List of forwaring Nodes
@@ -420,88 +369,55 @@ func (p *Parser) GetForwardingPosition(i int) token.Node {
 
 // SetNodeName sets the current parent Nodes name
 func (p *Parser) SetNodeName(name string) {
-	if p.globalForward {
-		p.parentForward.Name = name
-	} else {
-		p.parent.Name = name
-	}
+	p.parent.Name = name
 }
 
 // SetBlockType sets the current parent Nodes BlockType
 func (p *Parser) SetBlockType(b BlockType) {
-	if p.globalForward {
-		p.parentForward.BlockType = b
-	} else {
-		p.parent.BlockType = b
-	}
+	p.parent.BlockType = b
 }
 
 // GetBlockType returns the current parent Nodes BlockType
 func (p *Parser) GetBlockType() BlockType {
-	if p.globalForward {
-		return p.parentForward.BlockType
-	} else {
-		return p.parent.BlockType
-	}
+	return p.parent.BlockType
 }
 
 // GetRootBlockType returns the root Nodes BlockType
 func (p *Parser) GetRootBlockType() BlockType {
-	if p.globalForward {
-		return p.rootForward.BlockType
-	} else {
-		return p.root.BlockType
-	}
+	return p.root.BlockType
 }
 
 // SetStartPos sets the current parent Nodes Start Position
 func (p *Parser) SetStartPos(pos token.Pos) {
-	if p.globalForward {
-		p.parentForward.Range.BeginPos = pos
-	} else {
-		p.parent.Range.BeginPos = pos
-	}
+	p.parent.Range.BeginPos = pos
 }
 
 // SetEndPos sets the current parent Nodes End Position
 func (p *Parser) SetEndPos(pos token.Pos) {
-	if p.globalForward {
-		p.parentForward.Range.EndPos = pos
-	} else {
-		p.parent.Range.EndPos = pos
-	}
+	p.parent.Range.EndPos = pos
 }
 
 /*
 func (p *Parser) InsertForwardNodes(nodes []*TreeNode) {
-	if p.globalForward {
-		p.parentForward.Children = append(p.parentForward.Children, nodes...)
-	} else {
-		p.parent.Children = append(p.parent.Children, nodes...)
-	}
+	p.parent.Children = append(p.parent.Children, nodes...)
 }*/
 
 // SetNodeText sets the current parent Nodes text
 func (p *Parser) SetNodeText(text string) {
-	if p.globalForward {
-		p.parentForward.Text = &text
-	} else {
-		p.parent.Text = &text
-	}
+	p.parent.Text = &text
 }
 
 // GetRange returns the current parent Nodes Range
 func (p *Parser) GetRange() token.Position {
-	if p.globalForward {
-		return p.parentForward.Range
-	} else {
-		return p.parent.Range
-	}
+	return p.parent.Range
 }
 
-// MergeAttributesForwarded adds a given AttributeMap to the latest forwarded Node
-func (p *Parser) MergeAttributesForwarded(m AttributeMap) {
-	p.forwardingNodes[len(p.forwardingNodes)-1].Attributes = p.forwardingNodes[len(p.forwardingNodes)-1].Attributes.Merge(m)
+// MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
+func (p *Parser) MergeAttributesForwarded() {
+	p.SwitchActiveTree()
+	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
+	p.forwardingAttributes = nil
+	p.SwitchActiveTree()
 }
 
 // SetGlobalForwarding sets the globalForward Field, allowing to build the root- and parentForward tree.
@@ -519,4 +435,21 @@ func (p *Parser) AppendSubTreeForward() {
 // AppendSubTree appends the rootForward Tree to the current parent Nodes Children
 func (p *Parser) AppendSubTree() {
 	p.parent.Children = append(p.parent.Children, p.rootForward)
+}
+
+// GetForwardingAttributesLength returns the length of the forwarding AttributeMap
+func (p *Parser) GetForwardingAttributesLength() int {
+	return len(p.forwardingAttributes)
+}
+
+// SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
+// To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
+func (p *Parser) SwitchActiveTree() {
+	var cache *TreeNode = p.parent
+	p.parent = p.parentForward
+	p.parentForward = cache
+
+	cache = p.root
+	p.root = p.rootForward
+	p.rootForward = cache
 }

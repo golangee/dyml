@@ -17,87 +17,87 @@ func TestParser(t *testing.T) {
 		text    string
 		want    *TreeNode
 		wantErr bool
-	}{ /*
-			{
-				name: "empty",
-				text: "",
-				want: NewNode("root").Block(BlockNormal),
-			},
-			{
-				name: "just text",
-				text: "hello world",
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewStringNode("hello world"),
+	}{
+		{
+			name: "empty",
+			text: "",
+			want: NewNode("root").Block(BlockNormal),
+		},
+		{
+			name: "just text",
+			text: "hello world",
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringNode("hello world"),
+			),
+		},
+		{
+			name: "BlockNoBrackets",
+			text: "#title Chapter Two",
+			want: NewNode("root").Block(BlockNormal).AddChildren(NewNode("title").AddChildren(NewStringNode("Chapter Two"))),
+		},
+		{
+			name: "different children types",
+			text: "hello #item1 world #item2 #item3 more text",
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringNode("hello "),
+				NewNode("item1").AddChildren(
+					NewStringNode("world "),
 				),
-			},
-			{
-				name: "BlockNoBrackets",
-				text: "#title Chapter Two",
-				want: NewNode("root").Block(BlockNormal).AddChildren(NewNode("title").AddChildren(NewStringNode("Chapter Two"))),
-			},
-			{
-				name: "different children types",
-				text: "hello #item1 world #item2 #item3 more text",
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewStringNode("hello "),
-					NewNode("item1").AddChildren(
-						NewStringNode("world "),
-					),
-					NewNode("item2"),
-					NewNode("item3").AddChildren(
-						NewStringNode("more text"),
-					),
+				NewNode("item2"),
+				NewNode("item3").AddChildren(
+					NewStringNode("more text"),
 				),
-			},
-			{
-				name: "recursion and whitespace",
-				text: "#A   { #B{#C  #D{#E }} } #F",
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("A").Block(BlockNormal).AddChildren(
-						NewNode("B").Block(BlockNormal).AddChildren(
-							NewNode("C"),
-							NewNode("D").Block(BlockNormal).AddChildren(
-								NewNode("E"),
-							),
+			),
+		},
+		{
+			name: "recursion and whitespace",
+			text: "#A   { #B{#C  #D{#E }} } #F",
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("A").Block(BlockNormal).AddChildren(
+					NewNode("B").Block(BlockNormal).AddChildren(
+						NewNode("C"),
+						NewNode("D").Block(BlockNormal).AddChildren(
+							NewNode("E"),
 						),
 					),
-					NewNode("F"),
 				),
-			},
-			{
-				name: "elements with text",
-				text: `#title Hello #subtitle World`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("title").AddChildren(
-						NewStringNode("Hello "),
-					),
-					NewNode("subtitle").AddChildren(
-						NewStringNode("World"),
-					),
+				NewNode("F"),
+			),
+		},
+		{
+			name: "elements with text",
+			text: `#title Hello #subtitle World`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("title").AddChildren(
+					NewStringNode("Hello "),
 				),
-			},
-			{
-				name: "attributes",
-				text: `#item @id{5} @hello{world} @complex{attribute "with" #special 'chars}`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("item").
-						AddAttribute("id", "5").
-						AddAttribute("hello", "world").
-						AddAttribute("complex", `attribute "with" #special 'chars`),
+				NewNode("subtitle").AddChildren(
+					NewStringNode("World"),
 				),
-			},
-			{
-				name: "attribute in nested element",
-				text: "#item { #subitem @hello{world} }",
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("item").Block(BlockNormal).AddChildren(
-						NewNode("subitem").AddAttribute("hello", "world"),
-					),
+			),
+		},
+		{
+			name: "attributes",
+			text: `#item @id{5} @hello{world} @complex{attribute "with" #special 'chars}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").
+					AddAttribute("id", "5").
+					AddAttribute("hello", "world").
+					AddAttribute("complex", `attribute "with" #special 'chars`),
+			),
+		},
+		{
+			name: "attribute in nested element",
+			text: "#item { #subitem @hello{world} }",
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").Block(BlockNormal).AddChildren(
+					NewNode("subitem").AddAttribute("hello", "world"),
 				),
-			},
-			{
-				name: "forwarded elements",
-				text: `#A
+			),
+		},
+		{
+			name: "forwarded elements",
+			text: `#A
 						##B
 						##C
 						#D {
@@ -106,91 +106,91 @@ func TestParser(t *testing.T) {
 						}
 						#G
 					`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("A"),
-					NewNode("D").Block(BlockNormal).AddChildren(
-						NewNode("B"),
-						NewNode("C"),
-						NewNode("F").AddChildren(
-							NewNode("E"),
-						),
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("A"),
+				NewNode("D").Block(BlockNormal).AddChildren(
+					NewNode("B"),
+					NewNode("C"),
+					NewNode("F").AddChildren(
+						NewNode("E"),
 					),
-					NewNode("G"),
 				),
-			},
-			{
-				name:    "invalid dangling forward element",
-				text:    `##item`,
-				wantErr: true,
-			},
-			{
-				name: "forwarded attributes",
-				text: `#A
+				NewNode("G"),
+			),
+		},
+		{
+			name:    "invalid dangling forward element",
+			text:    `##item`,
+			wantErr: true,
+		},
+		{
+			name: "forwarded attributes",
+			text: `#A
 						@simple{attribute}
 						@@forwarded{attribute}
 						@@another{forwarded}
 						#B
 						@simple{attribute}
 						#C`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("A").
-						AddAttribute("simple", "attribute"),
-					NewNode("B").
-						AddAttribute("forwarded", "attribute").
-						AddAttribute("another", "forwarded").
-						AddAttribute("simple", "attribute"),
-					NewNode("C"),
-				),
-			},
-			{
-				name: "mixed forwarded attributes and elements",
-				text: `##subA @@key{value} ##subB @@another_key{more_value} #item`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("item").
-						AddAttribute("another_key", "more_value").
-						AddChildren(
-							NewNode("subA"),
-							NewNode("subB").
-								AddAttribute("key", "value"),
-						),
-				),
-			},
-			{
-				name:    "invalid simple attribute",
-				text:    `@key{value} #item`,
-				wantErr: true,
-			},
-			{
-				name:    "invalid attribute defined twice",
-				text:    `#item @key{value} @key{value}`,
-				wantErr: true,
-			},
-			{
-				name:    "invalid dangling forward attribute",
-				text:    `@@key{value}`,
-				wantErr: true,
-			},
-			{
-				name: "comment",
-				text: "#? this is a comment\nThis is not.",
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewStringCommentNode("this is a comment"),
-					NewStringNode("This is not."),
-				),
-			},
-			{
-				name: "empty G2",
-				text: `#!{}`,
-				want: NewNode("root").Block(BlockNormal),
-			},
-			{
-				name: "simple G2",
-				text: `#!{item}`,
-				want: NewNode("root").Block(BlockNormal).AddChildren(
-					NewNode("item"),
-				),
-			},*/
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("A").
+					AddAttribute("simple", "attribute"),
+				NewNode("B").
+					AddAttribute("forwarded", "attribute").
+					AddAttribute("another", "forwarded").
+					AddAttribute("simple", "attribute"),
+				NewNode("C"),
+			),
+		},
 		{
+			name: "mixed forwarded attributes and elements",
+			text: `##subA @@key{value} ##subB @@another_key{more_value} #item`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").
+					AddAttribute("another_key", "more_value").
+					AddChildren(
+						NewNode("subA"),
+						NewNode("subB").
+							AddAttribute("key", "value"),
+					),
+			),
+		},
+		{
+			name:    "invalid simple attribute",
+			text:    `@key{value} #item`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid attribute defined twice",
+			text:    `#item @key{value} @key{value}`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid dangling forward attribute",
+			text:    `@@key{value}`,
+			wantErr: true,
+		},
+		{
+			name: "comment",
+			text: "#? this is a comment\nThis is not.",
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringCommentNode("this is a comment"),
+				NewStringNode("This is not."),
+			),
+		},
+		/*{
+			name: "empty G2",
+			text: `#!{}`,
+			want: NewNode("root").Block(BlockNormal),
+		},
+		{
+			name: "simple G2",
+			text: `#!{item}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item"),
+			),
+		},
+		/*{
 			name: "siblings G2",
 			text: `#!{item, item}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
