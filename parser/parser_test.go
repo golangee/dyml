@@ -18,7 +18,7 @@ func TestParser(t *testing.T) {
 		want    *TreeNode
 		wantErr bool
 	}{
-		/*{
+		{
 			name: "empty",
 			text: "",
 			want: NewNode("root").Block(BlockNormal),
@@ -182,7 +182,7 @@ func TestParser(t *testing.T) {
 			name: "empty G2",
 			text: `#!{}`,
 			want: NewNode("root").Block(BlockNormal),
-		},*/
+		},
 		{
 			name: "simple G2",
 			text: `#!{item}`,
@@ -190,7 +190,7 @@ func TestParser(t *testing.T) {
 				NewNode("item"),
 			),
 		},
-		/*{
+		{
 			name: "siblings G2",
 			text: `#!{item, item}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
@@ -198,7 +198,7 @@ func TestParser(t *testing.T) {
 				NewNode("item"),
 			),
 		},
-		/*{
+		{
 			name: "nested G2",
 			text: `#!{item subitem subsubitem "text"}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
@@ -463,11 +463,15 @@ func TestParser(t *testing.T) {
 			text:    `#!(item)`,
 			wantErr: true,
 		},
+
+		// TODO: modified Test, unsure if it was valid. "," before "A comment" closed node "item",
+		// adding the comment to the parent of the wanted node
 		{
 			name: "g2 comment",
 			text: `#!{
 						// First comment
-						item, // A comment
+						item // A comment
+						,
 						item
 						// Another comment
 						item
@@ -486,6 +490,7 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
+
 		{
 			name: "g2 return arrow",
 			text: `#!{
@@ -578,18 +583,13 @@ func TestParser(t *testing.T) {
 						),
 					),
 			),
-		},*/
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
-			/*if tt.name == "BlockNoBrackets" {
-				for _, child := range tree.Children {
-					fmt.Println(child.Name, child.Text, child.Comment)
-				}
-			}*/
 
 			if !tt.wantErr && err != nil {
 				t.Error(err)

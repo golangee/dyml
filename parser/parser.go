@@ -362,7 +362,10 @@ func (p *Parser) MergeAttributes() {
 
 // GetForwardingLenght returns the lenght of the List of forwaring Nodes
 func (p *Parser) GetForwardingLength() int {
-	return len(p.forwardingNodes)
+	if p.rootForward != nil && p.rootForward.Children != nil {
+		return len(p.rootForward.Children)
+	}
+	return 0
 }
 
 // GetForwardingPosition retrieves a forwarded Node based on given Index and
@@ -438,7 +441,10 @@ func (p *Parser) AppendSubTreeForward() {
 
 // AppendSubTree appends the rootForward Tree to the current parent Nodes Children
 func (p *Parser) AppendSubTree() {
-	p.parent.Children = append(p.parent.Children, p.rootForward)
+	if len(p.rootForward.Children) != 0 {
+		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
+		p.rootForward.Children = nil
+	}
 }
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
@@ -466,9 +472,10 @@ func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
 // g2AppendComments will append all comments that were parsed with g2EatComments as children
 // into the given node.
 func (p *Parser) G2AppendComments() {
-
-	p.parent.Children = append(p.parent.Children, p.g2Comments...)
-	p.g2Comments = nil
+	if p.parent != nil {
+		p.parent.Children = append(p.parent.Children, p.g2Comments...)
+		p.g2Comments = nil
+	}
 }
 
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,

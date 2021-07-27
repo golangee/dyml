@@ -68,13 +68,17 @@ type Visitor struct {
 
 	forwardMode bool
 	newNode     bool
+	nestedG1    bool
+	closed      bool
 }
 
 func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 	return &Visitor{
-		visitMe: visit,
-		lexer:   lexer,
-		newNode: true,
+		visitMe:  visit,
+		lexer:    lexer,
+		newNode:  true,
+		nestedG1: false,
+		closed:   false,
 	}
 }
 
@@ -267,7 +271,7 @@ func (v *Visitor) g1Node() error {
 
 	// We now have a valid node.
 	// Place our forwardingNodes inside it, if it is not one itself.
-	if !forwardingNode {
+	if !forwardingNode && !v.nestedG1 {
 		v.visitMe.AppendForwardingNodes()
 	}
 
@@ -365,7 +369,8 @@ func (v *Visitor) g1LineNodes() error {
 
 	v.mode = token.G1Line
 
-	v.visitMe.SetGlobalForwarding(true)
+	v.visitMe.SwitchActiveTree()
+	v.nestedG1 = true
 	for {
 		tok, _ := v.peek()
 		if tok != nil && tok.TokenType() == token.TokenG1LineEnd {
@@ -380,6 +385,7 @@ func (v *Visitor) g1LineNodes() error {
 		}
 	}
 	v.visitMe.SwitchActiveTree()
+	v.nestedG1 = false
 
 	v.mode = token.G2
 
@@ -402,6 +408,10 @@ func (v *Visitor) g2Node() error {
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
+		return err
+	}
+
+	if err := v.g2EatComments(); err != nil {
 		return err
 	}
 
@@ -433,6 +443,8 @@ func (v *Visitor) g2Node() error {
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData, token.TokenIdentifier))
 	}
 
+	v.visitMe.AppendForwardingNodes()
+
 	// Read attributes
 	err = v.parseAttributes(false)
 	if err != nil {
@@ -440,6 +452,10 @@ func (v *Visitor) g2Node() error {
 	}
 
 	v.visitMe.MergeAttributes()
+
+	if err := v.g2EatComments(); err != nil {
+		return err
+	}
 
 	// Process children
 	tok, err = v.peek()
@@ -458,7 +474,6 @@ func (v *Visitor) g2Node() error {
 			return err
 		}
 
-		v.visitMe.AppendSubTree()
 	case *token.BlockStart, *token.GenericStart, *token.GroupStart:
 		v.next()
 
@@ -480,7 +495,7 @@ func (v *Visitor) g2Node() error {
 			}
 
 			// TODO: merge with main, adapt to visitor
-			if true { //node.isClosedBy(tok) {
+			if v.visitMe.NodeIsClosedBy(tok) { //node.isClosedBy(tok) {
 				v.next() // pop closing token
 
 				break
@@ -489,20 +504,20 @@ func (v *Visitor) g2Node() error {
 				if err != nil {
 					return err
 				}
-				v.visitMe.AppendSubTree()
 			} else {
 				err := v.g2Node()
 				if err != nil {
 					return err
 				}
-
-				v.visitMe.AppendSubTree()
 			}
 		}
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
 		// Any closing token ends this node and will be handled by the parent.
 	case *token.Comma:
 		// Comma ends a node definition
+
+		v.visitMe.Close()
+		v.closed = true
 		v.next()
 	case *token.G2Arrow:
 		if err := v.g2ParseArrow(); err != nil {
@@ -517,8 +532,26 @@ func (v *Visitor) g2Node() error {
 		v.visitMe.AppendSubTree()
 	}
 
+	tok, err = v.peek()
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+
+	if tok.TokenType() == token.TokenG2Arrow {
+		if err := v.g2ParseArrow(); err != nil {
+			return err
+		}
+	}
+
 	//node.Range.EndPos = v.lexer.Pos()
-	v.visitMe.Close()
+	if !v.closed {
+		v.visitMe.Close()
+	}
+	v.closed = false
+
 	return nil
 }
 
@@ -554,6 +587,7 @@ func (v *Visitor) g2EatComments() error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 	}
+	v.visitMe.G2AppendComments()
 
 	return nil
 }
