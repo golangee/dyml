@@ -18,7 +18,7 @@ type TreeNode struct {
 	Text       *string
 	Comment    *string
 	Attributes AttributeMap
-	parent     *TreeNode
+	Parent     *TreeNode
 	Children   []*TreeNode
 	// BlockType describes the type of brackets the children were surrounded with.
 	// This may be BlockNone in which case this node either has no or one children.
@@ -103,7 +103,7 @@ func (t *TreeNode) Block(blockType BlockType) *TreeNode {
 
 // isClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
 // match for closing this TreeNode.
-func (t *TreeNode) isClosedBy(tok token.Token) bool {
+func (t *TreeNode) IsClosedBy(tok token.Token) bool {
 	switch tok.(type) {
 	case *token.BlockEnd:
 		return t.BlockType == BlockNormal
@@ -145,7 +145,7 @@ func (t *TreeNode) Print() string {
 
 // unbindParents recursively sets all parent Pointers of a tree to nil
 func unbindParents(t *TreeNode) {
-	t.parent = nil
+	t.Parent = nil
 	for _, child := range t.Children {
 		unbindParents(child)
 	}
@@ -258,8 +258,8 @@ func (p *Parser) open() {
 
 // Close moves the parent pointer to its current parent Node
 func (p *Parser) Close() {
-	if p.parent.parent != nil {
-		p.parent = p.parent.parent
+	if p.parent.Parent != nil {
+		p.parent = p.parent.Parent
 	}
 }
 
@@ -277,7 +277,7 @@ func (p *Parser) NewNode(name string) {
 	}
 
 	p.parent.AddChildren(NewNode(name))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 	p.open()
 }
 
@@ -285,14 +285,14 @@ func (p *Parser) NewNode(name string) {
 // Opens the new Node
 func (p *Parser) NewTextNode(cd *token.CharData) {
 	p.parent.AddChildren(NewTextNode(cd))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 }
 
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (p *Parser) NewCommentNode(cd *token.CharData) {
 	p.parent.AddChildren(NewCommentNode(cd))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 }
 
 // SetBlockType sets the current parent Nodes BlockType
@@ -345,7 +345,7 @@ func (p *Parser) GetForwardingPosition(i int) token.Node {
 
 // NodeIsClosedBy checks if the current Node is being closed by the given token.
 func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
-	return p.parent.isClosedBy(tok)
+	return p.parent.IsClosedBy(tok)
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
@@ -429,7 +429,7 @@ func (p *Parser) SwitchActiveTree() {
 // Opens the new Node, used for testing purposes only
 func (p *Parser) NewStringNode(name string) {
 	p.parent.AddChildren(NewStringNode(name))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 	p.open()
 }
 
@@ -437,6 +437,6 @@ func (p *Parser) NewStringNode(name string) {
 // Opens the new Node, used for testing purposes only
 func (p *Parser) NewStringCommentNode(text string) {
 	p.parent.AddChildren(NewStringCommentNode(text))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 	p.open()
 }
