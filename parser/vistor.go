@@ -10,40 +10,35 @@ import (
 // Visitable defines the method signature of Objects
 // that want to utilize the visitor
 type Visitable interface {
-	Open()
 	Close()
 
 	NewNode(name string)
-	NewStringNode(name string)
 	NewTextNode(cd *token.CharData)
 	NewCommentNode(cd *token.CharData)
-	NewStringCommentNode(name string)
-	NodeIsClosedBy(tok token.Token) bool
 
-	AddAttribute(key, value string)
-	MergeAttributes()
-	SetNodeName(name string)
-	SetNodeText(text string)
 	SetBlockType(t BlockType)
-	GetBlockType() BlockType
-	GetRootBlockType() BlockType
+	SetStartPos(pos token.Pos)
 	SetEndPos(pos token.Pos)
-	GetRange() token.Position
 
-	SwitchActiveTree()
+	GetRootBlockType() BlockType
+	GetRange() token.Position
 	GetForwardingLength() int
 	GetForwardingAttributesLength() int
 	GetForwardingPosition(i int) token.Node
+	NodeIsClosedBy(tok token.Token) bool
+
+	AddAttribute(key, value string)
 	AddForwardAttribute(m AttributeMap)
 	AddForwardNode(name string)
-	AppendForwardingNodes()
+	MergeAttributes()
 	MergeAttributesForwarded()
-
-	SetGlobalForwarding(f bool)
-	AppendSubTreeForward()
+	AppendForwardingNodes()
 	AppendSubTree()
+
 	G2AddComments(cd *token.CharData)
 	G2AppendComments()
+
+	SwitchActiveTree()
 }
 
 // Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
@@ -63,13 +58,9 @@ type Visitor struct {
 	// tokens that were added from parser code.
 	tokenTailBuffer []tokenWithError
 
-	// Holds the current nodes Position
-	position token.Position
-
-	forwardMode bool
-	newNode     bool
-	nestedG1    bool
-	closed      bool
+	newNode  bool
+	nestedG1 bool
+	closed   bool
 }
 
 func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
@@ -143,10 +134,6 @@ func (v *Visitor) Run() error {
 	return nil
 }
 
-func (v *Visitor) prep() {
-
-}
-
 // next returns the next token or (nil, io.EOF) if there are no more tokens.
 // Repeatedly calling this can be used to get all tokens by advancing the lexer.
 func (v *Visitor) next() (token.Token, error) {
@@ -205,8 +192,7 @@ func (v *Visitor) peek() (token.Token, error) {
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
 	forwardingNode := false
-	//v.visitMe.NewNode("") // name will be set later
-	v.position.BeginPos = v.lexer.Pos()
+	v.visitMe.SetStartPos(v.lexer.Pos())
 
 	// Parse forwarding attributes
 	err := v.parseAttributes(true)
@@ -261,7 +247,6 @@ func (v *Visitor) g1Node() error {
 		} else {
 			v.visitMe.NewNode(id.Value)
 		}
-		//v.visitMe.SetNodeName(id.Value)
 	} else {
 		return token.NewPosError(
 			tok.Pos(),
@@ -299,7 +284,7 @@ func (v *Visitor) g1Node() error {
 
 			tok, _ = v.peek()
 			if tok == nil {
-				return errors.New("Token not identified, is nil")
+				return errors.New("token not identified, is nil")
 			}
 			if tok.TokenType() == token.TokenBlockEnd {
 				v.visitMe.Close()
@@ -391,20 +376,15 @@ func (v *Visitor) g1LineNodes() error {
 
 	// Should this be a forwarding G1 line, we will store the children for later
 	// and return an empty array here.
-	if forward {
-		v.visitMe.AppendSubTreeForward()
-		return nil
-	} else {
+	if !forward {
 		v.visitMe.AppendSubTree()
-		return nil
 	}
+	return nil
 }
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
-	//node := NewNode("invalid name") // name will be set later
-	//node.Range.BeginPos = v.lexer.Pos() // TODO set Position method in interface and Parser
-
+	v.visitMe.SetStartPos(v.lexer.Pos())
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
@@ -494,8 +474,7 @@ func (v *Visitor) g2Node() error {
 				return err
 			}
 
-			// TODO: merge with main, adapt to visitor
-			if v.visitMe.NodeIsClosedBy(tok) { //node.isClosedBy(tok) {
+			if v.visitMe.NodeIsClosedBy(tok) {
 				v.next() // pop closing token
 
 				break
@@ -546,7 +525,7 @@ func (v *Visitor) g2Node() error {
 		}
 	}
 
-	//node.Range.EndPos = v.lexer.Pos()
+	v.visitMe.SetEndPos(v.lexer.Pos())
 	if !v.closed {
 		v.visitMe.Close()
 	}
@@ -796,10 +775,4 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	}
 
 	return nil
-}
-
-func (v *Visitor) addAttributes(m AttributeMap) {
-	for key, val := range m {
-		v.visitMe.AddAttribute(key, val)
-	}
 }

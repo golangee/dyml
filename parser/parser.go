@@ -205,9 +205,7 @@ const (
 
 // Parser is used to get a tree representation from Tadl input.
 type Parser struct {
-	// forwardingNodes is a list of all nodes that were defined as forwarded.
-	// They will be inserted into the next node.
-	forwardingNodes      []*TreeNode
+	//forwardingAttributes contains all Attributes that have been forwarded to be added to the next viable node.
 	forwardingAttributes AttributeMap
 
 	// root and parent are pointers to work with the successively built Tree.
@@ -242,14 +240,6 @@ func NewParser(filename string, r io.Reader) *Parser {
 	return parser
 }
 
-/*func NewParserEncoder(filename string, r io.Reader) *Parser {
-	return &Parser{
-		lexer:   NewLexer(filename, r),
-		mode:    G1,
-		visitor: NewVisitorEncoder(),
-	}
-}*/
-
 // Parse returns a parsed tree.
 func (p *Parser) Parse() (*TreeNode, error) {
 	err := p.visitor.Run()
@@ -261,9 +251,16 @@ func (p *Parser) Parse() (*TreeNode, error) {
 	return p.root, nil
 }
 
-// Open sets the parent pointer to the latest Child of it's current Node
-func (p *Parser) Open() {
+// open sets the parent pointer to the latest Child of it's current Node
+func (p *Parser) open() {
 	p.parent = p.parent.Children[len(p.parent.Children)-1]
+}
+
+// Close moves the parent pointer to its current parent Node
+func (p *Parser) Close() {
+	if p.parent.parent != nil {
+		p.parent = p.parent.parent
+	}
 }
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
@@ -281,15 +278,7 @@ func (p *Parser) NewNode(name string) {
 
 	p.parent.AddChildren(NewNode(name))
 	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-	p.Open()
-}
-
-// NewStringNode creates a Node with Text and adds it as a child to the current parent Node
-// Opens the new Node
-func (p *Parser) NewStringNode(name string) {
-	p.parent.AddChildren(NewStringNode(name))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-	p.Open()
+	p.open()
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
@@ -306,12 +295,57 @@ func (p *Parser) NewCommentNode(cd *token.CharData) {
 	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
 }
 
-// NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
-// Opens the new Node
-func (p *Parser) NewStringCommentNode(text string) {
-	p.parent.AddChildren(NewStringCommentNode(text))
-	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
-	p.Open()
+// SetBlockType sets the current parent Nodes BlockType
+func (p *Parser) SetBlockType(b BlockType) {
+	p.parent.Block(b)
+}
+
+// SetStartPos sets the current parent Nodes Start Position
+func (p *Parser) SetStartPos(pos token.Pos) {
+	if p.parent != nil {
+		p.parent.Range.BeginPos = pos
+	}
+}
+
+// SetEndPos sets the current parent Nodes End Position
+func (p *Parser) SetEndPos(pos token.Pos) {
+	if p.parent != nil {
+		p.parent.Range.EndPos = pos
+	}
+}
+
+// GetRootBlockType returns the root Nodes BlockType
+func (p *Parser) GetRootBlockType() BlockType {
+	return p.root.BlockType
+}
+
+// GetRange returns the current parent Nodes Range
+func (p *Parser) GetRange() token.Position {
+	return p.parent.Range
+}
+
+// GetForwardingLenght returns the lenght of the List of forwaring Nodes
+func (p *Parser) GetForwardingLength() int {
+	if p.rootForward != nil && p.rootForward.Children != nil {
+		return len(p.rootForward.Children)
+	}
+	return 0
+}
+
+// GetForwardingAttributesLength returns the length of the forwarding AttributeMap
+func (p *Parser) GetForwardingAttributesLength() int {
+	return len(p.forwardingAttributes)
+}
+
+// GetForwardingPosition retrieves a forwarded Node based on given Index and
+// returns the Rangespan the Token corresponding to said Node had in the input tadl text
+func (p *Parser) GetForwardingPosition(i int) token.Node {
+	return p.rootForward.Children[i].Range
+}
+
+// NodeIsClosedBy checks if the current Node is being closed by the given token.
+func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
+	return p.parent.isClosedBy(tok)
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
@@ -324,23 +358,25 @@ func (p *Parser) AddForwardAttribute(m AttributeMap) {
 	p.forwardingAttributes = p.forwardingAttributes.Merge(m)
 }
 
-// Block sets the current parent Nodes BlockType from given parameter
-func (p *Parser) Block(blockType BlockType) {
-	p.parent.Block(blockType)
-}
-
-// Close moves the parent pointer to its current parent Node
-func (p *Parser) Close() {
-	if p.parent.parent != nil {
-		p.parent = p.parent.parent
-	}
-}
-
 // AddForwardNode appends a given Node to the list of forwarding Nodes
 func (p *Parser) AddForwardNode(name string) {
 	p.SwitchActiveTree()
 	p.parent = p.root
 	p.NewNode(name)
+	p.SwitchActiveTree()
+}
+
+// MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
+func (p *Parser) MergeAttributes() {
+	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
+	p.forwardingAttributes = nil
+}
+
+// MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
+func (p *Parser) MergeAttributesForwarded() {
+	p.SwitchActiveTree()
+	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
+	p.forwardingAttributes = nil
 	p.SwitchActiveTree()
 }
 
@@ -354,119 +390,12 @@ func (p *Parser) AppendForwardingNodes() {
 	}
 }
 
-// MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
-func (p *Parser) MergeAttributes() {
-	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
-	p.forwardingAttributes = nil
-}
-
-// GetForwardingLenght returns the lenght of the List of forwaring Nodes
-func (p *Parser) GetForwardingLength() int {
-	if p.rootForward != nil && p.rootForward.Children != nil {
-		return len(p.rootForward.Children)
-	}
-	return 0
-}
-
-// GetForwardingPosition retrieves a forwarded Node based on given Index and
-// returns the Rangespan the Token corresponding to said Node had in the input tadl text
-func (p *Parser) GetForwardingPosition(i int) token.Node {
-	return p.forwardingNodes[i].Range
-}
-
-// SetNodeName sets the current parent Nodes name
-func (p *Parser) SetNodeName(name string) {
-	p.parent.Name = name
-}
-
-// SetBlockType sets the current parent Nodes BlockType
-func (p *Parser) SetBlockType(b BlockType) {
-	p.parent.BlockType = b
-}
-
-// GetBlockType returns the current parent Nodes BlockType
-func (p *Parser) GetBlockType() BlockType {
-	return p.parent.BlockType
-}
-
-// GetRootBlockType returns the root Nodes BlockType
-func (p *Parser) GetRootBlockType() BlockType {
-	return p.root.BlockType
-}
-
-// SetStartPos sets the current parent Nodes Start Position
-func (p *Parser) SetStartPos(pos token.Pos) {
-	p.parent.Range.BeginPos = pos
-}
-
-// SetEndPos sets the current parent Nodes End Position
-func (p *Parser) SetEndPos(pos token.Pos) {
-	p.parent.Range.EndPos = pos
-}
-
-/*
-func (p *Parser) InsertForwardNodes(nodes []*TreeNode) {
-	p.parent.Children = append(p.parent.Children, nodes...)
-}*/
-
-// SetNodeText sets the current parent Nodes text
-func (p *Parser) SetNodeText(text string) {
-	p.parent.Text = &text
-}
-
-// GetRange returns the current parent Nodes Range
-func (p *Parser) GetRange() token.Position {
-	return p.parent.Range
-}
-
-// MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
-func (p *Parser) MergeAttributesForwarded() {
-	p.SwitchActiveTree()
-	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
-	p.forwardingAttributes = nil
-	p.SwitchActiveTree()
-}
-
-// SetGlobalForwarding sets the globalForward Field, allowing to build the root- and parentForward tree.
-// This enables determining wether newly created nodes and attributes are supposed to be
-// added to the main Tree, or to the forwarding Tree, to be added later
-func (p *Parser) SetGlobalForwarding(f bool) {
-	p.globalForward = f
-}
-
-// AppendSubTreeForward appends the rootForward Tree to the forwarding Nodes
-func (p *Parser) AppendSubTreeForward() {
-	p.forwardingNodes = append(p.forwardingNodes, p.rootForward)
-}
-
 // AppendSubTree appends the rootForward Tree to the current parent Nodes Children
 func (p *Parser) AppendSubTree() {
 	if len(p.rootForward.Children) != 0 {
 		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
 		p.rootForward.Children = nil
 	}
-}
-
-// GetForwardingAttributesLength returns the length of the forwarding AttributeMap
-func (p *Parser) GetForwardingAttributesLength() int {
-	return len(p.forwardingAttributes)
-}
-
-// SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
-// To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
-func (p *Parser) SwitchActiveTree() {
-	var cache *TreeNode = p.parent
-	p.parent = p.parentForward
-	p.parentForward = cache
-
-	cache = p.root
-	p.root = p.rootForward
-	p.rootForward = cache
-}
-
-// NodeIsClosedBy checks if the current Node is being closed by the given token.
-func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
-	return p.parent.isClosedBy(tok)
 }
 
 // g2AppendComments will append all comments that were parsed with g2EatComments as children
@@ -482,4 +411,32 @@ func (p *Parser) G2AppendComments() {
 // to be added to the tree later
 func (p *Parser) G2AddComments(cd *token.CharData) {
 	p.g2Comments = append(p.g2Comments, NewCommentNode(cd))
+}
+
+// SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
+// To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
+func (p *Parser) SwitchActiveTree() {
+	var cache *TreeNode = p.parent
+	p.parent = p.parentForward
+	p.parentForward = cache
+
+	cache = p.root
+	p.root = p.rootForward
+	p.rootForward = cache
+}
+
+// NewStringNode creates a Node with Text and adds it as a child to the current parent Node
+// Opens the new Node, used for testing purposes only
+func (p *Parser) NewStringNode(name string) {
+	p.parent.AddChildren(NewStringNode(name))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.open()
+}
+
+// NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
+// Opens the new Node, used for testing purposes only
+func (p *Parser) NewStringCommentNode(text string) {
+	p.parent.AddChildren(NewStringCommentNode(text))
+	p.parent.Children[len(p.parent.Children)-1].parent = p.parent
+	p.open()
 }
