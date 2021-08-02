@@ -61,6 +61,7 @@ type Visitor struct {
 	newNode  bool
 	nestedG1 bool
 	closed   bool
+	unopened bool
 }
 
 func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
@@ -70,6 +71,7 @@ func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 		newNode:  true,
 		nestedG1: false,
 		closed:   false,
+		unopened: false,
 	}
 }
 
@@ -211,6 +213,7 @@ func (v *Visitor) g1Node() error {
 		forwardingNode = t.Forward
 	case *token.CharData:
 		v.visitMe.NewTextNode(t)
+		v.unopened = true
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -221,6 +224,7 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
+			v.unopened = true
 			return nil
 		} else {
 			return token.NewPosError(
@@ -287,7 +291,6 @@ func (v *Visitor) g1Node() error {
 				return errors.New("token not identified, is nil")
 			}
 			if tok.TokenType() == token.TokenBlockEnd {
-				v.visitMe.Close()
 				break
 			}
 
@@ -295,8 +298,11 @@ func (v *Visitor) g1Node() error {
 			if err != nil {
 				return err
 			}
-
-			v.visitMe.Close()
+			if !v.unopened {
+				v.visitMe.Close()
+			} else {
+				v.unopened = false
+			}
 
 		}
 
@@ -316,6 +322,7 @@ func (v *Visitor) g1Node() error {
 		v.next()
 
 		v.visitMe.NewTextNode(tok.(*token.CharData))
+		v.unopened = true
 	}
 
 	if forwardingNode {
@@ -415,6 +422,7 @@ func (v *Visitor) g2Node() error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 		v.visitMe.NewTextNode(t)
+		v.unopened = true
 		return nil
 	default:
 		return token.NewPosError(
@@ -448,6 +456,7 @@ func (v *Visitor) g2Node() error {
 		v.next()
 
 		v.visitMe.NewTextNode(t)
+		v.unopened = true
 	case *token.DefineElement:
 		err := v.g1LineNodes()
 		if err != nil {
