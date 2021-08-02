@@ -180,13 +180,12 @@ func (u *UnmarshalError) Unwrap() error {
 // tags are any field tags that may be relevant to process the current node.
 func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...string) error {
 	// Check for custom unmarshalling method.
-	iUnmarshal := reflect.TypeOf((*Unmarshaler)(nil)).Elem()
-	if value.Type().Implements(iUnmarshal) {
-		method := value.MethodByName("UnmarshalTadl")
+	customUnmarshalMethod := value.MethodByName("UnmarshalTadl")
+	if customUnmarshalMethod != *new(reflect.Value) {
 		params := []reflect.Value{reflect.ValueOf(node)}
 
 		// UnmarshalTadl might return an error.
-		errValue := method.Call(params)[0]
+		errValue := customUnmarshalMethod.Call(params)[0]
 		if !errValue.IsNil() {
 			return errValue.Interface().(error)
 		}
