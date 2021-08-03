@@ -24,7 +24,9 @@ type TreeNodeEnc struct {
 	Parent   *TreeNodeEnc
 	Children []*TreeNodeEnc
 
-	written bool
+	written           bool
+	attributesWritten bool
+	opened            bool
 }
 
 func NewNode(text string) *TreeNodeEnc {
@@ -146,6 +148,19 @@ func (e *Encoder) writeBytes(in []byte) error {
 	return nil
 }
 
+func (e *Encoder) writeAttributes() error {
+	if !e.parent.attributesWritten {
+		for key, val := range e.parent.Node.Attributes {
+			err := e.writeString(whitespace, key, equals, dquotes, val, dquotes)
+			if err != nil {
+				return err
+			}
+		}
+		e.parent.attributesWritten = true
+	}
+	return nil
+}
+
 // NewEncoder creades a new XMLEncoder
 // tadl-input is given as an io.Reader instance
 func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder {
@@ -159,7 +174,7 @@ func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder
 }
 
 func (e *Encoder) Encode() error {
-	e.writeString(lt, "root", gt)
+	e.writeString(lt, "root")
 	err := e.visitor.Run()
 	if err != nil {
 		return err
@@ -171,20 +186,18 @@ func (e *Encoder) Encode() error {
 
 // open sets the parent pointer to the latest Child of it's current Node
 func (e *Encoder) open() {
-	if e.parent.IsNode() {
-		for key, value := range e.parent.Node.Attributes {
-			e.writeString(whitespace, key, equals, dquotes, value, dquotes)
-		}
-		e.writeString(gt)
-	}
 	e.parent = e.parent.Children[len(e.parent.Children)-1]
 }
 
 // Close moves the parent pointer to its current parent Node
 func (e *Encoder) Close() {
+	if !e.parent.attributesWritten {
+		e.writeAttributes()
+	}
 	if !e.parent.written && e.parent.IsNode() && e.parent.Parent != nil {
-		if e.parent.Children == nil {
+		if !e.parent.opened {
 			e.writeString(gt)
+			e.parent.opened = true
 		}
 		e.writeString(lt, slash, e.parent.Node.Name, gt)
 		e.parent.written = true
@@ -206,23 +219,31 @@ func (e *Encoder) NewNode(name string) {
 		}
 		return
 	}
+	if !e.parent.opened {
+		if !e.parent.attributesWritten {
+			e.writeAttributes()
+		}
+		e.writeString(gt)
+		e.parent.opened = true
+	}
 
 	e.parent.AddChildren(NewNode(name))
 	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.writeString(lt, name)
 	e.open()
+	e.writeString(lt, name)
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewTextNode(cd *token.CharData) {
 	if !isWhitespaceOnly(cd.Value) {
-		e.parent.AddChildren(NewTextNode(cd))
-		e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-		if nodeChildren := hasNodeChildren(e.parent); !nodeChildren {
+		if !e.parent.opened {
+			if !e.parent.attributesWritten {
+				e.writeAttributes()
+			}
 			e.writeString(gt)
+			e.parent.opened = true
 		}
-
 		e.writeString(cd.Value)
 	}
 }
@@ -230,8 +251,13 @@ func (e *Encoder) NewTextNode(cd *token.CharData) {
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewCommentNode(cd *token.CharData) {
-	e.parent.AddChildren(NewCommentNode(cd))
-	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
+	if !e.parent.opened {
+		if !e.parent.attributesWritten {
+			e.writeAttributes()
+		}
+		e.writeString(gt)
+		e.parent.opened = true
+	}
 	e.writeString(lt, exclammark, hyphen, hyphen, whitespace, cd.Value, whitespace, hyphen, hyphen, gt)
 }
 
@@ -290,7 +316,6 @@ func (e *Encoder) NodeIsClosedBy(tok token.Token) bool {
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (e *Encoder) AddAttribute(key, value string) {
-	e.writeString(whitespace, key, equals, dquotes, value, dquotes)
 	e.parent.Node.Attributes.Set(key, value)
 }
 
@@ -333,7 +358,7 @@ func (e *Encoder) AppendForwardingNodes() {
 
 // AppendSubTree appends the rootForward Tree to the current parent Nodes Children
 func (e *Encoder) AppendSubTree() {
-	if len(e.rootForward.Children) != 0 {
+	if e.rootForward != nil && len(e.rootForward.Children) != 0 {
 		e.parent.Children = append(e.parent.Children, e.rootForward.Children...)
 		e.rootForward.Children = nil
 	}

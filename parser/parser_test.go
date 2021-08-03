@@ -584,6 +584,27 @@ func TestParser(t *testing.T) {
 					),
 			),
 		},
+		{
+			name: "equivalent example grammar1.2",
+			text: `#!{
+						list{
+							item1 key "value",
+							@@id="1"
+							item2,
+							item3 @key="value",
+						}
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("list").Block(BlockNormal).AddChildren(
+					NewNode("item1").
+						AddChildren(
+							NewNode("key").
+								AddChildren(
+									NewStringNode("value"))),
+					NewNode("item2").AddAttribute("id", "1"),
+					NewNode("item3").AddAttribute("key", "value"),
+				)),
+		},
 	}
 
 	for _, tt := range tests {

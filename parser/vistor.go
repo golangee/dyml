@@ -58,20 +58,20 @@ type Visitor struct {
 	// tokens that were added from parser code.
 	tokenTailBuffer []tokenWithError
 
-	newNode  bool
-	nestedG1 bool
-	closed   bool
-	unopened bool
+	newNode        bool
+	nestedG1       bool
+	closed         bool
+	nodeNoChildren bool
 }
 
 func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 	return &Visitor{
-		visitMe:  visit,
-		lexer:    lexer,
-		newNode:  true,
-		nestedG1: false,
-		closed:   false,
-		unopened: false,
+		visitMe:        visit,
+		lexer:          lexer,
+		newNode:        true,
+		nestedG1:       false,
+		closed:         false,
+		nodeNoChildren: false,
 	}
 }
 
@@ -213,7 +213,7 @@ func (v *Visitor) g1Node() error {
 		forwardingNode = t.Forward
 	case *token.CharData:
 		v.visitMe.NewTextNode(t)
-		v.unopened = true
+		v.nodeNoChildren = true
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -224,7 +224,6 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
-			v.unopened = true
 			return nil
 		} else {
 			return token.NewPosError(
@@ -298,11 +297,10 @@ func (v *Visitor) g1Node() error {
 			if err != nil {
 				return err
 			}
-			if !v.unopened {
+			if !v.nodeNoChildren {
 				v.visitMe.Close()
-			} else {
-				v.unopened = false
 			}
+			v.nodeNoChildren = false
 
 		}
 
@@ -322,7 +320,6 @@ func (v *Visitor) g1Node() error {
 		v.next()
 
 		v.visitMe.NewTextNode(tok.(*token.CharData))
-		v.unopened = true
 	}
 
 	if forwardingNode {
@@ -409,6 +406,8 @@ func (v *Visitor) g2Node() error {
 	}
 
 	switch t := tok.(type) {
+	case *token.Comma:
+		return nil
 	case *token.Identifier:
 		v.visitMe.NewNode(t.Value)
 		// Insert forwarded nodes
@@ -422,7 +421,6 @@ func (v *Visitor) g2Node() error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 		v.visitMe.NewTextNode(t)
-		v.unopened = true
 		return nil
 	default:
 		return token.NewPosError(
@@ -456,7 +454,6 @@ func (v *Visitor) g2Node() error {
 		v.next()
 
 		v.visitMe.NewTextNode(t)
-		v.unopened = true
 	case *token.DefineElement:
 		err := v.g1LineNodes()
 		if err != nil {
