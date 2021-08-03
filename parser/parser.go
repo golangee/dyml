@@ -228,6 +228,7 @@ type Parser struct {
 	globalForward bool
 }
 
+// NewParser creates and returns a new Parser with corresponding Visitor
 func NewParser(filename string, r io.Reader) *Parser {
 	parser := &Parser{
 		visitor:       *NewVisitor(nil, token.NewLexer(filename, r)),

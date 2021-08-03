@@ -3,6 +3,7 @@ package streamxmlencoder
 import (
 	"bufio"
 	"io"
+	"sort"
 
 	"github.com/golangee/tadl/parser"
 	"github.com/golangee/tadl/token"
@@ -19,6 +20,9 @@ const (
 	gt         = "\x3E"
 )
 
+// TreeNodeEnc defines the TreeNode structure for encoding tadl input to XML
+// inherits from parser.TreeNode the main functionalities,
+// adds functionality for writing encoded XML data
 type TreeNodeEnc struct {
 	Node     *parser.TreeNode
 	Parent   *TreeNodeEnc
@@ -29,30 +33,37 @@ type TreeNodeEnc struct {
 	opened            bool
 }
 
+// NewNode creates a new named TreeNodeEnc
 func NewNode(text string) *TreeNodeEnc {
 	return &TreeNodeEnc{
 		Node: parser.NewNode(text),
 	}
 }
 
+// NewTextNode creates a new TreeNodeEnc with Text
 func NewTextNode(cd *token.CharData) *TreeNodeEnc {
 	return &TreeNodeEnc{
 		Node: parser.NewTextNode(cd),
 	}
 }
 
+// NewCommentNode creates a new TreeNodeEnc with Comment
 func NewCommentNode(cd *token.CharData) *TreeNodeEnc {
 	return &TreeNodeEnc{
 		Node: parser.NewCommentNode(cd),
 	}
 }
 
+// NewStringNode creates a new TreeNodeEnc with string as text
+// Only used for testing
 func NewStringNode(text string) *TreeNodeEnc {
 	return &TreeNodeEnc{
 		Node: parser.NewStringNode(text),
 	}
 }
 
+// NewStringNode creates a new TreeNodeEnc with string as Comment
+// Only used for testing
 func NewStringCommentNode(text string) *TreeNodeEnc {
 	return &TreeNodeEnc{
 		Node: parser.NewStringNode(text),
@@ -132,35 +143,6 @@ type Encoder struct {
 	buffsize int
 }
 
-func (e *Encoder) writeString(in ...string) error {
-	for _, text := range in {
-		if _, err := e.buffWriter.Write([]byte(text)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (e *Encoder) writeBytes(in []byte) error {
-	if _, err := e.buffWriter.Write(in); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *Encoder) writeAttributes() error {
-	if !e.parent.attributesWritten {
-		for key, val := range e.parent.Node.Attributes {
-			err := e.writeString(whitespace, key, equals, dquotes, val, dquotes)
-			if err != nil {
-				return err
-			}
-		}
-		e.parent.attributesWritten = true
-	}
-	return nil
-}
-
 // NewEncoder creades a new XMLEncoder
 // tadl-input is given as an io.Reader instance
 func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder {
@@ -173,6 +155,56 @@ func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder
 	return encoder
 }
 
+// writeString writes the given string to the encoders io.Writer.
+func (e *Encoder) writeString(in ...string) error {
+	for _, text := range in {
+		if _, err := e.buffWriter.Write([]byte(text)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeBytes writes the given Byteslice to the encoders io.Writer.
+func (e *Encoder) writeBytes(in []byte) error {
+	if _, err := e.buffWriter.Write(in); err != nil {
+		return err
+	}
+	return nil
+}
+
+// writeAttributes writes all Attributes of the current parent node to the encoders io.Writer.
+func (e *Encoder) writeAttributes() error {
+	if !e.parent.attributesWritten {
+
+		// sorting Attributes alphabetically before writing to the encoders io.Writer
+		// TODO: may be inefficient. possible refactor
+		keys := make([]string, 0, len(e.parent.Node.Attributes))
+		for k, _ := range e.parent.Node.Attributes {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			err := e.writeString(whitespace, k, equals, dquotes, e.parent.Node.Attributes[k], dquotes)
+			if err != nil {
+				return err
+			}
+		}
+
+		/*for key, val := range e.parent.Node.Attributes {
+			err := e.writeString(whitespace, key, equals, dquotes, val, dquotes)
+			if err != nil {
+				return err
+			}
+		}
+		*/
+		e.parent.attributesWritten = true
+	}
+	return nil
+}
+
+// Encode starts the encoding of tadl-text to XML
+// encoded text will be written to the encoders io.Writer
 func (e *Encoder) Encode() error {
 	e.writeString(lt, "root")
 	err := e.visitor.Run()
@@ -408,15 +440,7 @@ func (e *Encoder) NewStringCommentNode(text string) {
 	e.open()
 }
 
-func hasNodeChildren(t *TreeNodeEnc) bool {
-	for _, child := range t.Children {
-		if child.IsNode() {
-			return true
-		}
-	}
-	return false
-}
-
+// isWhitespaceOnly checks if the given string consists of whitespaces only
 func isWhitespaceOnly(s string) bool {
 	for _, char := range s {
 		if char != ' ' && char != '\n' && char != '\t' {

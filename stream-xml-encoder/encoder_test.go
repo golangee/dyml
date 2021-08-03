@@ -10,23 +10,26 @@ import (
 func TestEncoderStream(t *testing.T) {
 	var encoder Encoder
 	tests := []struct {
-		name    string
-		text    string
-		want    string
-		wantErr bool
+		name     string
+		text     string
+		want     string
+		wantErr  bool
+		buffsize int
 	}{
 		{
 			name: "hello world",
 			text: `#? saying hello world
 						#hello{world}`,
-			want:    `<root><!-- saying hello world --><hello>world</hello></root>`,
-			wantErr: false,
+			want:     `<root><!-- saying hello world --><hello>world</hello></root>`,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		{
-			name:    "Identifier + Attributes",
-			text:    `#book @id{my-book} @author{Torben}`,
-			want:    `<root><book id="my-book" author="Torben"></book></root>`,
-			wantErr: false,
+			name:     "Identifier + Attributes",
+			text:     `#book @id{my-book} @author{Torben}`,
+			want:     `<root><book author="Torben" id="my-book"></book></root>`,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		{
 			name: "book example",
@@ -52,7 +55,8 @@ func TestEncoderStream(t *testing.T) {
 					</section>
 				</book>
 			</root>`,
-			wantErr: false,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		{
 			name: "complex book example",
@@ -76,7 +80,7 @@ func TestEncoderStream(t *testing.T) {
 						}
 					}`,
 			want: `<root>
-					<book id="my-book" author="Torben">
+					<book author="Torben" id="my-book">
 						<title>A very simple book</title>
 						<chapter id="ch1">
 							<title>Chapter One</title>
@@ -92,6 +96,7 @@ func TestEncoderStream(t *testing.T) {
 						</chapter>
 					</book>
 				</root>`,
+			buffsize: 10,
 		},
 		{
 			name: "equivalent example grammar1.1",
@@ -107,7 +112,8 @@ func TestEncoderStream(t *testing.T) {
 							<item3 key="value"></item3>
 						</list>
 					</root>`,
-			wantErr: false,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		{
 			name: "equivalent example grammar1.2",
@@ -126,7 +132,8 @@ func TestEncoderStream(t *testing.T) {
 							<item3 key="value"></item3>
 						</list>
 					</root>`,
-			wantErr: false,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		{
 			name: "simple forwarded attribute G2",
@@ -137,11 +144,12 @@ func TestEncoderStream(t *testing.T) {
 			want: `<root>
 						<item key="value"></item>
 					</root>`,
-			wantErr: false,
+			wantErr:  false,
+			buffsize: 5,
 		},
 		// might fail, Attributes added to an AttributeMap do not necessarily stay in the order they were in the tadl text
 		// TODO: add alternative case to catch error, or implement order-sensitivity in AttributeMap
-		// (other TestCases are affected as well)
+		// (other TestCases are affected as well) (edit: implemented order-sensitivity when writing Attributes, test performance)
 		{
 			name: "forwarded attributes G2",
 			text: `#!{
@@ -153,25 +161,38 @@ func TestEncoderStream(t *testing.T) {
 					}`,
 			want: `<root>
 						<item></item>
-						<item key="value" another="one" not="forwarded"></item>
+						<item another="one" key="value" not="forwarded"></item>
 						<parent>
 							<child for="child"></child>
 						</parent>
 					</root>`,
-			wantErr: false,
+			wantErr:  false,
+			buffsize: 10,
 		},
 	}
 	for _, test := range tests {
 		t.Run("stream - "+test.name, func(t *testing.T) {
 			writer := new(bytes.Buffer)
 			reader := bytes.NewBuffer([]byte(test.text))
-			encoder = NewEncoder(test.name, reader, writer, 10)
+			encoder = NewEncoder(test.name, reader, writer, test.buffsize)
+
+			/* first try on testing streaming capability
+			go func() {
+				err := encoder.Encode()
+				if err != nil {
+					t.Errorf("Test failed, unexpected error: %v", err)
+				}
+			}()
+			for c := range writer.Bytes() {
+				fmt.Printf("%c\n", c)
+			}*/
 
 			err := encoder.Encode()
 			if err != nil {
 				t.Errorf("Test failed, unexpected error: %v", err)
 			}
 
+			//TODO: test for streaming
 			val := writer.String()
 
 			if !StringsEqual(test.want, val) {
