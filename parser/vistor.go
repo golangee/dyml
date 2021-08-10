@@ -9,6 +9,8 @@ import (
 
 // Visitable defines the method signature of Objects
 // that want to utilize the visitor
+
+//TODO: Add comments
 type Visitable interface {
 	Close()
 
@@ -17,11 +19,13 @@ type Visitable interface {
 	NewCommentNode(cd *token.CharData)
 
 	SetBlockType(t BlockType)
+
+	//TODO: buffer Position in visitor
 	SetStartPos(pos token.Pos)
 	SetEndPos(pos token.Pos)
+	GetRange() token.Position
 
 	GetRootBlockType() BlockType
-	GetRange() token.Position
 	GetForwardingLength() int
 	GetForwardingAttributesLength() int
 	GetForwardingPosition(i int) token.Node
