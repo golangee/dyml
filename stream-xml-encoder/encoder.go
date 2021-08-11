@@ -2,24 +2,102 @@ package streamxmlencoder
 
 import (
 	"bufio"
+	"errors"
 	"io"
-	"sort"
 
 	"github.com/golangee/tadl/parser"
 	"github.com/golangee/tadl/token"
 )
 
+//TODO: propagate all errors upwards
+
+// TODO: refactor escaping: incoming strings must be checked for escapable characters
+// mainly escape " to \"
 const (
-	whitespace = "\x20"
-	exclammark = "\x21"
-	dquotes    = "\x22"
-	slash      = "\x2F"
-	hyphen     = "\x2D"
-	lt         = "\x3C"
-	equals     = "\x3D"
-	gt         = "\x3E"
+	whitespace = " "
+	exclammark = "!"
+	dquotes    = "\""
+	slash      = "/"
+	hyphen     = "-"
+	lt         = "<"
+	equals     = "="
+	gt         = ">"
 )
 
+func escapeDoubleQuotes(in string) string {
+	var out string
+	for _, c := range in {
+		if c == '"' {
+			out = out + "\""
+		} else {
+			out = out + string(c)
+		}
+	}
+	return out
+}
+
+func escapeDoubleQuotesChar(c *token.CharData) *token.CharData {
+	var out string
+	for _, c := range c.Value {
+		if c == '"' {
+			out = out + "\""
+		} else {
+			out = out + string(c)
+		}
+	}
+	c.Value = out
+	return c
+}
+
+type Node struct {
+	name       string
+	attributes parser.AttributeList
+
+	opened bool
+}
+
+func NewNode(name string) *Node {
+	return &Node{
+		name: name,
+	}
+}
+
+type Stack []Node
+
+// IsEmpty checks if stack is empty
+func (s *Stack) IsEmpty() bool {
+	return len(*s) == 0
+}
+
+// Push a new node onto the stack
+func (s *Stack) Push(n Node) {
+	*s = append(*s, n)
+}
+
+// Pop a node from the stack
+func (s *Stack) Pop() (*Node, bool) {
+	if s.IsEmpty() {
+		return nil, false
+	} else {
+		index := len(*s) - 1
+		element := (*s)[index]
+		*s = (*s)[:index]
+		return &element, true
+	}
+}
+
+// IsEmpty returns true if the last element on the Stack was already opened before
+func (s *Stack) IsOpened() bool {
+	return (*s)[len(*s)-1].opened
+}
+
+// SetOpened sets the opened state of the last element on the Stack.
+func (s *Stack) SetOpened() {
+	(*s)[len(*s)-1].opened = true
+}
+
+//TODO: refactor to stack, remove unused fields
+/*
 // TreeNodeEnc defines the TreeNode structure for encoding tadl input to XML
 // inherits from parser.TreeNode the main functionalities,
 // adds functionality for writing encoded XML data
@@ -34,86 +112,12 @@ type TreeNodeEnc struct {
 }
 
 // NewNode creates a new named TreeNodeEnc
-func NewNode(text string) *TreeNodeEnc {
-	return &TreeNodeEnc{
-		Node: parser.NewNode(text),
+func NewNode(text string) *Node {
+	return &Node{
+		name: text,
+		opened: false,
 	}
-}
-
-// NewTextNode creates a new TreeNodeEnc with Text
-func NewTextNode(cd *token.CharData) *TreeNodeEnc {
-	return &TreeNodeEnc{
-		Node: parser.NewTextNode(cd),
-	}
-}
-
-// NewCommentNode creates a new TreeNodeEnc with Comment
-func NewCommentNode(cd *token.CharData) *TreeNodeEnc {
-	return &TreeNodeEnc{
-		Node: parser.NewCommentNode(cd),
-	}
-}
-
-// NewStringNode creates a new TreeNodeEnc with string as text
-// Only used for testing
-func NewStringNode(text string) *TreeNodeEnc {
-	return &TreeNodeEnc{
-		Node: parser.NewStringNode(text),
-	}
-}
-
-// NewStringNode creates a new TreeNodeEnc with string as Comment
-// Only used for testing
-func NewStringCommentNode(text string) *TreeNodeEnc {
-	return &TreeNodeEnc{
-		Node: parser.NewStringNode(text),
-	}
-}
-
-// AddChildren adds children to a node and can be used builder-style.
-func (t *TreeNodeEnc) AddChildren(children ...*TreeNodeEnc) *TreeNodeEnc {
-	if t.Children != nil {
-		t.Children = append(t.Children, children...)
-	} else {
-		t.Children = children
-	}
-
-	return t
-}
-
-// AddAttribute adds an attribute to a node and can be used builder-style.
-func (t *TreeNodeEnc) AddAttribute(key, value string) {
-	t.Node.AddAttribute(key, value)
-}
-
-// Block is used to set the BlockType of this node.
-func (t *TreeNodeEnc) Block(blockType parser.BlockType) {
-	t.Node.Block(blockType)
-}
-
-// isClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
-// match for closing this TreeNode.
-func (t *TreeNodeEnc) IsClosedBy(tok token.Token) bool {
-	return t.Node.IsClosedBy(tok)
-}
-
-// IsText returns true if this node is a text only node.
-// Only one of IsText, IsComment, IsNode should be true.
-func (t *TreeNodeEnc) IsText() bool {
-	return t.Node.IsText()
-}
-
-// IsComment returns true if this node is a comment node.
-// Only one of IsText, IsComment, IsNode should be true.
-func (t *TreeNodeEnc) IsComment() bool {
-	return t.Node.IsComment()
-}
-
-// IsNode returns true if this is a regular node.
-// Only one of IsText, IsComment, IsNode should be true.
-func (t *TreeNodeEnc) IsNode() bool {
-	return t.Node.IsNode()
-}
+}*/
 
 // Encoder translates tadl-input to corresponding XML
 type Encoder struct {
@@ -121,24 +125,17 @@ type Encoder struct {
 	buffWriter *bufio.Writer
 
 	//forwardingAttributes contains all Attributes that have been forwarded to be added to the next viable node.
-	forwardingAttributes parser.AttributeMap
+	forwardedAttributes parser.AttributeList
 
 	// root and parent are pointers to work with the successively built Tree.
 	// root holds the root Node, parent holds the currently to modify Node
-	root   *TreeNodeEnc
-	parent *TreeNodeEnc
 
-	// root- and parentForward have the same functionality as root and parent.
-	// they are used to create full trees being forwarded, added later to the main tree
-	rootForward   *TreeNodeEnc
-	parentForward *TreeNodeEnc
+	stack   Stack
+	forward Stack
 
 	// g2Comments contains all comments in G2 that were eaten from the input,
 	// but are not yet placed in a sensible position.
-	g2Comments []*TreeNodeEnc
-
-	firstNode     bool
-	globalForward bool
+	g2Comments Stack
 
 	buffsize int
 }
@@ -153,6 +150,17 @@ func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder
 	}
 	encoder.visitor.SetVisitable(&encoder)
 	return encoder
+}
+
+// OpenOptional checks if the current Node on the Stack is opened.
+// opens it and returns true if it is not, returns false otherwise.
+func (e *Encoder) OpenOptional() bool {
+	if !e.stack.IsOpened() {
+		e.writeString(gt)
+		e.stack.SetOpened()
+		return true
+	}
+	return false
 }
 
 // writeString writes the given string to the encoders io.Writer.
@@ -175,7 +183,7 @@ func (e *Encoder) writeBytes(in []byte) error {
 
 // writeAttributes writes all Attributes of the current parent node to the encoders io.Writer.
 func (e *Encoder) writeAttributes() error {
-	if !e.parent.attributesWritten {
+	/*if !e.parent.attributesWritten {
 
 		// sorting Attributes alphabetically before writing to the encoders io.Writer
 		// TODO: may be inefficient. possible refactor
@@ -197,9 +205,10 @@ func (e *Encoder) writeAttributes() error {
 				return err
 			}
 		}
-		*/
+
 		e.parent.attributesWritten = true
 	}
+	return nil*/
 	return nil
 }
 
@@ -216,228 +225,174 @@ func (e *Encoder) Encode() error {
 	return nil
 }
 
+/*
 // open sets the parent pointer to the latest Child of it's current Node
 func (e *Encoder) open() {
+	e.writeString(gt)
+
+
 	e.parent = e.parent.Children[len(e.parent.Children)-1]
-}
+}*/
 
 // Close moves the parent pointer to its current parent Node
-func (e *Encoder) Close() {
-	if !e.parent.attributesWritten {
-		e.writeAttributes()
+func (e *Encoder) Close() error {
+	if !e.stack.IsOpened() {
+		e.writeString(gt)
+		e.stack.SetOpened()
 	}
-	if !e.parent.written && e.parent.IsNode() && e.parent.Parent != nil {
-		if !e.parent.opened {
-			e.writeString(gt)
-			e.parent.opened = true
-		}
-		e.writeString(lt, slash, e.parent.Node.Name, gt)
-		e.parent.written = true
+	node, suc := e.stack.Pop()
+	if !suc {
+		return errors.New("An error occurred while popping the stack")
 	}
-	if e.parent.Parent != nil {
-		e.parent = e.parent.Parent
-	}
+	e.writeString(lt, slash, escapeDoubleQuotes(node.name), gt)
+
+	return nil
 }
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewNode(name string) {
-	if e.root == nil || e.firstNode {
-		e.root = NewNode(name)
-		e.parent = e.root
-
-		if e.firstNode {
-			e.firstNode = false
-		}
-		return
-	}
-	if !e.parent.opened {
-		if !e.parent.attributesWritten {
-			e.writeAttributes()
-		}
-		e.writeString(gt)
-		e.parent.opened = true
-	}
-
-	e.parent.AddChildren(NewNode(name))
-	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.open()
+	e.OpenOptional()
 	e.writeString(lt, name)
+	e.stack.Push(*NewNode(escapeDoubleQuotes(name)))
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewTextNode(cd *token.CharData) {
 	if !isWhitespaceOnly(cd.Value) {
-		if !e.parent.opened {
-			if !e.parent.attributesWritten {
-				e.writeAttributes()
-			}
-			e.writeString(gt)
-			e.parent.opened = true
-		}
-		e.writeString(cd.Value)
+		e.writeString(escapeDoubleQuotes(cd.Value))
 	}
 }
 
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewCommentNode(cd *token.CharData) {
-	if !e.parent.opened {
-		if !e.parent.attributesWritten {
-			e.writeAttributes()
-		}
-		e.writeString(gt)
-		e.parent.opened = true
-	}
-	e.writeString(lt, exclammark, hyphen, hyphen, whitespace, cd.Value, whitespace, hyphen, hyphen, gt)
+	e.OpenOptional()
+	e.writeString(lt, exclammark, hyphen, hyphen, whitespace, escapeDoubleQuotes(cd.Value), whitespace, hyphen, hyphen, gt)
 }
 
-// SetBlockType sets the current parent Nodes BlockType
+// SetBlockType does nothing, as BlockType is not relevant for encoding.
 func (e *Encoder) SetBlockType(b parser.BlockType) {
-	e.parent.Block(b)
+	return
 }
 
-// SetStartPos sets the current parent Nodes Start Position
-func (e *Encoder) SetStartPos(pos token.Pos) {
-	if e.parent != nil {
-		e.parent.Node.Range.BeginPos = pos
-	}
-}
-
-// SetEndPos sets the current parent Nodes End Position
-func (e *Encoder) SetEndPos(pos token.Pos) {
-	if e.parent != nil {
-		e.parent.Node.Range.EndPos = pos
-	}
-}
-
-// GetRootBlockType returns the root Nodes BlockType
+// GetRootBlockType returns BlockNone, as BlockType is not relevant for encoding.
 func (e *Encoder) GetRootBlockType() parser.BlockType {
-	return e.root.Node.BlockType
-}
-
-// GetRange returns the current parent Nodes Range
-func (e *Encoder) GetRange() token.Position {
-	return e.parent.Node.Range
+	return parser.BlockNone
 }
 
 // GetForwardingLenght returns the lenght of the List of forwaring Nodes
 func (e *Encoder) GetForwardingLength() int {
-	if e.rootForward != nil && e.rootForward.Children != nil {
-		return len(e.rootForward.Children)
-	}
-	return 0
+	return len(e.forward)
 }
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
 func (e *Encoder) GetForwardingAttributesLength() int {
-	return len(e.forwardingAttributes)
-}
-
-// GetForwardingPosition retrieves a forwarded Node based on given Index and
-// returns the Rangespan the Token corresponding to said Node had in the input tadl text
-func (e *Encoder) GetForwardingPosition(i int) token.Node {
-	return e.rootForward.Children[i].Node.Range
-}
-
-// NodeIsClosedBy checks if the current Node is being closed by the given token.
-func (e *Encoder) NodeIsClosedBy(tok token.Token) bool {
-	return e.parent.IsClosedBy(tok)
+	return e.forwardedAttributes.Len()
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (e *Encoder) AddAttribute(key, value string) {
-	e.parent.Node.Attributes.Set(key, value)
+	e.writeString(whitespace, key, equals, dquotes, value, dquotes)
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
-func (e *Encoder) AddForwardAttribute(m parser.AttributeMap) {
-	e.forwardingAttributes = e.forwardingAttributes.Merge(m)
+func (e *Encoder) AddForwardAttribute(key, value string) {
+	e.forwardedAttributes.Push(&AttributeNode{
+		Data: Attribute{
+			key: key,
+			val: value,
+		},
+	})
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
 func (e *Encoder) AddForwardNode(name string) {
-	e.SwitchActiveTree()
-	e.parent = e.root
-	e.NewNode(name)
-	e.SwitchActiveTree()
+	e.forward.Push(*NewNode(escapeDoubleQuotes(name)))
 }
 
 // MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
 func (e *Encoder) MergeAttributes() {
-	e.parent.Node.Attributes = e.parent.Node.Attributes.Merge(e.forwardingAttributes)
-	e.forwardingAttributes = nil
+	attribute := e.forwardedAttributes.first
+	e.writeString(attribute.Data.key, attribute.Data.val)
+	for attribute = attribute.Next; attribute != nil; {
+		e.writeString(attribute.Data.key, attribute.Data.val)
+	}
+	e.forwardedAttributes = *NewAttributeList()
 }
 
 // MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
 func (e *Encoder) MergeAttributesForwarded() {
-	e.SwitchActiveTree()
-	e.parent.Node.Attributes = e.parent.Node.Attributes.Merge(e.forwardingAttributes)
-	e.forwardingAttributes = nil
-	e.SwitchActiveTree()
+	runner1 := e.forward[len(e.forward)-1].attributes.first
+	runner2 := e.forwardedAttributes.first
+	for runner2 != nil {
+		runner1.Next = runner2
+		runner2 = runner2.Next
+	}
+	e.forwardedAttributes = *NewAttributeList()
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes
 // as Children to the current parent Node
 func (e *Encoder) AppendForwardingNodes() {
-	if e.rootForward != nil && e.rootForward.Children != nil && len(e.rootForward.Children) != 0 {
+	/*if e.rootForward != nil && e.rootForward.Children != nil && len(e.rootForward.Children) != 0 {
 		e.parent.Children = append(e.parent.Children, e.rootForward.Children...)
 		e.rootForward.Children = nil
 		e.parentForward = e.rootForward
-	}
+	}*/
 }
 
 // AppendSubTree appends the rootForward Tree to the current parent Nodes Children
 func (e *Encoder) AppendSubTree() {
-	if e.rootForward != nil && len(e.rootForward.Children) != 0 {
+	/*if e.rootForward != nil && len(e.rootForward.Children) != 0 {
 		e.parent.Children = append(e.parent.Children, e.rootForward.Children...)
 		e.rootForward.Children = nil
-	}
+	}*/
 }
 
 // g2AppendComments will append all comments that were parsed with g2EatComments as children
 // into the given node.
 func (e *Encoder) G2AppendComments() {
-	if e.parent != nil {
+	/*if e.parent != nil {
 		e.parent.Children = append(e.parent.Children, e.g2Comments...)
 		e.g2Comments = nil
-	}
+	}*/
 }
 
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
 // to be added to the tree later
 func (e *Encoder) G2AddComments(cd *token.CharData) {
-	e.g2Comments = append(e.g2Comments, NewCommentNode(cd))
+	//e.g2Comments = append(e.g2Comments, NewCommentNode(escapeDoubleQuotesChar(cd)))
 }
 
 // SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
 // To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
 func (e *Encoder) SwitchActiveTree() {
-	var cache *TreeNodeEnc = e.parent
+	/*var cache *TreeNodeEnc = e.parent
 	e.parent = e.parentForward
 	e.parentForward = cache
 
 	cache = e.root
 	e.root = e.rootForward
 	e.rootForward = cache
-	e.globalForward = !e.globalForward
+	e.globalForward = !e.globalForward*/
 }
 
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
 func (e *Encoder) NewStringNode(name string) {
-	e.parent.AddChildren(NewStringNode(name))
+	/*e.parent.AddChildren(NewStringNode(escapeDoubleQuotes(name)))
 	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.open()
+	e.open()*/
 }
 
 // NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
 func (e *Encoder) NewStringCommentNode(text string) {
-	e.parent.AddChildren(NewStringCommentNode(text))
+	/*e.parent.AddChildren(NewStringCommentNode(escapeDoubleQuotes(text)))
 	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.open()
+	e.open()*/
 }
 
 // isWhitespaceOnly checks if the given string consists of whitespaces only

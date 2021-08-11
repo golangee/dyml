@@ -17,7 +17,7 @@ type TreeNode struct {
 	Name       string
 	Text       *string
 	Comment    *string
-	Attributes AttributeMap
+	Attributes AttributeList
 	Parent     *TreeNode
 	Children   []*TreeNode
 	// BlockType describes the type of brackets the children were surrounded with.
@@ -31,7 +31,7 @@ type TreeNode struct {
 func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
-		Attributes: NewAttributeMap(),
+		Attributes: NewAttributeList(),
 		BlockType:  BlockNone,
 	}
 }
@@ -151,13 +151,10 @@ func unbindParents(t *TreeNode) {
 	}
 }
 
+/*
 // AttributeMap is a custom map[string]string to make the
 // handling of attributes easier.
 type AttributeMap map[string]string
-
-func NewAttributeMap() AttributeMap {
-	return make(map[string]string)
-}
 
 // Set sets a key to a value in this map.
 func (a AttributeMap) Set(key, value string) {
@@ -172,7 +169,7 @@ func (a AttributeMap) Has(key string) bool {
 
 // Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
 func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
-	result := NewAttributeMap()
+	result := NewAttributeList()
 
 	for k, v := range a {
 		result[k] = v
@@ -183,7 +180,7 @@ func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
 	}
 
 	return result
-}
+}*/
 
 // tokenWithError is a struct that wraps a Token and an error that may
 // have occurred while reading that Token.
@@ -206,7 +203,7 @@ const (
 // Parser is used to get a tree representation from Tadl input.
 type Parser struct {
 	//forwardingAttributes contains all Attributes that have been forwarded to be added to the next viable node.
-	forwardingAttributes AttributeMap
+	forwardingAttributes *AttributeList
 
 	// root and parent are pointers to work with the successively built Tree.
 	// root holds the root Node, parent holds the currently to modify Node
@@ -258,10 +255,11 @@ func (p *Parser) open() {
 }
 
 // Close moves the parent pointer to its current parent Node
-func (p *Parser) Close() {
+func (p *Parser) Close() error {
 	if p.parent.Parent != nil {
 		p.parent = p.parent.Parent
 	}
+	return nil
 }
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
@@ -335,7 +333,7 @@ func (p *Parser) GetForwardingLength() int {
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
 func (p *Parser) GetForwardingAttributesLength() int {
-	return len(p.forwardingAttributes)
+	return p.forwardingAttributes.Len()
 }
 
 // GetForwardingPosition retrieves a forwarded Node based on given Index and
@@ -355,8 +353,11 @@ func (p *Parser) AddAttribute(key, value string) {
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
-func (p *Parser) AddForwardAttribute(m AttributeMap) {
-	p.forwardingAttributes = p.forwardingAttributes.Merge(m)
+func (p *Parser) AddForwardAttribute(key, value string) {
+	if p.forwardingAttributes == nil {
+		*p.forwardingAttributes = NewAttributeList()
+	}
+	p.forwardingAttributes.Push(key, value)
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
@@ -369,16 +370,20 @@ func (p *Parser) AddForwardNode(name string) {
 
 // MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
 func (p *Parser) MergeAttributes() {
-	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
-	p.forwardingAttributes = nil
+	if p.forwardingAttributes != nil && p.forwardingAttributes.Len() > 0 {
+		p.parent.Attributes = p.parent.Attributes.Merge(*p.forwardingAttributes)
+		p.forwardingAttributes = nil
+	}
 }
 
 // MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
 func (p *Parser) MergeAttributesForwarded() {
-	p.SwitchActiveTree()
-	p.parent.Attributes = p.parent.Attributes.Merge(p.forwardingAttributes)
-	p.forwardingAttributes = nil
-	p.SwitchActiveTree()
+	if p.forwardingAttributes != nil && p.forwardingAttributes.Len() > 0 {
+		p.SwitchActiveTree()
+		p.parent.Attributes = p.parent.Attributes.Merge(*p.forwardingAttributes)
+		p.forwardingAttributes = nil
+		p.SwitchActiveTree()
+	}
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes

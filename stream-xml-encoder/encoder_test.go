@@ -150,6 +150,7 @@ func TestEncoderStream(t *testing.T) {
 		// might fail, Attributes added to an AttributeMap do not necessarily stay in the order they were in the tadl text
 		// TODO: add alternative case to catch error, or implement order-sensitivity in AttributeMap
 		// (other TestCases are affected as well) (edit: implemented order-sensitivity when writing Attributes, test performance)
+		// (edit 2: modify order-sensitivity to actual order of elements, not alphabetically)
 		{
 			name: "forwarded attributes G2",
 			text: `#!{

@@ -12,7 +12,7 @@ import (
 
 //TODO: Add comments
 type Visitable interface {
-	Close()
+	Close() error
 
 	NewNode(name string)
 	NewTextNode(cd *token.CharData)
@@ -21,18 +21,18 @@ type Visitable interface {
 	SetBlockType(t BlockType)
 
 	//TODO: buffer Position in visitor
-	SetStartPos(pos token.Pos)
-	SetEndPos(pos token.Pos)
-	GetRange() token.Position
+	//SetStartPos(pos token.Pos)
+	//SetEndPos(pos token.Pos)
+	//GetForwardingPosition(i int) token.Node
+	//NodeIsClosedBy(tok token.Token) bool
+	//GetRange() token.Position
 
 	GetRootBlockType() BlockType
 	GetForwardingLength() int
 	GetForwardingAttributesLength() int
-	GetForwardingPosition(i int) token.Node
-	NodeIsClosedBy(tok token.Token) bool
 
 	AddAttribute(key, value string)
-	AddForwardAttribute(m AttributeMap)
+	AddForwardAttribute(key, value string)
 	AddForwardNode(name string)
 	MergeAttributes()
 	MergeAttributesForwarded()
@@ -129,12 +129,14 @@ func (v *Visitor) Run() error {
 
 	// All forwarding nodes should have been processed earlier.
 	if v.visitMe.GetForwardingLength() > 0 {
-		return token.NewPosError(v.visitMe.GetForwardingPosition(0), "there is no node to forward this node into")
+		//return token.NewPosError(v.visitMe.GetForwardingPosition(0), "there is no node to forward this node into")
+		return errors.New("Error")
 	}
 
 	// The root element should always have curly brackets.
 	if v.visitMe.GetRootBlockType() != BlockNormal {
-		return token.NewPosError(v.visitMe.GetRange(), "root element must have curly brackets")
+		//return token.NewPosError(v.visitMe.GetRange(), "root element must have curly brackets")
+		return errors.New("Error")
 	}
 
 	return nil
@@ -198,7 +200,7 @@ func (v *Visitor) peek() (token.Token, error) {
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
 	forwardingNode := false
-	v.visitMe.SetStartPos(v.lexer.Pos())
+	//v.visitMe.SetStartPos(v.lexer.Pos())
 
 	// Parse forwarding attributes
 	err := v.parseAttributes(true)
@@ -336,7 +338,7 @@ func (v *Visitor) g1Node() error {
 		return nil
 	}
 
-	v.visitMe.SetEndPos(v.lexer.Pos())
+	//v.visitMe.SetEndPos(v.lexer.Pos())
 	return nil
 }
 
@@ -392,7 +394,7 @@ func (v *Visitor) g1LineNodes() error {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
-	v.visitMe.SetStartPos(v.lexer.Pos())
+	//v.visitMe.SetStartPos(v.lexer.Pos())
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
@@ -484,11 +486,11 @@ func (v *Visitor) g2Node() error {
 				return err
 			}
 
-			if v.visitMe.NodeIsClosedBy(tok) {
+			/*if v.visitMe.NodeIsClosedBy(tok) {
 				v.next() // pop closing token
 
 				break
-			} else if tok.TokenType() == token.TokenDefineElement {
+			} else */if tok.TokenType() == token.TokenDefineElement {
 				err := v.g1LineNodes()
 				if err != nil {
 					return err
@@ -535,7 +537,7 @@ func (v *Visitor) g2Node() error {
 		}
 	}
 
-	v.visitMe.SetEndPos(v.lexer.Pos())
+	//v.visitMe.SetEndPos(v.lexer.Pos())
 	if !v.closed {
 		v.visitMe.Close()
 	}
@@ -614,11 +616,11 @@ func (v *Visitor) g2ParseBlock() error {
 			return err
 		}
 
-		if v.visitMe.NodeIsClosedBy(tok) {
+		/*if v.visitMe.NodeIsClosedBy(tok) {
 			v.next() // pop closing token
 
 			break
-		} else if tok.TokenType() == token.TokenDefineElement {
+		} else */if tok.TokenType() == token.TokenDefineElement {
 			err := v.g1LineNodes()
 			if err != nil {
 				return err
@@ -670,7 +672,7 @@ func (v *Visitor) g2ParseArrow() error {
 // that is the wrong type of forwarding, it will return an error.
 // This function can read attributes in modes G1, G2.
 func (v *Visitor) parseAttributes(wantForward bool) error {
-	result := NewAttributeMap()
+	result := NewAttributeList()
 
 	isG1 := v.mode == token.G1 || v.mode == token.G1Line
 
@@ -777,9 +779,12 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	}
 
 	if wantForward {
-		v.visitMe.AddForwardAttribute(result)
+		for i, key := range result.keys {
+			v.visitMe.AddForwardAttribute(key, result.values[i])
+		}
 	} else {
-		for key, val := range result {
+		for result.Len() > 0 {
+			key, val := result.Pop()
 			v.visitMe.AddAttribute(key, val)
 		}
 	}
