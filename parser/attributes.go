@@ -3,55 +3,58 @@ package parser
 // AttributeList is a double FiFo List to hold Attributes
 // enables order-sensitivity when parsing Attributes
 type AttributeList struct {
-	keys   []string
-	values []string
+	Keys   []*string
+	Values []*string
 }
 
 func NewAttributeList() AttributeList {
-	return AttributeList{
-		keys:   make([]string, 0),
-		values: make([]string, 0),
-	}
+	return AttributeList{}
 }
 
-func (l *AttributeList) Len() int { return len(l.keys) }
+func (l *AttributeList) Len() int { return len(l.Keys) }
 
-func (l *AttributeList) Push(key, value string) {
-	if l.keys != nil {
-		l.keys = append(l.keys, key)
-		l.values = append(l.values, value)
+func (l *AttributeList) Push(key, value *string) {
+	if l.Keys != nil {
+		l.Keys = append(l.Keys, key)
+		l.Values = append(l.Values, value)
 	} else {
-		l.keys = []string{key}
-		l.values = []string{value}
+		l.Keys = []*string{key}
+		l.Values = []*string{value}
 	}
-
 }
 
-func (l *AttributeList) Pop() (string, string) {
+func (l *AttributeList) Pop() (*string, *string) {
 	if l.Len() == 0 {
-		return "", ""
+		return nil, nil
 	}
-	key, val := l.keys[0], l.values[0]
-	l.keys = l.keys[1:]
-	l.values = l.values[1:]
+	key, val := l.Keys[0], l.Values[0]
+	l.Keys = l.Keys[1:]
+	l.Values = l.Values[1:]
 	return key, val
 }
 
-func (l *AttributeList) Set(key, val string) {
+func (l *AttributeList) Set(key, val *string) {
 	l.Push(key, val)
 }
 
 func (l *AttributeList) Merge(other AttributeList) AttributeList {
-	l.keys = append(l.keys, other.keys...)
-	l.values = append(l.values, other.values...)
+	l.Keys = append(l.Keys, other.Keys...)
+	l.Values = append(l.Values, other.Values...)
 	return *l
 }
 
 func (l *AttributeList) Has(key string) bool {
-	for _, k := range l.keys {
-		if k == key {
+	for _, k := range l.Keys {
+		if *k == key {
 			return true
 		}
 	}
 	return false
+}
+
+func (l *AttributeList) Get(index int) (*string, *string) {
+	if l.Len() == 0 {
+		return nil, nil
+	}
+	return l.Values[index], l.Keys[index]
 }

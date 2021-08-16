@@ -9,40 +9,62 @@ import (
 
 // Visitable defines the method signature of Objects
 // that want to utilize the visitor
-
-//TODO: Add comments
 type Visitable interface {
+	// Close is called when processing the currently viewed Node is finished.
+	// The currently viewed Node's parent will be the next one viewed.
 	Close() error
 
+	// NewNode is called when a new Element of the syntax tree is encountered.
+	// Text and Comment nodes do not need to be closed, as they cannot have children,
+	// thus cannot be opened.
 	NewNode(name string)
 	NewTextNode(cd *token.CharData)
 	NewCommentNode(cd *token.CharData)
 
+	// SetBlockType is called when a certain type of brackets is encountered,
+	// represented by the BlockType field.
 	SetBlockType(t BlockType)
 
-	//TODO: buffer Position in visitor
-	//SetStartPos(pos token.Pos)
-	//SetEndPos(pos token.Pos)
-	//GetForwardingPosition(i int) token.Node
-	//NodeIsClosedBy(tok token.Token) bool
-	//GetRange() token.Position
-
+	// GetRootBlockType returns the root nodes BlockType
 	GetRootBlockType() BlockType
+	// GetBlockType returns the currently watched Node BlockType.
+	GetBlockType() BlockType
+	// return the count of buffered forwarding Nodes
 	GetForwardingLength() int
+	// returns the count of buffered forwarding Attributes
 	GetForwardingAttributesLength() int
 
+	// Called when encountering a non-forwarded Attribute.
+	// Adds the attribute to the currently watched Node.
 	AddAttribute(key, value string)
+	// Called when encountering a forwarded Attribute.
+	// Adds the attribute to the List of forwarded Attributes.
 	AddForwardAttribute(key, value string)
-	AddForwardNode(name string)
+	// Adds all forward attributes to the currently watched Node.
 	MergeAttributes()
+	// Adds all forward attributes to the latest forwarded Node.
 	MergeAttributesForwarded()
-	AppendForwardingNodes()
-	AppendSubTree()
 
+	// Adds a Node to the list of forwarded Nodes
+	AddForwardNode(name string)
+	// Appends all Elements in the list of forwarded Nodes to the currently watched Node.
+	AppendForwardingNodes()
+
+	// Adds a comment node to the list of forwarded G2Comments
 	G2AddComments(cd *token.CharData)
+	// Appends all forwarded G2Comments to the currently watched Node.
 	G2AppendComments()
 
+	// swap the main Tree with the forwarding Tree
+	// enables usage of all the methods for both, the active and the forwarding tree.
+	// when encountering a forwarding Element, this method is called.
+	// the forwarding Element is being processed as a non forwarding Element,
+	// afterwards this method is called again.
 	SwitchActiveTree()
+	// Returns the globalForward flag. This flag represents the currently active tree.
+	// (true = the active tree is the forwarding Tree, false = the active Tree is the non-forwarding Tree).
+	// (true = SwitchActiveTree() was called an odd number of times, false accordingly)
+	GetGlobalForward() bool
 }
 
 // Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
@@ -57,6 +79,10 @@ type Visitor struct {
 	// These could be peeked tokens or tokens that were added in the parser.
 	// When it is empty, we can call lexer.Token() to get the next token.
 	tokenBuffer []tokenWithError
+
+	Ranges        []*token.Position
+	forwardRanges []*token.Position
+
 	// tokenTailBuffer contains all tokens that need to be processed once
 	// lexer.Token() returns no more tokens. tokenTailBuffer will contain
 	// tokens that were added from parser code.
@@ -129,14 +155,13 @@ func (v *Visitor) Run() error {
 
 	// All forwarding nodes should have been processed earlier.
 	if v.visitMe.GetForwardingLength() > 0 {
-		//return token.NewPosError(v.visitMe.GetForwardingPosition(0), "there is no node to forward this node into")
-		return errors.New("Error")
+		return token.NewPosError(v.GetForwardingPosition(), "there is no node to forward this node into")
+
 	}
 
 	// The root element should always have curly brackets.
 	if v.visitMe.GetRootBlockType() != BlockNormal {
-		//return token.NewPosError(v.visitMe.GetRange(), "root element must have curly brackets")
-		return errors.New("Error")
+		return token.NewPosError(v.GetRange(), "root element must have curly brackets")
 	}
 
 	return nil
@@ -200,7 +225,6 @@ func (v *Visitor) peek() (token.Token, error) {
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
 	forwardingNode := false
-	//v.visitMe.SetStartPos(v.lexer.Pos())
 
 	// Parse forwarding attributes
 	err := v.parseAttributes(true)
@@ -219,6 +243,7 @@ func (v *Visitor) g1Node() error {
 		forwardingNode = t.Forward
 	case *token.CharData:
 		v.visitMe.NewTextNode(t)
+		v.SetStartPos(v.lexer.Pos())
 		v.nodeNoChildren = true
 		return nil
 	case *token.G1Comment:
@@ -230,6 +255,7 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
+			v.SetStartPos(v.lexer.Pos())
 			return nil
 		} else {
 			return token.NewPosError(
@@ -243,6 +269,7 @@ func (v *Visitor) g1Node() error {
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenDefineElement, token.TokenCharData))
 	}
+	v.SetStartPos(v.lexer.Pos())
 
 	// Expect identifier for new element
 	tok, err = v.next()
@@ -262,6 +289,7 @@ func (v *Visitor) g1Node() error {
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 	}
+	v.SetStartPos(v.lexer.Pos())
 
 	// We now have a valid node.
 	// Place our forwardingNodes inside it, if it is not one itself.
@@ -304,7 +332,7 @@ func (v *Visitor) g1Node() error {
 				return err
 			}
 			if !v.nodeNoChildren {
-				v.visitMe.Close()
+				v.Close()
 			}
 			v.nodeNoChildren = false
 
@@ -333,12 +361,11 @@ func (v *Visitor) g1Node() error {
 		// as it needs to be placed inside the next non-forwarding node.
 		// We will parse another node to make it opaque to our caller that this happened.
 
-		//v.visitMe.AppendSubTreeForward()
 		v.g1Node()
 		return nil
 	}
 
-	//v.visitMe.SetEndPos(v.lexer.Pos())
+	v.SetEndPos(v.lexer.Pos())
 	return nil
 }
 
@@ -387,14 +414,14 @@ func (v *Visitor) g1LineNodes() error {
 	// Should this be a forwarding G1 line, we will store the children for later
 	// and return an empty array here.
 	if !forward {
-		v.visitMe.AppendSubTree()
+		v.visitMe.AppendForwardingNodes()
 	}
 	return nil
 }
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
-	//v.visitMe.SetStartPos(v.lexer.Pos())
+	v.SetStartPos(v.lexer.Pos())
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
@@ -486,11 +513,11 @@ func (v *Visitor) g2Node() error {
 				return err
 			}
 
-			/*if v.visitMe.NodeIsClosedBy(tok) {
+			if v.NodeIsClosedBy(tok) {
 				v.next() // pop closing token
 
 				break
-			} else */if tok.TokenType() == token.TokenDefineElement {
+			} else if tok.TokenType() == token.TokenDefineElement {
 				err := v.g1LineNodes()
 				if err != nil {
 					return err
@@ -507,7 +534,7 @@ func (v *Visitor) g2Node() error {
 	case *token.Comma:
 		// Comma ends a node definition
 
-		v.visitMe.Close()
+		v.Close()
 		v.closed = true
 		v.next()
 	case *token.G2Arrow:
@@ -520,7 +547,7 @@ func (v *Visitor) g2Node() error {
 			return err
 		}
 
-		v.visitMe.AppendSubTree()
+		v.visitMe.AppendForwardingNodes()
 	}
 
 	tok, err = v.peek()
@@ -537,9 +564,9 @@ func (v *Visitor) g2Node() error {
 		}
 	}
 
-	//v.visitMe.SetEndPos(v.lexer.Pos())
+	v.SetEndPos(v.lexer.Pos())
 	if !v.closed {
-		v.visitMe.Close()
+		v.Close()
 	}
 	v.closed = false
 
@@ -616,11 +643,11 @@ func (v *Visitor) g2ParseBlock() error {
 			return err
 		}
 
-		/*if v.visitMe.NodeIsClosedBy(tok) {
+		if v.NodeIsClosedBy(tok) {
 			v.next() // pop closing token
 
 			break
-		} else */if tok.TokenType() == token.TokenDefineElement {
+		} else if tok.TokenType() == token.TokenDefineElement {
 			err := v.g1LineNodes()
 			if err != nil {
 				return err
@@ -662,7 +689,7 @@ func (v *Visitor) g2ParseArrow() error {
 		return err
 	}
 
-	v.visitMe.Close()
+	v.Close()
 	return nil
 }
 
@@ -765,7 +792,7 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
 
-		result.Set(attrKey, attrValue)
+		result.Set(&attrKey, &attrValue)
 
 		if isG1 {
 			tok, _ = v.next()
@@ -779,15 +806,74 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	}
 
 	if wantForward {
-		for i, key := range result.keys {
-			v.visitMe.AddForwardAttribute(key, result.values[i])
+		for i, key := range result.Keys {
+			v.visitMe.AddForwardAttribute(*key, *result.Values[i])
 		}
 	} else {
 		for result.Len() > 0 {
 			key, val := result.Pop()
-			v.visitMe.AddAttribute(key, val)
+			v.visitMe.AddAttribute(*key, *val)
 		}
 	}
 
 	return nil
+}
+
+func (v *Visitor) NodeIsClosedBy(tok token.Token) bool {
+	blocktype := v.visitMe.GetBlockType()
+
+	switch tok.(type) {
+	case *token.BlockEnd:
+		return blocktype == BlockNormal
+	case *token.GroupEnd:
+		return blocktype == BlockGroup
+	case *token.GenericEnd:
+		return blocktype == BlockGeneric
+	default:
+		return false
+	}
+}
+
+func (v *Visitor) SetStartPos(pos token.Pos) {
+	if v.visitMe.GetGlobalForward() {
+		v.forwardRanges = append(v.forwardRanges, &token.Position{BeginPos: pos})
+
+	} else {
+		v.Ranges = append(v.Ranges, &token.Position{BeginPos: pos})
+	}
+}
+
+func (v *Visitor) SetEndPos(pos token.Pos) {
+	if v.visitMe.GetGlobalForward() {
+		v.forwardRanges[len(v.forwardRanges)-1].EndPos = pos
+	} else {
+		v.Ranges[len(v.Ranges)-1].EndPos = pos
+	}
+}
+
+func (v *Visitor) GetForwardingPosition() token.Node {
+	return v.forwardRanges[len(v.forwardRanges)-1]
+}
+
+func (v *Visitor) GetRange() token.Position {
+	if v.visitMe.GetGlobalForward() {
+		return *v.forwardRanges[len(v.forwardRanges)-1]
+	} else {
+		return *v.Ranges[len(v.Ranges)-1]
+	}
+}
+
+func (v *Visitor) PopPosition() token.Position {
+	pos := v.GetRange()
+	if v.visitMe.GetGlobalForward() {
+		v.forwardRanges = v.forwardRanges[:len(v.forwardRanges)-1]
+	} else {
+		v.Ranges = v.Ranges[:len(v.Ranges)-1]
+	}
+	return pos
+}
+
+func (v *Visitor) Close() error {
+	v.PopPosition()
+	return v.visitMe.Close()
 }

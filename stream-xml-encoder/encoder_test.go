@@ -24,7 +24,7 @@ func TestEncoderStream(t *testing.T) {
 			wantErr:  false,
 			buffsize: 5,
 		},
-		{
+		/*{
 			name:     "Identifier + Attributes",
 			text:     `#book @id{my-book} @author{Torben}`,
 			want:     `<root><book author="Torben" id="my-book"></book></root>`,
@@ -169,7 +169,7 @@ func TestEncoderStream(t *testing.T) {
 					</root>`,
 			wantErr:  false,
 			buffsize: 10,
-		},
+		},*/
 	}
 	for _, test := range tests {
 		t.Run("stream - "+test.name, func(t *testing.T) {

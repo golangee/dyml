@@ -89,7 +89,7 @@ func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
-	t.Attributes.Set(key, value)
+	t.Attributes.Set(&key, &value)
 
 	return t
 }
@@ -333,6 +333,9 @@ func (p *Parser) GetForwardingLength() int {
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
 func (p *Parser) GetForwardingAttributesLength() int {
+	if p.forwardingAttributes == nil {
+		return 0
+	}
 	return p.forwardingAttributes.Len()
 }
 
@@ -349,15 +352,15 @@ func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (p *Parser) AddAttribute(key, value string) {
-	p.parent.Attributes.Set(key, value)
+	p.parent.Attributes.Set(&key, &value)
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
 func (p *Parser) AddForwardAttribute(key, value string) {
 	if p.forwardingAttributes == nil {
-		*p.forwardingAttributes = NewAttributeList()
+		p.forwardingAttributes = &AttributeList{}
 	}
-	p.forwardingAttributes.Push(key, value)
+	p.forwardingAttributes.Push(&key, &value)
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
@@ -429,6 +432,8 @@ func (p *Parser) SwitchActiveTree() {
 	cache = p.root
 	p.root = p.rootForward
 	p.rootForward = cache
+
+	p.globalForward = !p.globalForward
 }
 
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
@@ -445,4 +450,12 @@ func (p *Parser) NewStringCommentNode(text string) {
 	p.parent.AddChildren(NewStringCommentNode(text))
 	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 	p.open()
+}
+
+func (p *Parser) GetBlockType() BlockType {
+	return p.parent.BlockType
+}
+
+func (p *Parser) GetGlobalForward() bool {
+	return p.globalForward
 }
