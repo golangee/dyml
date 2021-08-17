@@ -1,27 +1,29 @@
 package parser
 
-// AttributeList is a double FiFo List to hold Attributes
-// enables order-sensitivity when parsing Attributes
-// TODO: possible refactor to linked list, or other more performant datastructure
-
+// Attribute represents single attribute and holds a pointer to the next attribute
 type Attribute struct {
 	Key   string
 	Value string
 	Next  *Attribute
 }
 
+// AttributeList is a FiFo linked list to hold Attributes
+// enables order-sensitivity when parsing Attributes
 type AttributeList struct {
 	first  *Attribute
 	last   *Attribute
 	length int
 }
 
+// NewAttributeList creates an empty AttributeList
 func NewAttributeList() AttributeList {
 	return AttributeList{}
 }
 
+// Len returns the number of attributes in the list
 func (l *AttributeList) Len() int { return l.length }
 
+// Push adds an attribute to the list
 func (l *AttributeList) Push(key, value *string) {
 	attribute := &Attribute{
 		Key:   *key,
@@ -41,6 +43,7 @@ func (l *AttributeList) Push(key, value *string) {
 	l.length++
 }
 
+// Pop returns the first attribute and removes it from the list.
 func (l *AttributeList) Pop() (*string, *string) {
 	if l.Len() == 0 {
 		return nil, nil
@@ -54,10 +57,12 @@ func (l *AttributeList) Pop() (*string, *string) {
 	return &key, &val
 }
 
+// Set = Pop
 func (l *AttributeList) Set(key, val *string) {
 	l.Push(key, val)
 }
 
+// Merge merges the AttributeList with another given AttributeList.
 func (l *AttributeList) Merge(other AttributeList) AttributeList {
 	if l.Len() == 0 {
 		return other
@@ -71,6 +76,7 @@ func (l *AttributeList) Merge(other AttributeList) AttributeList {
 	return *l
 }
 
+// Has returns true if the given key exists in the AttributeList.
 func (l *AttributeList) Has(key string) bool {
 	if l.Len() == 0 {
 		return false
@@ -87,6 +93,8 @@ func (l *AttributeList) Has(key string) bool {
 	return false
 }
 
+// Get returns the key and value of the attribute on the given position in the AttributeList.
+// returns (nil, nil) if the index is out of bounds
 func (l *AttributeList) Get(index int) (*string, *string) {
 	if l.Len() == 0 || l.Len() < index {
 		return nil, nil

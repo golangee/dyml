@@ -91,9 +91,11 @@ type Visitor struct {
 	newNode        bool
 	nestedG1       bool
 	closed         bool
+	closedByComma  bool
 	nodeNoChildren bool
 }
 
+// NewVisitor creates a new Visitor, links lexer and Visitable-implementation to given values.
 func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 	return &Visitor{
 		visitMe:        visit,
@@ -105,10 +107,12 @@ func NewVisitor(visit Visitable, lexer *token.Lexer) *Visitor {
 	}
 }
 
+// SetVisitable sets the visitMe field to an implementation of the Visitable interface.
 func (v *Visitor) SetVisitable(vis Visitable) {
 	v.visitMe = vis
 }
 
+// Run runs the visitor, starting the traversion of the syntax tree.
 func (v *Visitor) Run() error {
 	v.newNode = true
 	// Peek the first token to check if we should set G2 mode.
@@ -266,12 +270,12 @@ func (v *Visitor) g1Node() error {
 			v.visitMe.NewCommentNode(cd)
 			v.setStartPos(v.lexer.Pos())
 			return nil
-		} else {
-			return token.NewPosError(
-				tok.Pos(),
-				"expected a comment",
-			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
+		return token.NewPosError(
+			tok.Pos(),
+			"expected a comment",
+		).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
+
 	default:
 		return token.NewPosError(
 			tok.Pos(),
@@ -449,7 +453,7 @@ func (v *Visitor) g2Node() error {
 
 	switch t := tok.(type) {
 	case *token.Comma:
-		return nil
+		return errors.New("unexpected Comma token")
 	case *token.Identifier:
 		v.visitMe.NewNode(t.Value)
 		// Insert forwarded nodes
@@ -548,6 +552,7 @@ func (v *Visitor) g2Node() error {
 		// Any closing token ends this node and will be handled by the parent.
 	case *token.Comma:
 		// Comma ends a node definition
+		v.closedByComma = true
 
 		v.close()
 		v.closed = true
@@ -581,6 +586,17 @@ func (v *Visitor) g2Node() error {
 
 	v.setEndPos(v.lexer.Pos())
 	if !v.closed {
+		tok, err := v.peek()
+		if err != nil {
+			return err
+		}
+		if tok.TokenType() == token.TokenComma {
+			if v.closedByComma {
+				return errors.New("unexpected Comma token")
+			}
+			v.next()
+
+		}
 		v.close()
 	}
 	v.closed = false
@@ -891,9 +907,8 @@ func (v *Visitor) getRange() (token.Position, error) {
 			return token.Position{}, err
 		}
 		return *v.forwardRanges[len(v.forwardRanges)-1], nil
-	} else {
-		return *v.Ranges[len(v.Ranges)-1], nil
 	}
+	return *v.Ranges[len(v.Ranges)-1], nil
 }
 
 func (v *Visitor) popPosition() (token.Position, error) {

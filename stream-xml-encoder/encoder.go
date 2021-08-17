@@ -1,10 +1,12 @@
 package streamxmlencoder
 
+//TODO: lint
 import (
 	"bufio"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/golangee/tadl/parser"
 	"github.com/golangee/tadl/token"
@@ -22,30 +24,25 @@ const (
 )
 
 func escapeDoubleQuotes(in string) string {
-	var out string
+	var out strings.Builder
 	for _, c := range in {
 		if c == '"' {
-			out = out + "\""
+			out.WriteString("\"")
 		} else {
-			out = out + string(c)
+			out.WriteRune(c)
 		}
 	}
-	return out
+	return out.String()
 }
 
 func escapeDoubleQuotesChar(c *token.CharData) *token.CharData {
-	var out string
-	for _, c := range c.Value {
-		if c == '"' {
-			out = out + "\""
-		} else {
-			out = out + string(c)
-		}
+	return &token.CharData{
+		Position: c.Position,
+		Value:    escapeDoubleQuotes(c.Value),
 	}
-	c.Value = out
-	return c
 }
 
+// Node defines a Node representing a to-be-encoded Element of the tadl-text.
 type Node struct {
 	name       string
 	attributes parser.AttributeList
@@ -54,12 +51,15 @@ type Node struct {
 	blockType parser.BlockType
 }
 
+// NewNode creates a new named Node
 func NewNode(name string) *Node {
 	return &Node{
 		name: name,
 	}
 }
 
+// Stack holds all already encountered Nodes.
+// When a node is closed, it's name is reused and the Node is removed from the stack.
 type Stack []*Node
 
 // IsEmpty checks if stack is empty
@@ -76,15 +76,14 @@ func (s *Stack) Push(n *Node) {
 func (s *Stack) Pop() (*Node, error) {
 	if s.IsEmpty() {
 		return nil, errors.New("an error occurred while popping the stack")
-	} else {
-		index := len(*s) - 1
-		element := (*s)[index]
-		*s = (*s)[:index]
-		return element, nil
 	}
+	index := len(*s) - 1
+	element := (*s)[index]
+	*s = (*s)[:index]
+	return element, nil
 }
 
-// IsEmpty returns true if the last element on the Stack was already opened before
+// IsOpened returns true if the last element on the Stack was already opened before
 func (s *Stack) IsOpened() (bool, error) {
 	if s == nil || len(*s) == 0 {
 		return false, errors.New("stack is empty")
@@ -247,22 +246,28 @@ func (e *Encoder) NewCommentNode(cd *token.CharData) error {
 	return nil
 }
 
-// SetBlockType does nothing, as BlockType is not relevant for encoding.
+// SetBlockType adds the Nodes BlockType to the Node.
+// Uses the AddAttribute method to encode the BlockType, as both share the same structure of encoding.
+// Attribute: [key]="[value]"		BlockType: _groupType="[BlockType]"
 func (e *Encoder) SetBlockType(b parser.BlockType) error {
+	if len(e.stack) > 1 {
+		e.AddAttribute("_groupType", string(b))
+	}
 	e.stack[len(e.stack)-1].blockType = b
 	return nil
 }
 
-// GetRootBlockType returns BlockNone, as BlockType is not relevant for encoding.
+// GetRootBlockType returns the root-nodes block type.
 func (e *Encoder) GetRootBlockType() (parser.BlockType, error) {
 	return e.stack[0].blockType, nil
 }
 
+// GetBlockType returns the current Nodes block type.
 func (e *Encoder) GetBlockType() (parser.BlockType, error) {
 	return e.stack[len(e.stack)-1].blockType, nil
 }
 
-// GetForwardingLenght returns the lenght of the List of forwaring Nodes
+// GetForwardingLength returns the lenght of the List of forwaring Nodes
 func (e *Encoder) GetForwardingLength() (int, error) {
 	return len(e.forward), nil
 }
@@ -330,7 +335,7 @@ func (e *Encoder) AppendForwardingNodes() error {
 	return nil
 }
 
-// g2AppendComments will append all comments that were parsed with g2EatComments as children
+// G2AppendComments will append all comments that were parsed with g2EatComments as children
 // into the given node.
 func (e *Encoder) G2AppendComments() error {
 	for _, comment := range e.g2Comments {
@@ -380,6 +385,8 @@ func (e *Encoder) NewStringCommentNode(text string) error {
 	return nil
 }
 
+// GetGlobalForward returns the globalForward flag
+// true: forwarding mode, all new nodes/Attributes are added to the forwarding stack to be added later
 func (e *Encoder) GetGlobalForward() (bool, error) {
 	return e.globalForward, nil
 }

@@ -102,7 +102,7 @@ func (t *TreeNode) Block(blockType BlockType) *TreeNode {
 	return t
 }
 
-// isClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
+// IsClosedBy returns true if tok is a BlockEnd/GroupEnd/GenericEnd that is the correct
 // match for closing this TreeNode.
 func (t *TreeNode) IsClosedBy(tok token.Token) bool {
 	switch tok.(type) {
@@ -135,15 +135,6 @@ func (t *TreeNode) IsNode() bool {
 	return !t.IsText() && !t.IsComment()
 }
 
-func (t *TreeNode) Print() string {
-	text := t.Name
-	for _, child := range t.Children {
-		text += child.Print()
-	}
-
-	return text
-}
-
 // unbindParents recursively sets all parent Pointers of a tree to nil
 func unbindParents(t *TreeNode) {
 	t.Parent = nil
@@ -151,37 +142,6 @@ func unbindParents(t *TreeNode) {
 		unbindParents(child)
 	}
 }
-
-/*
-// AttributeMap is a custom map[string]string to make the
-// handling of attributes easier.
-type AttributeMap map[string]string
-
-// Set sets a key to a value in this map.
-func (a AttributeMap) Set(key, value string) {
-	a[key] = value
-}
-
-// Has returns true if the given key is in the map and false otherwise.
-func (a AttributeMap) Has(key string) bool {
-	_, ok := a[key]
-	return ok
-}
-
-// Merge returns a new AttributeMap with all keys from this and the other AttributeMap.
-func (a AttributeMap) Merge(other AttributeMap) AttributeMap {
-	result := NewAttributeList()
-
-	for k, v := range a {
-		result[k] = v
-	}
-
-	for k, v := range other {
-		result[k] = v
-	}
-
-	return result
-}*/
 
 // tokenWithError is a struct that wraps a Token and an error that may
 // have occurred while reading that Token.
@@ -195,9 +155,13 @@ type tokenWithError struct {
 type BlockType string
 
 const (
-	BlockNone    BlockType = ""
-	BlockNormal  BlockType = "{}"
-	BlockGroup   BlockType = "()"
+	// BlockNone represents no BlockType
+	BlockNone BlockType = ""
+	// BlockNormal represents curly brackets
+	BlockNormal BlockType = "{}"
+	// BlockGroup represents round brackets
+	BlockGroup BlockType = "()"
+	// BlockGeneric represents pointed brackets
 	BlockGeneric BlockType = "<>"
 )
 
@@ -309,11 +273,12 @@ func (p *Parser) GetRootBlockType() (BlockType, error) {
 	return p.root.BlockType, nil
 }
 
+// GetBlockType returns the block type of the current parent node
 func (p *Parser) GetBlockType() (BlockType, error) {
 	return p.parent.BlockType, nil
 }
 
-// GetForwardingLenght returns the lenght of the List of forwaring Nodes
+// GetForwardingLength returns the length of the List of forwaring Nodes
 func (p *Parser) GetForwardingLength() (int, error) {
 	if p.rootForward != nil && p.rootForward.Children != nil {
 		return len(p.rootForward.Children), nil
@@ -409,7 +374,7 @@ func (p *Parser) AppendForwardingNodes() error {
 	return errors.New("could not append forwarding Nodes")
 }
 
-// g2AppendComments will append all comments that were parsed with g2EatComments as children
+// G2AppendComments will append all comments that were parsed with g2EatComments as children
 // into the parent node.
 func (p *Parser) G2AppendComments() error {
 	if p.parent != nil {
@@ -459,6 +424,7 @@ func (p *Parser) NewStringCommentNode(text string) {
 	p.open()
 }
 
+// GetGlobalForward returns the global forward flag
 func (p *Parser) GetGlobalForward() (bool, error) {
 	return p.globalForward, nil
 }

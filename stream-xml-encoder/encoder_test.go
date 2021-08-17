@@ -20,7 +20,7 @@ func TestEncoderStream(t *testing.T) {
 			name: "hello world",
 			text: `#? saying hello world
 						#hello{world}`,
-			want:     `<root><!-- saying hello world --><hello>world</hello></root>`,
+			want:     `<root><!-- saying hello world --><hello _groupType="{}">world</hello></root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
@@ -44,10 +44,10 @@ func TestEncoderStream(t *testing.T) {
 				}
 			  }`,
 			want: `<root>
-				<book>
-					<toc></toc>
-					<section id="1">
-						<title>
+				<book _groupType="{}">
+					<toc _groupType="{}"></toc>
+					<section id="1" _groupType="{}">
+						<title _groupType="{}">
 							The sections title
 						</title>
 
@@ -80,19 +80,19 @@ func TestEncoderStream(t *testing.T) {
 						}
 					}`,
 			want: `<root>
-					<book id="my-book" author="Torben">
-						<title>A very simple book</title>
-						<chapter id="ch1">
-							<title>Chapter One</title>
-							<p>Hello paragraph.
+					<book id="my-book" author="Torben" _groupType="{}">
+						<title _groupType="{}">A very simple book</title>
+						<chapter id="ch1" _groupType="{}">
+							<title _groupType="{}">Chapter One</title>
+							<p _groupType="{}">Hello paragraph.
 							Still going on.</p>
 						</chapter>
 
-						<chapter id="ch2">
-							<title>Chapter Two</title>
-							Some <red><bold>Text</bold></red> text.
-							The <span style="color:red"><span style="font-weight:bold">Text </span></span> text.
-							<image width="100%">https://worldiety.de/favicon.png</image>
+						<chapter id="ch2" _groupType="{}">
+							<title _groupType="{}">Chapter Two</title>
+							Some <red _groupType="{}"><bold _groupType="{}">Text</bold></red> text.
+							The <span style="color:red" _groupType="{}"><span style="font-weight:bold" _groupType="{}">Text </span></span> text.
+							<image width="100%" _groupType="{}">https://worldiety.de/favicon.png</image>
 						</chapter>
 					</book>
 				</root>`,
@@ -106,8 +106,8 @@ func TestEncoderStream(t *testing.T) {
 						#item3 @key{value}
 					}`,
 			want: `<root>
-						<list>
-							<item1><key>value</key></item1>
+						<list _groupType="{}">
+							<item1 _groupType="{}"><key _groupType="{}">value</key></item1>
 							<item2 id="1"></item2>
 							<item3 key="value"></item3>
 						</list>
@@ -126,7 +126,7 @@ func TestEncoderStream(t *testing.T) {
 						}
 					}`,
 			want: `<root>
-						<list>
+						<list _groupType="{}">
 							<item1><key>value</key></item1>
 							<item2 id="1"></item2>
 							<item3 key="value"></item3>
@@ -166,6 +166,76 @@ func TestEncoderStream(t *testing.T) {
 			wantErr:  false,
 			buffsize: 10,
 		},
+		{
+			name: "invalid consecutive commas",
+			text: `#!{
+						item,
+						@@key="value"
+						@@another="one"
+						item @not="forwarded",
+						parent @@for="child" child,,
+					}`,
+			want: `<root>
+						<item></item>
+						<item not="forwarded" key="value" another="one"></item>
+						<parent>
+							<child for="child"></child>
+						</parent>
+					</root>`,
+			wantErr:  true,
+			buffsize: 10,
+		},
+
+		// TODO: lack of clarity: "->" encoded to "<ret>" or `<ret _token="->">`?
+		{
+			name: "G2 return arrow, simple",
+			text: `#!{
+				hello(string) -> (int)
+			}`,
+			want: `<root>
+					<hello _groupType="()">
+						<string></string>
+						<ret _groupType="()"><int>
+							</int>
+						</ret>
+					</hello>
+				</root>`,
+			wantErr:  false,
+			buffsize: 5,
+		},
+		{
+			name: "g2 invalid return arrow after nothing",
+			text: `#!{
+						-> (int)
+					}`,
+			wantErr: true,
+		},
+
+		{
+			name: "g2 return arrow with generic blocks",
+			text: `#!{
+						fn x<y> -> <z>
+					}`,
+			want: `<root>
+					<fn>
+						<x _groupType="<>">
+							<y></y>
+							<ret _groupType="<>">
+								<z></z>
+							</ret>
+						</x>
+					</fn>
+				</root>`,
+		},
+		{
+			name: "escape quotationmarks",
+			text: `#StrangeIdentifier" @another{w31rd}
+						@@forwarded{a"ttribute}
+						#Anoth"erIdentifier" 
+						#? And wh"at" about comments?`,
+			want: ``,
+		},
+		//TODO: add tests for g2Arrow, string escaping
 	}
 	for _, test := range tests {
 		t.Run("stream - "+test.name, func(t *testing.T) {
@@ -185,8 +255,29 @@ func TestEncoderStream(t *testing.T) {
 			}*/
 
 			err := encoder.Encode()
+
+			if !test.wantErr && err != nil {
+				t.Error(err)
+				return
+			}
+
+			if test.wantErr && err == nil {
+				t.Errorf("expected error, but did not get one")
+				return
+			}
+
+			if test.wantErr {
+				// We wanted an error and got it, comparing trees would
+				// make no sense, so we end this test here.
+				return
+			}
+
 			if err != nil {
-				t.Errorf("Test failed, unexpected error: %v", err)
+				if test.wantErr == false {
+					t.Errorf("Test failed, unexpected error: %v", err)
+				}
+				// Wanted an error and got it, no need to continue
+				return
 			}
 
 			//TODO: test for streaming
