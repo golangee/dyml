@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"errors"
 	"io"
 
 	"github.com/golangee/tadl/token"
@@ -264,7 +265,7 @@ func (p *Parser) Close() error {
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
 // Opens the new Node
-func (p *Parser) NewNode(name string) {
+func (p *Parser) NewNode(name string) error {
 	if p.root == nil || p.firstNode {
 		p.root = NewNode(name)
 		p.parent = p.root
@@ -272,159 +273,163 @@ func (p *Parser) NewNode(name string) {
 		if p.firstNode {
 			p.firstNode = false
 		}
-		return
+		return nil
 	}
 
 	p.parent.AddChildren(NewNode(name))
 	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
 	p.open()
+	return nil
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
-func (p *Parser) NewTextNode(cd *token.CharData) {
+func (p *Parser) NewTextNode(cd *token.CharData) error {
 	p.parent.AddChildren(NewTextNode(cd))
 	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
+	return nil
 }
 
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
-func (p *Parser) NewCommentNode(cd *token.CharData) {
+func (p *Parser) NewCommentNode(cd *token.CharData) error {
 	p.parent.AddChildren(NewCommentNode(cd))
 	p.parent.Children[len(p.parent.Children)-1].Parent = p.parent
+	return nil
 }
 
 // SetBlockType sets the current parent Nodes BlockType
-func (p *Parser) SetBlockType(b BlockType) {
+func (p *Parser) SetBlockType(b BlockType) error {
 	p.parent.Block(b)
-}
-
-// SetStartPos sets the current parent Nodes Start Position
-func (p *Parser) SetStartPos(pos token.Pos) {
-	if p.parent != nil {
-		p.parent.Range.BeginPos = pos
-	}
-}
-
-// SetEndPos sets the current parent Nodes End Position
-func (p *Parser) SetEndPos(pos token.Pos) {
-	if p.parent != nil {
-		p.parent.Range.EndPos = pos
-	}
+	return nil
 }
 
 // GetRootBlockType returns the root Nodes BlockType
-func (p *Parser) GetRootBlockType() BlockType {
-	return p.root.BlockType
+func (p *Parser) GetRootBlockType() (BlockType, error) {
+	return p.root.BlockType, nil
 }
 
-// GetRange returns the current parent Nodes Range
-func (p *Parser) GetRange() token.Position {
-	return p.parent.Range
+func (p *Parser) GetBlockType() (BlockType, error) {
+	return p.parent.BlockType, nil
 }
 
 // GetForwardingLenght returns the lenght of the List of forwaring Nodes
-func (p *Parser) GetForwardingLength() int {
+func (p *Parser) GetForwardingLength() (int, error) {
 	if p.rootForward != nil && p.rootForward.Children != nil {
-		return len(p.rootForward.Children)
+		return len(p.rootForward.Children), nil
 	}
-	return 0
+	return 0, nil
 }
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
-func (p *Parser) GetForwardingAttributesLength() int {
+func (p *Parser) GetForwardingAttributesLength() (int, error) {
 	if p.forwardingAttributes == nil {
-		return 0
+		return 0, nil
 	}
-	return p.forwardingAttributes.Len()
+	return p.forwardingAttributes.Len(), nil
 }
 
 // GetForwardingPosition retrieves a forwarded Node based on given Index and
 // returns the Rangespan the Token corresponding to said Node had in the input tadl text
-func (p *Parser) GetForwardingPosition(i int) token.Node {
-	return p.rootForward.Children[i].Range
-}
-
-// NodeIsClosedBy checks if the current Node is being closed by the given token.
-func (p *Parser) NodeIsClosedBy(tok token.Token) bool {
-	return p.parent.IsClosedBy(tok)
+func (p *Parser) GetForwardingPosition(i int) (token.Node, error) {
+	return p.rootForward.Children[i].Range, nil
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
-func (p *Parser) AddAttribute(key, value string) {
+func (p *Parser) AddAttribute(key, value string) error {
 	p.parent.Attributes.Set(&key, &value)
+	return nil
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
-func (p *Parser) AddForwardAttribute(key, value string) {
+func (p *Parser) AddForwardAttribute(key, value string) error {
 	if p.forwardingAttributes == nil {
 		p.forwardingAttributes = &AttributeList{}
 	}
 	p.forwardingAttributes.Push(&key, &value)
+	return nil
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
-func (p *Parser) AddForwardNode(name string) {
-	p.SwitchActiveTree()
+func (p *Parser) AddForwardNode(name string) error {
+	err := p.SwitchActiveTree()
+	if err != nil {
+		return err
+	}
+
 	p.parent = p.root
-	p.NewNode(name)
-	p.SwitchActiveTree()
+	err = p.NewNode(name)
+	if err != nil {
+		return err
+	}
+
+	err = p.SwitchActiveTree()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
-func (p *Parser) MergeAttributes() {
+func (p *Parser) MergeAttributes() error {
 	if p.forwardingAttributes != nil && p.forwardingAttributes.Len() > 0 {
 		p.parent.Attributes = p.parent.Attributes.Merge(*p.forwardingAttributes)
 		p.forwardingAttributes = nil
 	}
+	return nil
 }
 
 // MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
-func (p *Parser) MergeAttributesForwarded() {
+func (p *Parser) MergeAttributesForwarded() error {
 	if p.forwardingAttributes != nil && p.forwardingAttributes.Len() > 0 {
-		p.SwitchActiveTree()
+		err := p.SwitchActiveTree()
+		if err != nil {
+			return err
+		}
 		p.parent.Attributes = p.parent.Attributes.Merge(*p.forwardingAttributes)
 		p.forwardingAttributes = nil
-		p.SwitchActiveTree()
+		err = p.SwitchActiveTree()
+		if err != nil {
+			return err
+		}
+		return nil
 	}
+	return nil
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes
 // as Children to the current parent Node
-func (p *Parser) AppendForwardingNodes() {
+func (p *Parser) AppendForwardingNodes() error {
 	if p.rootForward != nil && p.rootForward.Children != nil && len(p.rootForward.Children) != 0 {
 		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
 		p.rootForward.Children = nil
 		p.parentForward = p.rootForward
+		return nil
 	}
-}
-
-// AppendSubTree appends the rootForward Tree to the current parent Nodes Children
-func (p *Parser) AppendSubTree() {
-	if len(p.rootForward.Children) != 0 {
-		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
-		p.rootForward.Children = nil
-	}
+	return errors.New("could not append forwarding Nodes")
 }
 
 // g2AppendComments will append all comments that were parsed with g2EatComments as children
-// into the given node.
-func (p *Parser) G2AppendComments() {
+// into the parent node.
+func (p *Parser) G2AppendComments() error {
 	if p.parent != nil {
 		p.parent.Children = append(p.parent.Children, p.g2Comments...)
 		p.g2Comments = nil
+		return nil
 	}
+	return errors.New("could not append comments, parent is nil")
 }
 
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
 // to be added to the tree later
-func (p *Parser) G2AddComments(cd *token.CharData) {
+func (p *Parser) G2AddComments(cd *token.CharData) error {
 	p.g2Comments = append(p.g2Comments, NewCommentNode(cd))
+	return nil
 }
 
 // SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
 // To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
-func (p *Parser) SwitchActiveTree() {
+func (p *Parser) SwitchActiveTree() error {
 	var cache *TreeNode = p.parent
 	p.parent = p.parentForward
 	p.parentForward = cache
@@ -434,6 +439,8 @@ func (p *Parser) SwitchActiveTree() {
 	p.rootForward = cache
 
 	p.globalForward = !p.globalForward
+
+	return nil
 }
 
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
@@ -452,10 +459,6 @@ func (p *Parser) NewStringCommentNode(text string) {
 	p.open()
 }
 
-func (p *Parser) GetBlockType() BlockType {
-	return p.parent.BlockType
-}
-
-func (p *Parser) GetGlobalForward() bool {
-	return p.globalForward
+func (p *Parser) GetGlobalForward() (bool, error) {
+	return p.globalForward, nil
 }

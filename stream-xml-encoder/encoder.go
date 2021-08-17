@@ -3,16 +3,13 @@ package streamxmlencoder
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/golangee/tadl/parser"
 	"github.com/golangee/tadl/token"
 )
 
-//TODO: propagate all errors upwards
-
-// TODO: refactor escaping: incoming strings must be checked for escapable characters
-// mainly escape " to \"
 const (
 	whitespace = " "
 	exclammark = "!"
@@ -76,20 +73,20 @@ func (s *Stack) Push(n *Node) {
 }
 
 // Pop a node from the stack
-func (s *Stack) Pop() (*Node, bool) {
+func (s *Stack) Pop() (*Node, error) {
 	if s.IsEmpty() {
-		return nil, false
+		return nil, errors.New("an error occurred while popping the stack")
 	} else {
 		index := len(*s) - 1
 		element := (*s)[index]
 		*s = (*s)[:index]
-		return element, true
+		return element, nil
 	}
 }
 
 // IsEmpty returns true if the last element on the Stack was already opened before
 func (s *Stack) IsOpened() (bool, error) {
-	if s == nil {
+	if s == nil || len(*s) == 0 {
 		return false, errors.New("stack is empty")
 	}
 	return (*s)[len(*s)-1].opened, nil
@@ -99,29 +96,6 @@ func (s *Stack) IsOpened() (bool, error) {
 func (s *Stack) SetOpened() {
 	(*s)[len(*s)-1].opened = true
 }
-
-//TODO: refactor to stack, remove unused fields
-/*
-// TreeNodeEnc defines the TreeNode structure for encoding tadl input to XML
-// inherits from parser.TreeNode the main functionalities,
-// adds functionality for writing encoded XML data
-type TreeNodeEnc struct {
-	Node     *parser.TreeNode
-	Parent   *TreeNodeEnc
-	Children []*TreeNodeEnc
-
-	written           bool
-	attributesWritten bool
-	opened            bool
-}
-
-// NewNode creates a new named TreeNodeEnc
-func NewNode(text string) *Node {
-	return &Node{
-		name: text,
-		opened: false,
-	}
-}*/
 
 // Encoder translates tadl-input to corresponding XML
 type Encoder struct {
@@ -176,6 +150,7 @@ func (e *Encoder) openOptional() (bool, error) {
 
 // writeString writes the given string to the encoders io.Writer.
 func (e *Encoder) writeString(in ...string) error {
+	fmt.Println(in)
 	for _, text := range in {
 		if _, err := e.buffWriter.Write([]byte(text)); err != nil {
 			return err
@@ -184,158 +159,159 @@ func (e *Encoder) writeString(in ...string) error {
 	return nil
 }
 
-// writeBytes writes the given Byteslice to the encoders io.Writer.
-func (e *Encoder) writeBytes(in []byte) error {
-	if _, err := e.buffWriter.Write(in); err != nil {
-		return err
-	}
-	return nil
-}
-
-// writeAttributes writes all Attributes of the current parent node to the encoders io.Writer.
-func (e *Encoder) writeAttributes() error {
-	/*if !e.parent.attributesWritten {
-
-		// sorting Attributes alphabetically before writing to the encoders io.Writer
-		// TODO: may be inefficient. possible refactor
-		keys := make([]string, 0, len(e.parent.Node.Attributes))
-		for k, _ := range e.parent.Node.Attributes {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			err := e.writeString(whitespace, k, equals, dquotes, e.parent.Node.Attributes[k], dquotes)
-			if err != nil {
-				return err
-			}
-		}
-
-		/*for key, val := range e.parent.Node.Attributes {
-			err := e.writeString(whitespace, key, equals, dquotes, val, dquotes)
-			if err != nil {
-				return err
-			}
-		}
-
-		e.parent.attributesWritten = true
-	}
-	return nil*/
-	return nil
-}
-
 // Encode starts the encoding of tadl-text to XML
 // encoded text will be written to the encoders io.Writer
 func (e *Encoder) Encode() error {
-	e.writeString(lt, "root")
 	err := e.visitor.Run()
 	if err != nil {
 		return err
 	}
-	e.writeString(lt, slash, "root", gt)
+
+	err = e.writeString(lt, slash, "root", gt)
+	if err != nil {
+		return err
+	}
+
 	e.buffWriter.Flush()
 	return nil
 }
 
-/*
-// open sets the parent pointer to the latest Child of it's current Node
-func (e *Encoder) open() {
-	e.writeString(gt)
-
-
-	e.parent = e.parent.Children[len(e.parent.Children)-1]
-}*/
-
 // Close moves the parent pointer to its current parent Node
 func (e *Encoder) Close() error {
-	if e.stack == nil {
+	if e.stack == nil || len(e.stack) <= 1 {
 		return errors.New("stack is empty, cannot close")
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
-		e.writeString(gt)
+		err = e.writeString(gt)
+		if err != nil {
+			return err
+		}
 		e.stack.SetOpened()
 	}
-	node, suc := e.stack.Pop()
-	if !suc {
-		return errors.New("an error occurred while popping the stack")
+	node, err := e.stack.Pop()
+	if err != nil {
+		return err
 	}
-	e.writeString(lt, slash, escapeDoubleQuotes(node.name), gt)
+	err = e.writeString(lt, slash, escapeDoubleQuotes(node.name), gt)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // NewNode creates a named Node and adds it as a child to the current parent Node
 // Opens the new Node
-func (e *Encoder) NewNode(name string) {
-	e.openOptional()
-	e.writeString(lt, name)
+func (e *Encoder) NewNode(name string) error {
+	_, err := e.openOptional()
+	if err != nil {
+		return err
+	}
+
+	err = e.writeString(lt, name)
+	if err != nil {
+		return err
+	}
+
 	e.stack.Push(NewNode(escapeDoubleQuotes(name)))
+	return nil
 }
 
 // NewTextNode creates a new Node with Text based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
-func (e *Encoder) NewTextNode(cd *token.CharData) {
+func (e *Encoder) NewTextNode(cd *token.CharData) error {
 	if !isWhitespaceOnly(cd.Value) {
-		e.writeString(escapeDoubleQuotes(cd.Value))
+		_, err := e.openOptional()
+		if err != nil {
+			return err
+		}
+		err = e.writeString(escapeDoubleQuotes(cd.Value))
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
-func (e *Encoder) NewCommentNode(cd *token.CharData) {
-	e.openOptional()
-	e.writeString(lt, exclammark, hyphen, hyphen, whitespace, escapeDoubleQuotes(cd.Value), whitespace, hyphen, hyphen, gt)
+func (e *Encoder) NewCommentNode(cd *token.CharData) error {
+	_, err := e.openOptional()
+	if err != nil {
+		return err
+	}
+	err = e.writeString(lt, exclammark, hyphen, hyphen, whitespace, escapeDoubleQuotes(cd.Value), whitespace, hyphen, hyphen, gt)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetBlockType does nothing, as BlockType is not relevant for encoding.
-func (e *Encoder) SetBlockType(b parser.BlockType) {
+func (e *Encoder) SetBlockType(b parser.BlockType) error {
 	e.stack[len(e.stack)-1].blockType = b
+	return nil
 }
 
 // GetRootBlockType returns BlockNone, as BlockType is not relevant for encoding.
-func (e *Encoder) GetRootBlockType() parser.BlockType {
-	return parser.BlockNone
+func (e *Encoder) GetRootBlockType() (parser.BlockType, error) {
+	return e.stack[0].blockType, nil
+}
+
+func (e *Encoder) GetBlockType() (parser.BlockType, error) {
+	return e.stack[len(e.stack)-1].blockType, nil
 }
 
 // GetForwardingLenght returns the lenght of the List of forwaring Nodes
-func (e *Encoder) GetForwardingLength() int {
-	return len(e.forward)
+func (e *Encoder) GetForwardingLength() (int, error) {
+	return len(e.forward), nil
 }
 
 // GetForwardingAttributesLength returns the length of the forwarding AttributeMap
-func (e *Encoder) GetForwardingAttributesLength() int {
-	return e.forwardedAttributes.Len()
+func (e *Encoder) GetForwardingAttributesLength() (int, error) {
+	return e.forwardedAttributes.Len(), nil
 }
 
 // AddAttribute adds a given Attribute to the current parent Node
-func (e *Encoder) AddAttribute(key, value string) {
-	e.writeString(whitespace, key, equals, dquotes, value, dquotes)
+func (e *Encoder) AddAttribute(key, value string) error {
+	err := e.writeString(whitespace, key, equals, dquotes, value, dquotes)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
-func (e *Encoder) AddForwardAttribute(key, value string) {
+func (e *Encoder) AddForwardAttribute(key, value string) error {
 	e.forwardedAttributes.Push(&key, &value)
+	return nil
 }
 
 // AddForwardNode appends a given Node to the list of forwarding Nodes
-func (e *Encoder) AddForwardNode(name string) {
+func (e *Encoder) AddForwardNode(name string) error {
 	e.forward.Push(NewNode(escapeDoubleQuotes(name)))
+	return nil
 }
 
 // MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
-func (e *Encoder) MergeAttributes() {
+func (e *Encoder) MergeAttributes() error {
 	if e.forwardedAttributes.Len() != 0 {
 		len := e.forwardedAttributes.Len()
 		for i := 0; i < len; i++ {
 			key, value := e.forwardedAttributes.Get(i)
-			e.writeString(whitespace, *key, equals, dquotes, *value, dquotes)
+			err := e.writeString(whitespace, *key, equals, dquotes, *value, dquotes)
+			if err != nil {
+				return err
+			}
 		}
 		e.forwardedAttributes = parser.NewAttributeList()
 
 	}
+	return nil
 }
 
 // MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
-func (e *Encoder) MergeAttributesForwarded() {
+func (e *Encoder) MergeAttributesForwarded() error {
 	if e.forwardedAttributes.Len() != 0 {
 		len := e.forwardedAttributes.Len()
 		for i := 0; i < len; i++ {
@@ -344,63 +320,68 @@ func (e *Encoder) MergeAttributesForwarded() {
 		}
 		e.forwardedAttributes = parser.NewAttributeList()
 	}
+	return errors.New("no forwarded Attributes found to merge")
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes
 // as Children to the current parent Node
-func (e *Encoder) AppendForwardingNodes() {
+func (e *Encoder) AppendForwardingNodes() error {
 	e.stack = append(e.stack, e.forward...)
-
+	return nil
 }
 
 // g2AppendComments will append all comments that were parsed with g2EatComments as children
 // into the given node.
-func (e *Encoder) G2AppendComments() {
+func (e *Encoder) G2AppendComments() error {
 	for _, comment := range e.g2Comments {
-		e.writeString(lt, exclammark, hyphen, hyphen, whitespace, comment.name, whitespace, hyphen, hyphen, gt)
+		err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, comment.name, whitespace, hyphen, hyphen, gt)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
 // to be added to the tree later
-func (e *Encoder) G2AddComments(cd *token.CharData) {
+func (e *Encoder) G2AddComments(cd *token.CharData) error {
 	e.g2Comments = append(e.g2Comments, NewNode(string(escapeDoubleQuotesChar(cd).Value)))
+	return nil
 }
 
 // SwitchActiveTree switches the active Tree between the main syntax tree and the forwarding tree
 // To modify the forwarding tree, call SwitchActiveTree, call treeCreation functions, call SwitchActiveTree
-func (e *Encoder) SwitchActiveTree() {
+func (e *Encoder) SwitchActiveTree() error {
 	cache := e.stack
 	e.stack = e.forward
 	e.forward = cache
 
 	e.globalForward = !e.globalForward
+	return nil
 }
 
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
-func (e *Encoder) NewStringNode(text string) {
-	e.writeString(text)
-	/*e.parent.AddChildren(NewStringNode(escapeDoubleQuotes(name)))
-	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.open()*/
+func (e *Encoder) NewStringNode(text string) error {
+	err := e.writeString(text)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
-func (e *Encoder) NewStringCommentNode(text string) {
-	e.writeString(lt, exclammark, hyphen, hyphen, whitespace, text, whitespace, hyphen, hyphen, gt)
-	/*e.parent.AddChildren(NewStringCommentNode(escapeDoubleQuotes(text)))
-	e.parent.Children[len(e.parent.Children)-1].Parent = e.parent
-	e.open()*/
+func (e *Encoder) NewStringCommentNode(text string) error {
+	err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, text, whitespace, hyphen, hyphen, gt)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (e *Encoder) GetBlockType() parser.BlockType {
-	return e.stack[len(e.stack)-1].blockType
-}
-
-func (e *Encoder) GetGlobalForward() bool {
-	return e.globalForward
+func (e *Encoder) GetGlobalForward() (bool, error) {
+	return e.globalForward, nil
 }
 
 // isWhitespaceOnly checks if the given string consists of whitespaces only

@@ -17,54 +17,54 @@ type Visitable interface {
 	// NewNode is called when a new Element of the syntax tree is encountered.
 	// Text and Comment nodes do not need to be closed, as they cannot have children,
 	// thus cannot be opened.
-	NewNode(name string)
-	NewTextNode(cd *token.CharData)
-	NewCommentNode(cd *token.CharData)
+	NewNode(name string) error
+	NewTextNode(cd *token.CharData) error
+	NewCommentNode(cd *token.CharData) error
 
 	// SetBlockType is called when a certain type of brackets is encountered,
 	// represented by the BlockType field.
-	SetBlockType(t BlockType)
+	SetBlockType(t BlockType) error
 
 	// GetRootBlockType returns the root nodes BlockType
-	GetRootBlockType() BlockType
+	GetRootBlockType() (BlockType, error)
 	// GetBlockType returns the currently watched Node BlockType.
-	GetBlockType() BlockType
+	GetBlockType() (BlockType, error)
 	// return the count of buffered forwarding Nodes
-	GetForwardingLength() int
+	GetForwardingLength() (int, error)
 	// returns the count of buffered forwarding Attributes
-	GetForwardingAttributesLength() int
+	GetForwardingAttributesLength() (int, error)
 
 	// Called when encountering a non-forwarded Attribute.
 	// Adds the attribute to the currently watched Node.
-	AddAttribute(key, value string)
+	AddAttribute(key, value string) error
 	// Called when encountering a forwarded Attribute.
 	// Adds the attribute to the List of forwarded Attributes.
-	AddForwardAttribute(key, value string)
+	AddForwardAttribute(key, value string) error
 	// Adds all forward attributes to the currently watched Node.
-	MergeAttributes()
+	MergeAttributes() error
 	// Adds all forward attributes to the latest forwarded Node.
-	MergeAttributesForwarded()
+	MergeAttributesForwarded() error
 
 	// Adds a Node to the list of forwarded Nodes
-	AddForwardNode(name string)
+	AddForwardNode(name string) error
 	// Appends all Elements in the list of forwarded Nodes to the currently watched Node.
-	AppendForwardingNodes()
+	AppendForwardingNodes() error
 
 	// Adds a comment node to the list of forwarded G2Comments
-	G2AddComments(cd *token.CharData)
+	G2AddComments(cd *token.CharData) error
 	// Appends all forwarded G2Comments to the currently watched Node.
-	G2AppendComments()
+	G2AppendComments() error
 
 	// swap the main Tree with the forwarding Tree
 	// enables usage of all the methods for both, the active and the forwarding tree.
 	// when encountering a forwarding Element, this method is called.
 	// the forwarding Element is being processed as a non forwarding Element,
 	// afterwards this method is called again.
-	SwitchActiveTree()
+	SwitchActiveTree() error
 	// Returns the globalForward flag. This flag represents the currently active tree.
 	// (true = the active tree is the forwarding Tree, false = the active Tree is the non-forwarding Tree).
 	// (true = SwitchActiveTree() was called an odd number of times, false accordingly)
-	GetGlobalForward() bool
+	GetGlobalForward() (bool, error)
 }
 
 // Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
@@ -154,14 +154,23 @@ func (v *Visitor) Run() error {
 	}
 
 	// All forwarding nodes should have been processed earlier.
-	if v.visitMe.GetForwardingLength() > 0 {
-		return token.NewPosError(v.GetForwardingPosition(), "there is no node to forward this node into")
-
+	if l, err := v.visitMe.GetForwardingLength(); err != nil || l > 0 {
+		if err != nil {
+			return err
+		}
+		return token.NewPosError(v.getForwardingPosition(), "there is no node to forward this node into")
 	}
 
 	// The root element should always have curly brackets.
-	if v.visitMe.GetRootBlockType() != BlockNormal {
-		return token.NewPosError(v.GetRange(), "root element must have curly brackets")
+	if blocktype, err := v.visitMe.GetRootBlockType(); err != nil || blocktype != BlockNormal {
+		if err != nil {
+			return err
+		}
+		r, err := v.getRange()
+		if err != nil {
+			return err
+		}
+		return token.NewPosError(r, "root element must have curly brackets")
 	}
 
 	return nil
@@ -243,7 +252,7 @@ func (v *Visitor) g1Node() error {
 		forwardingNode = t.Forward
 	case *token.CharData:
 		v.visitMe.NewTextNode(t)
-		v.SetStartPos(v.lexer.Pos())
+		v.setStartPos(v.lexer.Pos())
 		v.nodeNoChildren = true
 		return nil
 	case *token.G1Comment:
@@ -255,7 +264,7 @@ func (v *Visitor) g1Node() error {
 
 		if cd, ok := tok.(*token.CharData); ok {
 			v.visitMe.NewCommentNode(cd)
-			v.SetStartPos(v.lexer.Pos())
+			v.setStartPos(v.lexer.Pos())
 			return nil
 		} else {
 			return token.NewPosError(
@@ -269,7 +278,7 @@ func (v *Visitor) g1Node() error {
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenDefineElement, token.TokenCharData))
 	}
-	v.SetStartPos(v.lexer.Pos())
+	v.setStartPos(v.lexer.Pos())
 
 	// Expect identifier for new element
 	tok, err = v.next()
@@ -289,7 +298,7 @@ func (v *Visitor) g1Node() error {
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 	}
-	v.SetStartPos(v.lexer.Pos())
+	v.setStartPos(v.lexer.Pos())
 
 	// We now have a valid node.
 	// Place our forwardingNodes inside it, if it is not one itself.
@@ -332,7 +341,7 @@ func (v *Visitor) g1Node() error {
 				return err
 			}
 			if !v.nodeNoChildren {
-				v.Close()
+				v.close()
 			}
 			v.nodeNoChildren = false
 
@@ -365,7 +374,7 @@ func (v *Visitor) g1Node() error {
 		return nil
 	}
 
-	v.SetEndPos(v.lexer.Pos())
+	v.setEndPos(v.lexer.Pos())
 	return nil
 }
 
@@ -421,7 +430,7 @@ func (v *Visitor) g1LineNodes() error {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
-	v.SetStartPos(v.lexer.Pos())
+	v.setStartPos(v.lexer.Pos())
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
@@ -446,7 +455,10 @@ func (v *Visitor) g2Node() error {
 		// Insert forwarded nodes
 		v.visitMe.AppendForwardingNodes()
 	case *token.CharData:
-		if v.visitMe.GetForwardingAttributesLength() > 0 {
+		if l, err := v.visitMe.GetForwardingAttributesLength(); err != nil || l > 0 {
+			if err != nil {
+				return err
+			}
 			// We have forwarded attributes for a text, where an identifier would be appropriate.
 			return token.NewPosError(
 				tok.Pos(),
@@ -513,7 +525,10 @@ func (v *Visitor) g2Node() error {
 				return err
 			}
 
-			if v.NodeIsClosedBy(tok) {
+			if closed, err := v.nodeIsClosedBy(tok); err != nil || closed {
+				if err != nil {
+					return err
+				}
 				v.next() // pop closing token
 
 				break
@@ -534,7 +549,7 @@ func (v *Visitor) g2Node() error {
 	case *token.Comma:
 		// Comma ends a node definition
 
-		v.Close()
+		v.close()
 		v.closed = true
 		v.next()
 	case *token.G2Arrow:
@@ -564,9 +579,9 @@ func (v *Visitor) g2Node() error {
 		}
 	}
 
-	v.SetEndPos(v.lexer.Pos())
+	v.setEndPos(v.lexer.Pos())
 	if !v.closed {
-		v.Close()
+		v.close()
 	}
 	v.closed = false
 
@@ -643,7 +658,10 @@ func (v *Visitor) g2ParseBlock() error {
 			return err
 		}
 
-		if v.NodeIsClosedBy(tok) {
+		if closed, err := v.nodeIsClosedBy(tok); err != nil || closed {
+			if err != nil {
+				return err
+			}
 			v.next() // pop closing token
 
 			break
@@ -689,7 +707,7 @@ func (v *Visitor) g2ParseArrow() error {
 		return err
 	}
 
-	v.Close()
+	v.close()
 	return nil
 }
 
@@ -806,8 +824,9 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	}
 
 	if wantForward {
-		for i, key := range result.Keys {
-			v.visitMe.AddForwardAttribute(*key, *result.Values[i])
+		for result.Len() > 0 {
+			key, val := result.Pop()
+			v.visitMe.AddForwardAttribute(*key, *val)
 		}
 	} else {
 		for result.Len() > 0 {
@@ -819,61 +838,83 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	return nil
 }
 
-func (v *Visitor) NodeIsClosedBy(tok token.Token) bool {
-	blocktype := v.visitMe.GetBlockType()
+func (v *Visitor) nodeIsClosedBy(tok token.Token) (bool, error) {
+	blocktype, err := v.visitMe.GetBlockType()
+	if err != nil {
+		return false, err
+	}
 
 	switch tok.(type) {
 	case *token.BlockEnd:
-		return blocktype == BlockNormal
+		return blocktype == BlockNormal, nil
 	case *token.GroupEnd:
-		return blocktype == BlockGroup
+		return blocktype == BlockGroup, nil
 	case *token.GenericEnd:
-		return blocktype == BlockGeneric
+		return blocktype == BlockGeneric, nil
 	default:
-		return false
+		return false, nil
 	}
 }
 
-func (v *Visitor) SetStartPos(pos token.Pos) {
-	if v.visitMe.GetGlobalForward() {
+func (v *Visitor) setStartPos(pos token.Pos) error {
+	if forward, err := v.visitMe.GetGlobalForward(); err != nil || forward {
+		if err != nil {
+			return err
+		}
 		v.forwardRanges = append(v.forwardRanges, &token.Position{BeginPos: pos})
 
 	} else {
 		v.Ranges = append(v.Ranges, &token.Position{BeginPos: pos})
 	}
+	return nil
 }
 
-func (v *Visitor) SetEndPos(pos token.Pos) {
-	if v.visitMe.GetGlobalForward() {
+func (v *Visitor) setEndPos(pos token.Pos) error {
+	if forward, err := v.visitMe.GetGlobalForward(); err != nil || forward {
+		if err != nil {
+			return err
+		}
 		v.forwardRanges[len(v.forwardRanges)-1].EndPos = pos
 	} else {
 		v.Ranges[len(v.Ranges)-1].EndPos = pos
 	}
+	return nil
 }
 
-func (v *Visitor) GetForwardingPosition() token.Node {
+func (v *Visitor) getForwardingPosition() token.Node {
 	return v.forwardRanges[len(v.forwardRanges)-1]
 }
 
-func (v *Visitor) GetRange() token.Position {
-	if v.visitMe.GetGlobalForward() {
-		return *v.forwardRanges[len(v.forwardRanges)-1]
+func (v *Visitor) getRange() (token.Position, error) {
+	if forward, err := v.visitMe.GetGlobalForward(); err != nil || forward {
+		if err != nil {
+			return token.Position{}, err
+		}
+		return *v.forwardRanges[len(v.forwardRanges)-1], nil
 	} else {
-		return *v.Ranges[len(v.Ranges)-1]
+		return *v.Ranges[len(v.Ranges)-1], nil
 	}
 }
 
-func (v *Visitor) PopPosition() token.Position {
-	pos := v.GetRange()
-	if v.visitMe.GetGlobalForward() {
+func (v *Visitor) popPosition() (token.Position, error) {
+	pos, err := v.getRange()
+	if err != nil {
+		return token.Position{}, err
+	}
+
+	if forward, err := v.visitMe.GetGlobalForward(); err != nil || forward {
+		if err != nil {
+			return token.Position{}, err
+		}
+
 		v.forwardRanges = v.forwardRanges[:len(v.forwardRanges)-1]
 	} else {
 		v.Ranges = v.Ranges[:len(v.Ranges)-1]
 	}
-	return pos
+	return pos, nil
 }
 
-func (v *Visitor) Close() error {
-	v.PopPosition()
+func (v *Visitor) close() error {
+	v.popPosition()
 	return v.visitMe.Close()
 }

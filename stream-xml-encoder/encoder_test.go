@@ -24,10 +24,10 @@ func TestEncoderStream(t *testing.T) {
 			wantErr:  false,
 			buffsize: 5,
 		},
-		/*{
+		{
 			name:     "Identifier + Attributes",
 			text:     `#book @id{my-book} @author{Torben}`,
-			want:     `<root><book author="Torben" id="my-book"></book></root>`,
+			want:     `<root><book id="my-book" author="Torben"></book></root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
@@ -80,7 +80,7 @@ func TestEncoderStream(t *testing.T) {
 						}
 					}`,
 			want: `<root>
-					<book author="Torben" id="my-book">
+					<book id="my-book" author="Torben">
 						<title>A very simple book</title>
 						<chapter id="ch1">
 							<title>Chapter One</title>
@@ -147,10 +147,6 @@ func TestEncoderStream(t *testing.T) {
 			wantErr:  false,
 			buffsize: 5,
 		},
-		// might fail, Attributes added to an AttributeMap do not necessarily stay in the order they were in the tadl text
-		// TODO: add alternative case to catch error, or implement order-sensitivity in AttributeMap
-		// (other TestCases are affected as well) (edit: implemented order-sensitivity when writing Attributes, test performance)
-		// (edit 2: modify order-sensitivity to actual order of elements, not alphabetically)
 		{
 			name: "forwarded attributes G2",
 			text: `#!{
@@ -162,14 +158,14 @@ func TestEncoderStream(t *testing.T) {
 					}`,
 			want: `<root>
 						<item></item>
-						<item another="one" key="value" not="forwarded"></item>
+						<item not="forwarded" key="value" another="one"></item>
 						<parent>
 							<child for="child"></child>
 						</parent>
 					</root>`,
 			wantErr:  false,
 			buffsize: 10,
-		},*/
+		},
 	}
 	for _, test := range tests {
 		t.Run("stream - "+test.name, func(t *testing.T) {
