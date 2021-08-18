@@ -5,8 +5,9 @@ package parser
 
 import (
 	"fmt"
-	"github.com/golangee/tadl/token"
 	"strings"
+
+	"github.com/golangee/tadl/token"
 )
 
 // UnexpectedTokenError is returned when a token appeared that the parser did not expect.
@@ -16,6 +17,7 @@ type UnexpectedTokenError struct {
 	expected []token.TokenType
 }
 
+// NewUnexpectedTokenError creates a new UnexpectedTokenError
 func NewUnexpectedTokenError(tok token.Token, expected ...token.TokenType) error {
 	return UnexpectedTokenError{
 		tok:      tok,
@@ -59,6 +61,7 @@ func (e ForwardAttrError) Error() string {
 	return "expected a forward attribute"
 }
 
+// NewForwardAttrError creates a new ForwardAttrError
 func NewForwardAttrError() error {
 	return ForwardAttrError{}
 }

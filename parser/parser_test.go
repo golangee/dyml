@@ -605,6 +605,14 @@ func TestParser(t *testing.T) {
 					NewNode("item3").AddAttribute("key", "value"),
 				)),
 		},
+		/*{
+			name: "escape quotationmarks",
+			text: `#Strange"Identifier @another{w31rd}
+						@@forwarded{a"ttribute}
+						#Anoth"erIdentifier"
+						#? And wh"at" about comments?`,
+			want: NewNode("root").Block(BlockNormal),
+		},*/
 	}
 
 	for _, tt := range tests {

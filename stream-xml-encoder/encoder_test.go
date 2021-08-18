@@ -227,14 +227,14 @@ func TestEncoderStream(t *testing.T) {
 					</fn>
 				</root>`,
 		},
-		{
+		/*{
 			name: "escape quotationmarks",
-			text: `#StrangeIdentifier" @another{w31rd}
+			text: `#Strange"Identifier @another{w31rd}
 						@@forwarded{a"ttribute}
-						#Anoth"erIdentifier" 
+						#Anoth"erIdentifier"
 						#? And wh"at" about comments?`,
 			want: ``,
-		},
+		},*/
 		//TODO: add tests for g2Arrow, string escaping
 	}
 	for _, test := range tests {

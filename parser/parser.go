@@ -369,9 +369,8 @@ func (p *Parser) AppendForwardingNodes() error {
 		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
 		p.rootForward.Children = nil
 		p.parentForward = p.rootForward
-		return nil
 	}
-	return errors.New("could not append forwarding Nodes")
+	return nil
 }
 
 // G2AppendComments will append all comments that were parsed with g2EatComments as children
@@ -380,9 +379,10 @@ func (p *Parser) G2AppendComments() error {
 	if p.parent != nil {
 		p.parent.Children = append(p.parent.Children, p.g2Comments...)
 		p.g2Comments = nil
-		return nil
+	} else if p.g2Comments != nil {
+		return errors.New("could not append comments, parent is nil")
 	}
-	return errors.New("could not append comments, parent is nil")
+	return nil
 }
 
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,

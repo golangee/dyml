@@ -4,7 +4,6 @@ package streamxmlencoder
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
@@ -75,7 +74,7 @@ func (s *Stack) Push(n *Node) {
 // Pop a node from the stack
 func (s *Stack) Pop() (*Node, error) {
 	if s.IsEmpty() {
-		return nil, errors.New("an error occurred while popping the stack")
+		return nil, errors.New("stack is empty, cannot pop")
 	}
 	index := len(*s) - 1
 	element := (*s)[index]
@@ -149,7 +148,6 @@ func (e *Encoder) openOptional() (bool, error) {
 
 // writeString writes the given string to the encoders io.Writer.
 func (e *Encoder) writeString(in ...string) error {
-	fmt.Println(in)
 	for _, text := range in {
 		if _, err := e.buffWriter.Write([]byte(text)); err != nil {
 			return err
@@ -171,14 +169,18 @@ func (e *Encoder) Encode() error {
 		return err
 	}
 
-	e.buffWriter.Flush()
+	err = e.buffWriter.Flush()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Close moves the parent pointer to its current parent Node
 func (e *Encoder) Close() error {
 	if e.stack == nil || len(e.stack) <= 1 {
-		return errors.New("stack is empty, cannot close")
+		return nil
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
 		err = e.writeString(gt)
@@ -251,7 +253,10 @@ func (e *Encoder) NewCommentNode(cd *token.CharData) error {
 // Attribute: [key]="[value]"		BlockType: _groupType="[BlockType]"
 func (e *Encoder) SetBlockType(b parser.BlockType) error {
 	if len(e.stack) > 1 {
-		e.AddAttribute("_groupType", string(b))
+		err := e.AddAttribute("_groupType", string(b))
+		if err != nil {
+			return err
+		}
 	}
 	e.stack[len(e.stack)-1].blockType = b
 	return nil
@@ -267,7 +272,7 @@ func (e *Encoder) GetBlockType() (parser.BlockType, error) {
 	return e.stack[len(e.stack)-1].blockType, nil
 }
 
-// GetForwardingLength returns the lenght of the List of forwaring Nodes
+// GetForwardingLength returns the length of the List of forwaring Nodes
 func (e *Encoder) GetForwardingLength() (int, error) {
 	return len(e.forward), nil
 }
@@ -325,7 +330,7 @@ func (e *Encoder) MergeAttributesForwarded() error {
 		}
 		e.forwardedAttributes = parser.NewAttributeList()
 	}
-	return errors.New("no forwarded Attributes found to merge")
+	return nil
 }
 
 // AppendForwardingNodes appends the current list of forwarding Nodes

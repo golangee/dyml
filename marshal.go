@@ -5,11 +5,12 @@ package tadl
 
 import (
 	"fmt"
-	"github.com/golangee/tadl/parser"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/golangee/tadl/parser"
 )
 
 // Unmarshal takes Tadl input and parses it into the given struct.
@@ -425,7 +426,7 @@ func (u *unmarshaler) node(node *parser.TreeNode, value reflect.Value, tags ...s
 					// We want to handle integers and strings easily so we recurse here by creating a fake node.
 					// As this node is a string, it can *only* be parsed as a primitive type, everything else
 					// will return an error, just like we want.
-					fakeNode := parser.NewStringNode(node.Attributes[fieldName])
+					fakeNode := parser.NewStringNode(fieldName)
 
 					err := u.node(fakeNode, field)
 					if err != nil {
