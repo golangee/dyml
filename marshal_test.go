@@ -5,8 +5,10 @@ package tadl
 
 import (
 	"fmt"
+	"github.com/golangee/tadl/parser"
 	"github.com/r3labs/diff/v2"
 	"log"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -79,6 +81,29 @@ func ExampleUnmarshal_ComplexSlice() {
 
 	fmt.Printf("%s, %s", result.Animals[2].Name, result.Planets[0])
 	// Output: Gopher, Earth
+}
+
+// CustomUnmarshal is used to test the interface for implementing custom unmarshalling logic.
+// It will look for nodes named "Add" and parse the first child as an integer and sum them up.
+type CustomUnmarshal struct {
+	Sum int
+}
+
+func (c *CustomUnmarshal) UnmarshalTadl(node *parser.TreeNode) error {
+	for _, add := range node.Children {
+		if add.Name == "Add" {
+			iNode := add.Children[0]
+
+			i, err := strconv.Atoi(strings.TrimSpace(*iNode.Text))
+			if err != nil {
+				return err
+			}
+
+			c.Sum += i
+		}
+	}
+
+	return nil
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -197,6 +222,21 @@ func TestUnmarshal(t *testing.T) {
 		},
 	})
 
+	testCases = append(testCases, TestCase{
+		name: "int slice with comments",
+		text: `#!{
+					Nums {
+						1,
+						2, 3, // This comment should be ignored.
+						4
+					}
+				}`,
+		into: &IntSlice{},
+		want: &IntSlice{
+			Nums: []int{1, 2, 3, 4},
+		},
+	})
+
 	type EmptyStructSlice struct {
 		Things []Empty
 	}
@@ -221,6 +261,7 @@ func TestUnmarshal(t *testing.T) {
 		text: `#!{
 					i 1,
 					i 2,
+					// please ignore this comment
 					hello 123,
 					i 3,
 					someitem 456,
@@ -397,6 +438,24 @@ func TestUnmarshal(t *testing.T) {
 		}},
 	})
 
+	testCases = append(testCases, TestCase{
+		name: "map with comments",
+		text: `#!{
+					Things {
+						// This comment should be ignored
+						key1 value,
+						// This comment should also be ignored
+						key2 "string value"
+						// This comment shall too be ignored
+					}
+				}`,
+		into: &StringStringMap{},
+		want: &StringStringMap{Things: map[string]string{
+			"key1": "value",
+			"key2": "string value",
+		}},
+	})
+
 	type BoolFloatMap struct {
 		Things map[bool]float64
 	}
@@ -425,6 +484,91 @@ func TestUnmarshal(t *testing.T) {
 		text:    "#Things",
 		into:    &InvalidMapKey{},
 		wantErr: true,
+	})
+
+	type NillableThing struct {
+		Thing *Empty `tadl:"thing"`
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "nillable field is nil",
+		text: "",
+		into: &NillableThing{},
+		want: &NillableThing{Thing: nil},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "nillable field is set",
+		text: "#thing",
+		into: &NillableThing{},
+		want: &NillableThing{Thing: &Empty{}},
+	})
+
+	type CustomMapValue struct {
+		Name  string
+		Value int
+	}
+
+	type MapWithCustomValue struct {
+		Map map[string]CustomMapValue
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "map with custom type as value",
+		text: `#!{
+					Map {
+						thingA {
+							Name "this is thing A"
+							Value 3
+						}
+						thingB {
+							Name "this is thing B"
+							Value 5
+						}
+					}
+				}`,
+		into: &MapWithCustomValue{},
+		want: &MapWithCustomValue{
+			map[string]CustomMapValue{
+				"thingA": {
+					Name:  "this is thing A",
+					Value: 3,
+				},
+				"thingB": {
+					Name:  "this is thing B",
+					Value: 5,
+				},
+			},
+		},
+	})
+
+	type StringA = string
+
+	type StringB string
+
+	type TypeAlias struct {
+		StringA StringA
+		StringB StringB
+	}
+
+	testCases = append(testCases, TestCase{
+		name: "type alias",
+		text: `#!{
+					StringA "hello"
+					StringB "world"
+				}`,
+		into: &TypeAlias{},
+		want: &TypeAlias{
+			StringA: "hello",
+			StringB: "world",
+		},
+	})
+
+	testCases = append(testCases, TestCase{
+		name: "custom unmarshal",
+		text: "#Add 1 #Add 2 #Add 3",
+		into: &CustomUnmarshal{},
+		want: &CustomUnmarshal{Sum: 6},
 	})
 
 	// Run all test cases
