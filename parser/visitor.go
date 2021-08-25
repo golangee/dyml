@@ -39,16 +39,16 @@ type Visitable interface {
 	AddAttribute(key, value string) error
 	// Called when encountering a forwarded Attribute.
 	// Adds the attribute to the List of forwarded Attributes.
-	AddForwardAttribute(key, value string) error
+	AddAttributeForward(key, value string) error
 	// Adds all forward attributes to the currently watched Node.
 	MergeAttributes() error
 	// Adds all forward attributes to the latest forwarded Node.
 	MergeAttributesForwarded() error
 
 	// Adds a Node to the list of forwarded Nodes
-	AddForwardNode(name string) error
+	AddNodeForward(name string) error
 	// Appends all Elements in the list of forwarded Nodes to the currently watched Node.
-	AppendForwardingNodes() error
+	MergeNodesForwarded() error
 
 	// Adds a comment node to the list of forwarded G2Comments
 	G2AddComments(cd *token.CharData) error
@@ -56,7 +56,7 @@ type Visitable interface {
 	G2AppendComments() error
 
 	// swap the main Tree with the forwarding Tree
-	// enables usage of all the methods for both, the active and the forwarding tree.
+	// enables usage of all the methods for both, the main and the forwarding tree.
 	// when encountering a forwarding Element, this method is called.
 	// the forwarding Element is being processed as a non forwarding Element,
 	// afterwards this method is called again.
@@ -315,7 +315,7 @@ func (v *Visitor) g1Node() error {
 
 	if id, ok := tok.(*token.Identifier); ok {
 		if forwardingNode {
-			err = v.visitMe.AddForwardNode(id.Value)
+			err = v.visitMe.AddNodeForward(id.Value)
 			if err != nil {
 				return err
 			}
@@ -341,7 +341,7 @@ func (v *Visitor) g1Node() error {
 	// We now have a valid node.
 	// Place our forwardingNodes inside it, if it is not one itself.
 	if !forwardingNode && !v.nestedG1 {
-		err = v.visitMe.AppendForwardingNodes()
+		err = v.visitMe.MergeNodesForwarded()
 		if err != nil {
 			return err
 		}
@@ -504,7 +504,7 @@ func (v *Visitor) g1LineNodes() error {
 	// Should this be a forwarding G1 line, we will store the children for later
 	// and return an empty array here.
 	if !forward {
-		err = v.visitMe.AppendForwardingNodes()
+		err = v.visitMe.MergeNodesForwarded()
 		if err != nil {
 			return err
 		}
@@ -544,7 +544,7 @@ func (v *Visitor) g2Node() error {
 			return err
 		}
 		// Insert forwarded nodes
-		err = v.visitMe.AppendForwardingNodes()
+		err = v.visitMe.MergeNodesForwarded()
 		if err != nil {
 			return err
 		}
@@ -571,7 +571,7 @@ func (v *Visitor) g2Node() error {
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData, token.TokenIdentifier))
 	}
 
-	err = v.visitMe.AppendForwardingNodes()
+	err = v.visitMe.MergeNodesForwarded()
 	if err != nil {
 		return err
 	}
@@ -695,7 +695,7 @@ func (v *Visitor) g2Node() error {
 			return err
 		}
 
-		err = v.visitMe.AppendForwardingNodes()
+		err = v.visitMe.MergeNodesForwarded()
 		if err != nil {
 			return err
 		}
@@ -1021,7 +1021,7 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	if wantForward {
 		for result.Len() > 0 {
 			key, val := result.Pop()
-			err := v.visitMe.AddForwardAttribute(*key, *val)
+			err := v.visitMe.AddAttributeForward(*key, *val)
 			if err != nil {
 				return err
 			}

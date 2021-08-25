@@ -306,8 +306,8 @@ func (p *Parser) AddAttribute(key, value string) error {
 	return nil
 }
 
-// AddForwardAttribute adds a given AttributeMap to the forwaring Attributes
-func (p *Parser) AddForwardAttribute(key, value string) error {
+// AddAttributeForward adds a given AttributeMap to the forwaring Attributes
+func (p *Parser) AddAttributeForward(key, value string) error {
 	if p.forwardingAttributes == nil {
 		p.forwardingAttributes = &AttributeList{}
 	}
@@ -315,8 +315,8 @@ func (p *Parser) AddForwardAttribute(key, value string) error {
 	return nil
 }
 
-// AddForwardNode appends a given Node to the list of forwarding Nodes
-func (p *Parser) AddForwardNode(name string) error {
+// AddNodeForward appends a given Node to the list of forwarding Nodes
+func (p *Parser) AddNodeForward(name string) error {
 	err := p.SwitchActiveTree()
 	if err != nil {
 		return err
@@ -362,9 +362,9 @@ func (p *Parser) MergeAttributesForwarded() error {
 	return nil
 }
 
-// AppendForwardingNodes appends the current list of forwarding Nodes
+// MergeNodesForwarded appends the current list of forwarding Nodes
 // as Children to the current parent Node
-func (p *Parser) AppendForwardingNodes() error {
+func (p *Parser) MergeNodesForwarded() error {
 	if p.rootForward != nil && p.rootForward.Children != nil && len(p.rootForward.Children) != 0 {
 		p.parent.Children = append(p.parent.Children, p.rootForward.Children...)
 		p.rootForward.Children = nil
