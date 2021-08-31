@@ -23,12 +23,17 @@ const (
 
 func escapeDoubleQuotes(in string) string {
 	var out strings.Builder
+	var last rune
 	for _, c := range in {
 		if c == '"' {
+			if last == '\\' {
+				out.WriteString("\\")
+			}
 			out.WriteString("\"")
 		} else {
 			out.WriteRune(c)
 		}
+		last = c
 	}
 	return out.String()
 }
@@ -310,7 +315,7 @@ func (e *Encoder) GetForwardingAttributesLength() (int, error) {
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (e *Encoder) AddAttribute(key, value string) error {
-	err := e.writeString(whitespace, key, equals, dquotes, value, dquotes)
+	err := e.writeString(whitespace, key, equals, dquotes, escapeDoubleQuotes(value), dquotes)
 	if err != nil {
 		return err
 	}
@@ -319,7 +324,8 @@ func (e *Encoder) AddAttribute(key, value string) error {
 
 // AddAttributeForward adds a given AttributeMap to the forwaring Attributes
 func (e *Encoder) AddAttributeForward(key, value string) error {
-	e.forwardedAttributes.Push(&key, &value)
+	v := escapeDoubleQuotes(value)
+	e.forwardedAttributes.Push(&key, &v)
 	return nil
 }
 

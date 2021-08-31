@@ -19,7 +19,7 @@ func TestEncoderStream(t *testing.T) {
 		{
 			name: "hello world",
 			text: `#? saying hello world
-						#hello{world}`,
+							#hello{world}`,
 			want:     `<root><!-- saying hello world --><hello _groupType="{}">world</hello></root>`,
 			wantErr:  false,
 			buffsize: 5,
@@ -34,154 +34,154 @@ func TestEncoderStream(t *testing.T) {
 		{
 			name: "book example",
 			text: `#book {
-				#toc{}
-				#section @id{1} {
-				  #title {
-					  The sections title
-				  }
+					#toc{}
+					#section @id{1} {
+					  #title {
+						  The sections title
+					  }
 
-				  The sections text.
-				}
-			  }`,
+					  The sections text.
+					}
+				  }`,
 			want: `<root>
-				<book _groupType="{}">
-					<toc _groupType="{}"></toc>
-					<section id="1" _groupType="{}">
-						<title _groupType="{}">
-							The sections title
-						</title>
+					<book _groupType="{}">
+						<toc _groupType="{}"></toc>
+						<section id="1" _groupType="{}">
+							<title _groupType="{}">
+								The sections title
+							</title>
 
-						The sections text.
-					</section>
-				</book>
-			</root>`,
+							The sections text.
+						</section>
+					</book>
+				</root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
 		{
 			name: "complex book example",
 			text: `#book @id{my-book} @author{Torben} {
-						#title { A very simple book }
-						#chapter @id{ch1} {
-							#title {
-								Chapter One
+							#title { A very simple book }
+							#chapter @id{ch1} {
+								#title {
+									Chapter One
+								}
+								#p {
+									Hello paragraph.
+								Still going on.
+								}
 							}
-							#p {
-								Hello paragraph.
-							Still going on.
-							}
-						}
 
-						#chapter @id{ch2} {
-							#title { Chapter Two }
-		 					Some #red{#bold{ Text}} text.
-							The #span @style{color:red} { #span @style{font-weight:bold} {Text }} text.
-							#image @width{100%} {https://worldiety.de/favicon.png}
-						}
-					}`,
+							#chapter @id{ch2} {
+								#title { Chapter Two }
+			 					Some #red{#bold{ Text}} text.
+								The #span @style{color:red} { #span @style{font-weight:bold} {Text }} text.
+								#image @width{100%} {https://worldiety.de/favicon.png}
+							}
+						}`,
 			want: `<root>
-					<book id="my-book" author="Torben" _groupType="{}">
-						<title _groupType="{}">A very simple book</title>
-						<chapter id="ch1" _groupType="{}">
-							<title _groupType="{}">Chapter One</title>
-							<p _groupType="{}">Hello paragraph.
-							Still going on.</p>
-						</chapter>
+						<book id="my-book" author="Torben" _groupType="{}">
+							<title _groupType="{}">A very simple book</title>
+							<chapter id="ch1" _groupType="{}">
+								<title _groupType="{}">Chapter One</title>
+								<p _groupType="{}">Hello paragraph.
+								Still going on.</p>
+							</chapter>
 
-						<chapter id="ch2" _groupType="{}">
-							<title _groupType="{}">Chapter Two</title>
-							Some <red _groupType="{}"><bold _groupType="{}">Text</bold></red> text.
-							The <span style="color:red" _groupType="{}"><span style="font-weight:bold" _groupType="{}">Text </span></span> text.
-							<image width="100%" _groupType="{}">https://worldiety.de/favicon.png</image>
-						</chapter>
-					</book>
-				</root>`,
+							<chapter id="ch2" _groupType="{}">
+								<title _groupType="{}">Chapter Two</title>
+								Some <red _groupType="{}"><bold _groupType="{}">Text</bold></red> text.
+								The <span style="color:red" _groupType="{}"><span style="font-weight:bold" _groupType="{}">Text </span></span> text.
+								<image width="100%" _groupType="{}">https://worldiety.de/favicon.png</image>
+							</chapter>
+						</book>
+					</root>`,
 			buffsize: 10,
 		},
 		{
 			name: "equivalent example grammar1.1",
 			text: `#list{
-						#item1{#key {value}}
-						#item2 @id{1}
-						#item3 @key{value}
-					}`,
+							#item1{#key {value}}
+							#item2 @id{1}
+							#item3 @key{value}
+						}`,
 			want: `<root>
-						<list _groupType="{}">
-							<item1 _groupType="{}"><key _groupType="{}">value</key></item1>
-							<item2 id="1"></item2>
-							<item3 key="value"></item3>
-						</list>
-					</root>`,
+							<list _groupType="{}">
+								<item1 _groupType="{}"><key _groupType="{}">value</key></item1>
+								<item2 id="1"></item2>
+								<item3 key="value"></item3>
+							</list>
+						</root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
 		{
 			name: "equivalent example grammar1.2",
 			text: `#!{
-						list{
-							item1 key "value",
-							@@id="1"
-							item2,
-							item3 @key="value",
-						}
-					}`,
+							list{
+								item1 key "value",
+								@@id="1"
+								item2,
+								item3 @key="value",
+							}
+						}`,
 			want: `<root>
-						<list _groupType="{}">
-							<item1><key>value</key></item1>
-							<item2 id="1"></item2>
-							<item3 key="value"></item3>
-						</list>
-					</root>`,
+							<list _groupType="{}">
+								<item1><key>value</key></item1>
+								<item2 id="1"></item2>
+								<item3 key="value"></item3>
+							</list>
+						</root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
 		{
 			name: "simple forwarded attribute G2",
 			text: `#!{
-						@@key="value"
-						item
-					}`,
+							@@key="value"
+							item
+						}`,
 			want: `<root>
-						<item key="value"></item>
-					</root>`,
+							<item key="value"></item>
+						</root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
 		{
 			name: "forwarded attributes G2",
 			text: `#!{
-						item,
-						@@key="value"
-						@@another="one"
-						item @not="forwarded",
-						parent @@for="child" child,
-					}`,
+							item,
+							@@key="value"
+							@@another="one"
+							item @not="forwarded",
+							parent @@for="child" child,
+						}`,
 			want: `<root>
-						<item></item>
-						<item not="forwarded" key="value" another="one"></item>
-						<parent>
-							<child for="child"></child>
-						</parent>
-					</root>`,
+							<item></item>
+							<item not="forwarded" key="value" another="one"></item>
+							<parent>
+								<child for="child"></child>
+							</parent>
+						</root>`,
 			wantErr:  false,
 			buffsize: 10,
 		},
 		{
 			name: "invalid consecutive commas",
 			text: `#!{
-						item,
-						@@key="value"
-						@@another="one"
-						item @not="forwarded",
-						parent @@for="child" child,,
-					}`,
+							item,
+							@@key="value"
+							@@another="one"
+							item @not="forwarded",
+							parent @@for="child" child,,
+						}`,
 			want: `<root>
-						<item></item>
-						<item not="forwarded" key="value" another="one"></item>
-						<parent>
-							<child for="child"></child>
-						</parent>
-					</root>`,
+							<item></item>
+							<item not="forwarded" key="value" another="one"></item>
+							<parent>
+								<child for="child"></child>
+							</parent>
+						</root>`,
 			wantErr:  true,
 			buffsize: 10,
 		},
@@ -190,98 +190,109 @@ func TestEncoderStream(t *testing.T) {
 		{
 			name: "G2 return arrow, simple",
 			text: `#!{
-				hello(string) -> (int)
-			}`,
+					hello(string) -> (int)
+				}`,
 			want: `<root>
-					<hello _groupType="()">
-						<string></string>
-						<ret _groupType="()"><int>
-							</int>
-						</ret>
-					</hello>
-				</root>`,
+						<hello _groupType="()">
+							<string></string>
+							<ret _groupType="()"><int>
+								</int>
+							</ret>
+						</hello>
+					</root>`,
 			wantErr:  false,
 			buffsize: 5,
 		},
 		{
 			name: "g2 invalid return arrow after nothing",
 			text: `#!{
-						-> (int)
-					}`,
+							-> (int)
+						}`,
 			wantErr: true,
 		},
 
 		{
 			name: "g2 return arrow with generic blocks",
 			text: `#!{
-						fn x<y> -> <z>
-					}`,
+							fn x<y> -> <z>
+						}`,
 			want: `<root>
-					<fn>
-						<x _groupType="<>">
-							<y></y>
-							<ret _groupType="<>">
-								<z></z>
-							</ret>
-						</x>
-					</fn>
-				</root>`,
+						<fn>
+							<x _groupType="<>">
+								<y></y>
+								<ret _groupType="<>">
+									<z></z>
+								</ret>
+							</x>
+						</fn>
+					</root>`,
 		},
 		{
 			name: "g2 invalid return arrow after nothing",
 			text: `#!{
-						-> (int)
-					}`,
+							-> (int)
+						}`,
 			wantErr: true,
 		},
 		{
 			name: "escape quotationmarks",
 			text: `#? saying "hello world"
-			#hello{world}`,
+				#hello{world}`,
 			want: ` <root>
-						<!-- saying "hello world" -->
-						<hello _groupType="{}">world
-						</hello>
-					</root>`,
+							<!-- saying "hello world" -->
+							<hello _groupType="{}">world
+							</hello>
+						</root>`,
 		},
 		//TODO: add tests for g2Arrow, string escaping
 
 		{
 			name: "function definition example",
 			text: `#!{
-						## Greet someone.
-						@@name="The name to greet."
-						func Greet(name string)
+							## Greet someone.
+							@@name="The name to greet."
+							func Greet(name string)
 
-						## Run complex calculations.
-						func Run(x int, y int, z string) -> (int, error)
-					}`,
+							## Run complex calculations.
+							func Run(x int, y int, z string) -> (int, error)
+						}`,
 			want: `<root>
-					<func name="The name to greet.">
-						<Greet _groupType="()">
-							<name>
-								<string></string>
-							</name>
-						</Greet>
-					</func>
-					<func>
-						<Run _groupType="()">
-							<x>
-								<int></int>
-							</x>
-							<y>
-								<int></int>
-							</y>
-							<z>
-								<string></string>
-							</z>
-							<ret _groupType="()">
-								<int></int>
-								<error></error>
-							</ret>
-						</Run>
-					</func>
-				</root>`,
+						<func name="The name to greet.">
+							<Greet _groupType="()">
+								<name>
+									<string></string>
+								</name>
+							</Greet>
+						</func>
+						<func>
+							<Run _groupType="()">
+								<x>
+									<int></int>
+								</x>
+								<y>
+									<int></int>
+								</y>
+								<z>
+									<string></string>
+								</z>
+								<ret _groupType="()">
+									<int></int>
+									<error></error>
+								</ret>
+							</Run>
+						</func>
+					</root>`,
+		},
+		{
+			name:    "Escaped backslash",
+			text:    `#book @id{my-book\} @author{Torben\}`,
+			want:    `<root><book id="my-book\" author="Torben\"></book></root>`,
+			wantErr: false,
+		},
+		{
+			name:    "Whitespace after backslash",
+			text:    `#book @id{my-book\ } @author{Torben\}`,
+			wantErr: true,
 		},
 	}
 	for _, test := range tests {

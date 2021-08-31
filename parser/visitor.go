@@ -366,7 +366,10 @@ func (v *Visitor) g1Node() error {
 	}
 
 	// Optional children enclosed in brackets
-	tok, _ = v.peek()
+	tok, err = v.peek()
+	if err != nil {
+		return err
+	}
 	if tok.TokenType() == token.TokenBlockStart {
 		_, err = v.next() // Pop the token, we know it's a BlockStart
 		if err != nil {

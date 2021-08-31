@@ -32,12 +32,21 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 
 		if strings.ContainsRune(stopAt, r) {
 			if l.gIsEscaped() {
+
 				// Remove previous '\'
-				tmp.Truncate(tmp.Len() - 1)
+				//tmp.Truncate(tmp.Len() - 1)
+				l.prevR()
+				break
 			} else {
 				l.prevR() // reset last read char
 
 				break
+			}
+		} else {
+			if l.gIsEscaped() {
+				if r != '\\' {
+					return nil, NewPosError(l.node(), "lexer error - unexpected rune")
+				}
 			}
 		}
 
