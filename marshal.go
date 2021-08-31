@@ -179,9 +179,21 @@ func (u *UnmarshalError) Unwrap() error {
 // doAny will parse arbitrary contents of the tadl node into the given value.
 // tags are any field tags that may be relevant to process the current node.
 func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...string) error {
-	// Check for custom unmarshalling method.
+	// Check for custom unmarshalling method
+
+	// A zero value for an invalid reflection method.
+	zeroMethod := *new(reflect.Value)
+
 	customUnmarshalMethod := value.MethodByName("UnmarshalTadl")
-	if customUnmarshalMethod != *new(reflect.Value) {
+
+	if customUnmarshalMethod == zeroMethod && value.CanAddr() {
+		// We got no method because we might have been checking for a receiver method on a by-value-reference.
+		// Create a pointer to the value and try to find the method on that.
+		valuePtr := value.Addr()
+		customUnmarshalMethod = valuePtr.MethodByName("UnmarshalTadl")
+	}
+
+	if customUnmarshalMethod != zeroMethod {
 		params := []reflect.Value{reflect.ValueOf(node)}
 
 		// UnmarshalTadl might return an error.
@@ -189,6 +201,9 @@ func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...
 		if !errValue.IsNil() {
 			return errValue.Interface().(error)
 		}
+
+		// We have done custom unmarshalling and don't want the default behavior now
+		return nil
 	}
 
 	switch value.Kind() {
