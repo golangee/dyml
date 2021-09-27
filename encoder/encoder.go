@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/golangee/tadl/parser"
-	"github.com/golangee/tadl/token"
+	"github.com/golangee/dyml/parser"
+	"github.com/golangee/dyml/token"
 )
 
 const (
@@ -45,7 +45,7 @@ func escapeDoubleQuotesChar(c *token.CharData) *token.CharData {
 	}
 }
 
-// Node defines a Node representing a to-be-encoded Element of the tadl-text.
+// Node defines a Node representing a to-be-encoded Element of the dyml-text.
 type Node struct {
 	name       string
 	attributes parser.AttributeList
@@ -99,7 +99,7 @@ func (s *Stack) SetOpened() {
 	(*s)[len(*s)-1].opened = true
 }
 
-// Encoder translates tadl-input to corresponding XML
+// Encoder translates dyml-input to corresponding XML
 type Encoder struct {
 	visitor    parser.Visitor
 	buffWriter *bufio.Writer
@@ -127,7 +127,7 @@ type Encoder struct {
 }
 
 // NewEncoder creades a new XMLEncoder
-// tadl-input is given as an io.Reader instance
+// dyml-input is given as an io.Reader instance
 func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder {
 	encoder := Encoder{
 		visitor:    *parser.NewVisitor(nil, token.NewLexer(filename, r)),
@@ -182,7 +182,7 @@ func (e *Encoder) writeForwardToWriter() error {
 	return nil
 }
 
-// Encode starts the encoding of tadl-text to XML
+// Encode starts the encoding of dyml-text to XML
 // encoded text will be written to the encoders io.Writer
 func (e *Encoder) Encode() error {
 	err := e.visitor.Run()

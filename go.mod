@@ -1,4 +1,4 @@
-module github.com/golangee/tadl
+module github.com/golangee/dyml
 
 go 1.16
 

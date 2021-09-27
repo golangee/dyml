@@ -1,4 +1,4 @@
-= TADL Specification
+= dyml Specification
 :source-highlighter: highlight.js
 :highlightjs-languages: asciidoc, abnf
 :toc:
@@ -7,7 +7,7 @@ Torben Schinke
 == Workspace
 A workspace defines the root of the modelling domain, including all subdomains and bounded contexts. These definitions
 provide the central aspects for all domain solutions. The according requirements' (problem space) and specifications
-(solution space) are usually defined inside modules. A workspace is created by declaring a *tadl.workspace*
+(solution space) are usually defined inside modules. A workspace is created by declaring a *dyml.workspace*
 file which itself annotates declared identifiers as contexts. Nested workspace files are not allowed and therefore
 not interpreted as a workspace file. Each declared QualifiedLowCaseIdentifier must be declared exactly once. Each
 declared QualifiedLowCaseIdentifier must be defined exactly once in a glossary.
@@ -15,16 +15,16 @@ declared QualifiedLowCaseIdentifier must be defined exactly once in a glossary.
 Grammar:
 [source,abnf]
 ----
-; tadl.workspace
+; dyml.workspace
 ContextDefinition           =   "context" QualifiedIdentifier
 QualifiedLowCaseIdentifier  =   QualifiedLowCaseIdentifier ("." QualifiedLowCaseIdentifier)*
 LowCaseIdentifier           =   `([a-z][a-z0-9_]*)`
 ----
 
 Example:
-[source,tadl]
+[source,dyml]
 ----
-// tadl.workspace
+// dyml.workspace
 context yasa.support.ticket
 
 context yasa.support.file
@@ -33,9 +33,9 @@ context yasa.support.iam
 ----
 
 == Module
-Any specification or solution must be declared within a module. A module is declared using a *tadl.mod* file
+Any specification or solution must be declared within a module. A module is declared using a *dyml.mod* file
 and describes generator specific configurations. These settings configure how the language neutral specification
-must be rendered. A module is accompanied by a *tadl.mod.adoc* file, which describes the rough visions and goals which
+must be rendered. A module is accompanied by a *dyml.mod.adoc* file, which describes the rough visions and goals which
 this specification shall solve. It must not be empty and allows a subset of AsciiDoc.
 
 Currently, only a Go generator is specified.
@@ -44,7 +44,7 @@ Currently, only a Go generator is specified.
 Grammar:
 [source,abnf]
 ----
-; tadl.mod
+; dyml.mod
 ModuleDefinition           =   "module" Identifier
 GoDefinition            = "go" { "module" = string "output" = string }
 Identifier           =   `([a-zA-Z_][a-zA-Z0-9_]*)`
@@ -52,7 +52,7 @@ Identifier           =   `([a-zA-Z_][a-zA-Z0-9_]*)`
 
 
 Example:
-[source,tadl]
+[source,dyml]
 ----
 module OlzerpService {
 
@@ -115,7 +115,7 @@ YASA is a company creating extraordinary software products for their customers.
 
 == Requirements and specifications
 There is an entire industry about requirements engineering, and we cannot cover this topic exhaustively here.
-The specification defined in TADL is not suited to replace the
+The specification defined in dyml is not suited to replace the
 https://www.omg.org/spec/ReqIF/About-ReqIF/[Requirements Interchange Format (ReqIF)], however it probably
 covers more than a simple Excel sheet or Word document. Describing requirements and specifications in a structured
 format is an essential part of professional software development and liability, as required by ISO 29148, IEEE 1233 or

@@ -1,12 +1,12 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-// This grammar describes the syntax for tadl.
+// This grammar describes the syntax for dyml.
 // This file is compatible with some tools supporting ANTLR4,
 // but the grammar itself is not supported by it because of
 // ANTLR4's limitations. A handwritten parser is used instead.
 
-grammar tadl;
+grammar dyml;
 
 // Root is the implicit root element. It contains either a grammar G1
 // or a grammar G2, which is indicated by the preamble '#!'.

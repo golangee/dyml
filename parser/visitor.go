@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/golangee/tadl/token"
+	"github.com/golangee/dyml/token"
 )
 
 // Visitable defines the method signature of Objects

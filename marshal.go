@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-package tadl
+package dyml
 
 import (
 	"fmt"
@@ -10,29 +10,29 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golangee/tadl/parser"
+	"github.com/golangee/dyml/parser"
 )
 
 // Unmarshaler can be implemented on a struct to define custom unmarshalling behavior.
 type Unmarshaler interface {
-	UnmarshalTadl(node *parser.TreeNode) error
+	UnmarshalDyml(node *parser.TreeNode) error
 }
 
-// Unmarshal takes Tadl input and parses it into the given struct.
+// Unmarshal takes dyml input and parses it into the given struct.
 // If "into" is not a struct or a pointer to a struct, this method will panic.
 // As this uses go's reflect package, only exported names can be unmarshalled.
 // Strict mode requires that all fields of the struct are set and defined exactly once.
 // You can set struct tags to influence the unmarshalling process.
-// All tags must have the form `tadl:"..."` and are a list of comma separated identifiers.
+// All tags must have the form `dyml:"..."` and are a list of comma separated identifiers.
 //
 // The first identifier can be used to rename the field, so that an element with the renamed
 // name is parsed, and not the name of the struct field.
 //
-//  // This tadl snippet...
+//  // This dyml snippet...
 //  #!{item{...}}
 //  // could be unmarshalled into this go struct.
 //  type Example struct {
-//      SomeName Content `tadl:"item"`
+//      SomeName Content `dyml:"item"`
 //  }
 //
 // The second identifier is used to specify what kind of thing is being parsed.
@@ -42,43 +42,43 @@ type Unmarshaler interface {
 // Should the value not be valid for the target type, e.g. an integer that is too large or a negative value for an uint,
 // an error is returned describing the issue.
 //
-//  // This tadl snippet...
+//  // This dyml snippet...
 //  #item @key{value} @X{123}
 //  // could be unmarshalled into this go struct.
 //  type Example struct {
-//      SomeName string `tadl:"key,attr"` // Notice how you can rename an attribute
-//      X        int    `tadl:",attr"` // You can choose to not rename it, by omitting the rename parameter.
+//      SomeName string `dyml:"key,attr"` // Notice how you can rename an attribute
+//      X        int    `dyml:",attr"` // You can choose to not rename it, by omitting the rename parameter.
 //  }
 //
 // 'inner' can be used to parse elements that are the contents of the surrounding element.
 // Consider this example to parse plain text without surrounding elements:
 //
-//  // This tadl snippet...
+//  // This dyml snippet...
 //  #! {
 //      "hello"
 //      "more text"
 //  }
 //  // could be unmarshalled into this go struct.
 //  type Example struct {
-//      Something string `tadl:",inner"`
+//      Something string `dyml:",inner"`
 //  }
 //
 // When collecting text this way all text inside the node will be concatenated in non-strict mode ("hellomore text" in
 // the above example). In strict mode exactly one text child is required.
-// In the following example inner is used to parse a map-like Tadl definition into a map without a supporting element.
+// In the following example inner is used to parse a map-like Dyml definition into a map without a supporting element.
 //
-//  // This tadl snippet...
+//  // This dyml snippet...
 //  #! {
 //      A "B"
 //      C "D"
 //  }
 //  // could be unmarshalled into this go struct.
 //  type Example struct {
-//      Something map[string]string `tadl:",inner"`
+//      Something map[string]string `dyml:",inner"`
 //  }
 //
 //
-// Tadl can unmarshal into maps. The map key must be a primitive type. The map value must be a primitive
+// dyml can unmarshal into maps. The map key must be a primitive type. The map value must be a primitive
 // type, parser.TreeNode or *parser.TreeNode.
 // Parsing maps will read first level elements as map keys and the first child of each as the map value.
 // In strict mode the map key is required to have exactly one child.
@@ -86,7 +86,7 @@ type Unmarshaler interface {
 // parsed as a value. This is useful if you want to have more control over the value for doing more complex
 // manipulations than just parsing a primitive.
 //
-//  // This tadl snippet...
+//  // This dyml snippet...
 //  #! {
 //      SomeMap {
 //          a 123,  // Numbers are valid identifiers, so this works
@@ -98,7 +98,7 @@ type Unmarshaler interface {
 //      SomeMap map[string]float64
 //  }
 //
-// Tadl also supports unmarshalling slices. When no tag is specified in the struct, elements in Tadl
+// dyml also supports unmarshalling slices. When no tag is specified in the struct, elements in dyml
 // are unmarshalled into the slice directly. Should you specify a tag on the field in your struct,
 // then only elements with that tag will be parsed. See the examples for more details.
 //
@@ -177,7 +177,7 @@ func (u *UnmarshalError) Unwrap() error {
 	return u.wrapping
 }
 
-// doAny will parse arbitrary contents of the tadl node into the given value.
+// doAny will parse arbitrary contents of the dyml node into the given value.
 // tags are any field tags that may be relevant to process the current node.
 func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...string) error {
 	// Check for custom unmarshalling method
@@ -185,19 +185,19 @@ func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...
 	// A zero value for an invalid reflection method.
 	zeroMethod := *new(reflect.Value)
 
-	customUnmarshalMethod := value.MethodByName("UnmarshalTadl")
+	customUnmarshalMethod := value.MethodByName("UnmarshalDyml")
 
 	if customUnmarshalMethod == zeroMethod && value.CanAddr() {
 		// We got no method because we might have been checking for a receiver method on a by-value-reference.
 		// Create a pointer to the value and try to find the method on that.
 		valuePtr := value.Addr()
-		customUnmarshalMethod = valuePtr.MethodByName("UnmarshalTadl")
+		customUnmarshalMethod = valuePtr.MethodByName("UnmarshalDyml")
 	}
 
 	if customUnmarshalMethod != zeroMethod {
 		params := []reflect.Value{reflect.ValueOf(node)}
 
-		// UnmarshalTadl might return an error.
+		// UnmarshalDyml might return an error.
 		errValue := customUnmarshalMethod.Call(params)[0]
 		if !errValue.IsNil() {
 			return errValue.Interface().(error)
@@ -503,7 +503,7 @@ func (u *unmarshaler) doStruct(node *parser.TreeNode, value reflect.Value) error
 		var tags []string
 
 		// Some tags will change the behavior of how this field will be processed.
-		if structTag, ok := fieldType.Tag.Lookup("tadl"); ok {
+		if structTag, ok := fieldType.Tag.Lookup("dyml"); ok {
 			tags = strings.Split(structTag, ",")
 
 			// The first tag will rename the field

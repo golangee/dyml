@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
 package parser
@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/golangee/tadl/token"
+	"github.com/golangee/dyml/token"
 )
 
 // TreeNode is a node in the parse tree.
@@ -165,7 +165,7 @@ const (
 	BlockGeneric BlockType = "<>"
 )
 
-// Parser is used to get a tree representation from Tadl input.
+// Parser is used to get a tree representation from dyml input.
 type Parser struct {
 	//forwardingAttributes contains all Attributes that have been forwarded to be added to the next viable node.
 	forwardingAttributes *AttributeList
@@ -295,7 +295,7 @@ func (p *Parser) GetForwardingAttributesLength() (int, error) {
 }
 
 // GetForwardingPosition retrieves a forwarded Node based on given Index and
-// returns the Rangespan the Token corresponding to said Node had in the input tadl text
+// returns the Rangespan the Token corresponding to said Node had in the input dyml text
 func (p *Parser) GetForwardingPosition(i int) (token.Node, error) {
 	return p.rootForward.Children[i].Range, nil
 }

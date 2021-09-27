@@ -1,13 +1,13 @@
-= tadl
+= dyml
 
-Package tadl contains a technical architecture language.
+Package dyml contains a technical architecture language.
 
-Packages link:parser[] and link:token[] are used to handle the tadl language that is (mostly) formally defined in
-link:tadl.ebnf[]. For motivation, explanation and examples for this language, please see link:markup.adoc[].
+Packages link:parser[] and link:token[] are used to handle the dyml language that is (mostly) formally defined in
+link:dyml.ebnf[]. For motivation, explanation and examples for this language, please see link:markup.adoc[].
 
 Example:
 
-[source,tadl]
+[source,dyml]
 ----
 # ...describes a microservice.
 module service {

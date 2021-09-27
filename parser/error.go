@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
 package parser
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golangee/tadl/token"
+	"github.com/golangee/dyml/token"
 )
 
 // UnexpectedTokenError is returned when a token appeared that the parser did not expect.

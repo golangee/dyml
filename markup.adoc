@@ -60,15 +60,15 @@ language and enrich it with markup declarations. All white-spaces within an elem
 significant, because their rendering depends on later transformation and styling
 (see also the white-space processing model of https://drafts.csswg.org/css-text-3/#white-space-phase-1[html5/CSS]).
 
-The grammar has two modes, text first (G1) and node first (G2). By default a document is written in G1, but can be switched to G2 when it starts with `#!`. See the formal grammar in link:tadl.ebnf[] for more details or the examples below to get a feeling for the grammar.
+The grammar has two modes, text first (G1) and node first (G2). By default a document is written in G1, but can be switched to G2 when it starts with `#!`. See the formal grammar in link:dyml.ebnf[] for more details or the examples below to get a feeling for the grammar.
 The following railroad diagram was generated from the grammar.
-image:tadl.png[]
+image:dyml.png[]
 
 === Examples
 
 ==== Example 1
 A simple hello world
-[source,tadl]
+[source,dyml]
 ----
 #? saying
    hello world
@@ -92,7 +92,7 @@ Transforms to:
 ==== Example 2
 A book example.
 
-[source,tadl]
+[source,dyml]
 ----
 #book {
   #toc{}
@@ -128,7 +128,7 @@ Transforms to (some whitespace indents may vary):
 ==== Example 3
 A more complex book example, could be a DocBook.
 
-[source,tadl]
+[source,dyml]
 ----
 #book @id{my-book} @author{Torben} {
     #title A very simple book
@@ -176,7 +176,7 @@ Transforms to (some whitespace indents may vary):
 The parser can be toggled between two modes (more markup or more text),
 so a writer can decide which reads best in the current context.
 
-[source,tadl]
+[source,dyml]
 ----
 #list{
   #item1{#key value}
@@ -186,7 +186,7 @@ so a writer can decide which reads best in the current context.
 ----
 
 is equivalent to
-[source,tadl]
+[source,dyml]
 ----
 #!{
     list{
@@ -270,12 +270,12 @@ Nesting is no fun, so a linear structure makes reading easier.
 Just plain text, is a valid document.
 [source]
 ----
-This is a basic Tadl document.
+This is a basic dyml document.
 ----
 
 [source]
 ----
-This is a basic Tadl document.
+This is a basic dyml document.
 
 This document contains two paragraphs (depends on the actual renderer).
 ----
@@ -284,7 +284,7 @@ This document contains two paragraphs (depends on the actual renderer).
 ----
 #title{Document Title}
 
-This is a basic Tadl document.
+This is a basic dyml document.
 ----
 
 === Blocks

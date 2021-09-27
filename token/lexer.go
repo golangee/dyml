@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
 package token
@@ -78,7 +78,7 @@ func NewLexer(filename string, r io.Reader) *Lexer {
 	return l
 }
 
-// Token returns the next TADL token in the input stream.
+// Token returns the next dyml token in the input stream.
 // At the end of the input stream, Token returns nil, io.EOF.
 func (l *Lexer) Token() (Token, error) {
 	// Peek the first two runes.

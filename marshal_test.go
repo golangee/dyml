@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: © 2021 The tadl authors <https://github.com/golangee/tadl/blob/main/AUTHORS>
+// SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-package tadl
+package dyml
 
 import (
 	"fmt"
-	"github.com/golangee/tadl/parser"
+	"github.com/golangee/dyml/parser"
 	"github.com/r3labs/diff/v2"
 	"log"
 	"strconv"
@@ -15,8 +15,8 @@ import (
 
 func ExampleUnmarshal() {
 	type Animal struct {
-		Name string `tadl:"name"`
-		Age  uint   `tadl:"age"`
+		Name string `dyml:"name"`
+		Age  uint   `dyml:"age"`
 	}
 
 	input := strings.NewReader("#name Gopher #age 3")
@@ -53,13 +53,13 @@ func ExampleUnmarshal_Slice() {
 // have a rename tag set.
 func ExampleUnmarshal_ComplexSlice() {
 	type Animal struct {
-		Name string `tadl:"name,attr"`
-		Age  uint   `tadl:"age"`
+		Name string `dyml:"name,attr"`
+		Age  uint   `dyml:"age"`
 	}
 
 	type ComplexArray struct {
-		Animals []Animal `tadl:"animal"`
-		Planets []string `tadl:"planet"`
+		Animals []Animal `dyml:"animal"`
+		Planets []string `dyml:"planet"`
 	}
 
 	input := strings.NewReader(`#!{
@@ -89,7 +89,7 @@ type CustomUnmarshal struct {
 	Sum int
 }
 
-func (c *CustomUnmarshal) UnmarshalTadl(node *parser.TreeNode) error {
+func (c *CustomUnmarshal) UnmarshalDyml(node *parser.TreeNode) error {
 	for _, add := range node.Children {
 		if add.Name == "Add" {
 			iNode := add.Children[0]
@@ -253,7 +253,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type FilteredSlice struct {
-		Ints []int `tadl:"i"`
+		Ints []int `dyml:"i"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -283,7 +283,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type SimpleRename struct {
-		Field string `tadl:"item"`
+		Field string `dyml:"item"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -294,7 +294,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type InvalidFieldType struct {
-		V string `tadl:",not-a-type"`
+		V string `dyml:",not-a-type"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -305,14 +305,14 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type SimpleAttributeInner struct {
-		Attribute string  `tadl:",attr"`
-		Renamed   int     `tadl:"x,attr"`
-		Boolean   bool    `tadl:"b,attr"`
-		Float     float64 `tadl:"f,attr"`
+		Attribute string  `dyml:",attr"`
+		Renamed   int     `dyml:"x,attr"`
+		Boolean   bool    `dyml:"b,attr"`
+		Float     float64 `dyml:"f,attr"`
 	}
 
 	type SimpleAttribute struct {
-		Inner SimpleAttributeInner `tadl:"item"`
+		Inner SimpleAttributeInner `dyml:"item"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -330,11 +330,11 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type RequiredAttributeStrictInner struct {
-		Attribute string `tadl:",attr"`
+		Attribute string `dyml:",attr"`
 	}
 
 	type RequiredAttributeStrict struct {
-		Inner RequiredAttributeStrictInner `tadl:"item"`
+		Inner RequiredAttributeStrictInner `dyml:"item"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -346,7 +346,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextDirectly struct {
-		Text string `tadl:",inner"`
+		Text string `dyml:",inner"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -376,12 +376,12 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type TextNestedInner struct {
-		Value string `tadl:",inner"`
+		Value string `dyml:",inner"`
 	}
 
 	type TextNested struct {
-		Text   string          `tadl:",inner"`
-		Inside TextNestedInner `tadl:"inside"`
+		Text   string          `dyml:",inner"`
+		Inside TextNestedInner `dyml:"inside"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -397,8 +397,8 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type LotsOfText struct {
-		Text    string `tadl:",inner"`
-		Element Empty  `tadl:"item"`
+		Text    string `dyml:",inner"`
+		Element Empty  `dyml:"item"`
 	}
 
 	testCases = append(testCases, TestCase{
@@ -487,7 +487,7 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	type NillableThing struct {
-		Thing *Empty `tadl:"thing"`
+		Thing *Empty `dyml:"thing"`
 	}
 
 	testCases = append(testCases, TestCase{
