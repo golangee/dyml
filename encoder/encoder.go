@@ -3,22 +3,12 @@ package streamxmlencoder
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/golangee/dyml/parser"
 	"github.com/golangee/dyml/token"
-)
-
-const (
-	whitespace = " "
-	exclammark = "!"
-	dquotes    = "\""
-	slash      = "/"
-	hyphen     = "-"
-	lt         = "<"
-	equals     = "="
-	gt         = ">"
 )
 
 func escapeDoubleQuotes(in string) string {
@@ -109,14 +99,10 @@ type Encoder struct {
 	// to the output text later. Writes all its content to the io.Writer on writeForwardToWriter()
 	forwardBuilder strings.Builder
 
-	// g2Comments contains all comments in G2 that were eaten from the input,
-	// but are not yet placed in a sensible position.
-	g2Comments Stack
-
-	// globalForward indicates the current forward mode
+	// isForwarding indicates the current forward mode
 	// if false, all incoming calls mutate the main stack
 	// if true, they mutate the forward-stack
-	globalForward bool
+	isForwarding bool
 }
 
 // NewEncoder creades a new XMLEncoder
@@ -137,7 +123,7 @@ func (e *Encoder) openOptional() (bool, error) {
 		return false, nil
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
-		err := e.writeString(gt)
+		err := e.writeString(">")
 		if err != nil {
 			return false, err
 		}
@@ -148,20 +134,18 @@ func (e *Encoder) openOptional() (bool, error) {
 }
 
 // writeString writes the given string to the encoders io.Writer.
-func (e *Encoder) writeString(in ...string) error {
-	if e.globalForward {
-		for _, text := range in {
-			if _, err := e.forwardBuilder.Write([]byte(text)); err != nil {
-				return err
-			}
+func (e *Encoder) writeString(s string) error {
+	if e.isForwarding {
+		if _, err := e.forwardBuilder.Write([]byte(s)); err != nil {
+			return err
 		}
 		return nil
-	}
-	for _, text := range in {
-		if _, err := e.buffWriter.Write([]byte(text)); err != nil {
+	} else {
+		if _, err := e.buffWriter.Write([]byte(s)); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -183,7 +167,7 @@ func (e *Encoder) Encode() error {
 		return err
 	}
 
-	err = e.writeString(lt, slash, "root", gt)
+	err = e.writeString("</root>")
 	if err != nil {
 		return err
 	}
@@ -202,7 +186,7 @@ func (e *Encoder) Close() error {
 		return nil
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
-		err = e.writeString(gt)
+		err = e.writeString(">")
 		if err != nil {
 			return err
 		}
@@ -212,7 +196,7 @@ func (e *Encoder) Close() error {
 	if err != nil {
 		return err
 	}
-	err = e.writeString(lt, slash, escapeDoubleQuotes(node.name), gt)
+	err = e.writeString(fmt.Sprintf("</%s>", escapeDoubleQuotes(node.name)))
 	if err != nil {
 		return err
 	}
@@ -228,7 +212,7 @@ func (e *Encoder) NewNode(name string) error {
 		return err
 	}
 
-	err = e.writeString(lt, name)
+	err = e.writeString(fmt.Sprintf("<%s", name))
 	if err != nil {
 		return err
 	}
@@ -257,7 +241,7 @@ func (e *Encoder) NewTextNode(cd *token.CharData) error {
 // NewCommentNode creates a new Node with Text as Comment, based on CharData and adds it as a child to the current parent Node
 // Opens the new Node
 func (e *Encoder) NewCommentNode(cd *token.CharData) error {
-	if e.globalForward {
+	if e.isForwarding {
 		e.stack.Push(NewNode(cd.Value))
 		return nil
 	}
@@ -265,7 +249,7 @@ func (e *Encoder) NewCommentNode(cd *token.CharData) error {
 	if err != nil {
 		return err
 	}
-	err = e.writeString(lt, exclammark, hyphen, hyphen, whitespace, escapeDoubleQuotes(cd.Value), whitespace, hyphen, hyphen, gt)
+	err = e.writeString(fmt.Sprintf("<!-- %s -->", escapeDoubleQuotes(cd.Value)))
 	if err != nil {
 		return err
 	}
@@ -308,7 +292,8 @@ func (e *Encoder) GetForwardingAttributesLength() (int, error) {
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (e *Encoder) AddAttribute(key, value string) error {
-	err := e.writeString(whitespace, key, equals, dquotes, escapeDoubleQuotes(value), dquotes)
+	//err := e.writeString(fmt.Sprintf(" ", key, "=\"", escapeDoubleQuotes(value), "\""))
+	err := e.writeString(fmt.Sprintf(` %s="%s"`, key, escapeDoubleQuotes(value)))
 	if err != nil {
 		return err
 	}
@@ -333,7 +318,7 @@ func (e *Encoder) MergeAttributes() error {
 	if e.forwardedAttributes.Len() != 0 {
 		for i := 0; i < e.forwardedAttributes.Len(); i++ {
 			key, value := e.forwardedAttributes.Get(i)
-			err := e.writeString(whitespace, *key, equals, dquotes, *value, dquotes)
+			err := e.writeString(fmt.Sprintf(`%s="%s"`, *key, escapeDoubleQuotes(*value)))
 			if err != nil {
 				return err
 			}
@@ -383,7 +368,7 @@ func (e *Encoder) MergeNodesForwarded() error {
 }
 
 func (e *Encoder) G2AddComment(cd *token.CharData) error {
-	err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, cd.Value, whitespace, hyphen, hyphen, gt)
+	err := e.writeString(fmt.Sprintf("<!-- %s -->", cd.Value))
 	if err != nil {
 		return err
 	}
@@ -397,7 +382,7 @@ func (e *Encoder) SwitchActiveTree() error {
 	e.stack = e.forward
 	e.forward = cache
 
-	e.globalForward = !e.globalForward
+	e.isForwarding = !e.isForwarding
 	return nil
 }
 
@@ -414,17 +399,17 @@ func (e *Encoder) NewStringNode(text string) error {
 // NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
 func (e *Encoder) NewStringCommentNode(text string) error {
-	err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, text, whitespace, hyphen, hyphen, gt)
+	err := e.writeString(fmt.Sprintf("<!-- %s -->", text))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetGlobalForward returns the globalForward flag
+// GetGlobalForward returns the isForwarding flag
 // true: forwarding mode, all new nodes/Attributes are added to the forwarding stack to be added later
 func (e *Encoder) GetGlobalForward() (bool, error) {
-	return e.globalForward, nil
+	return e.isForwarding, nil
 }
 
 // isWhitespaceOnly checks if the given string consists of whitespaces only

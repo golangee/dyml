@@ -334,7 +334,6 @@ func TestEncoderStream(t *testing.T) {
 				return
 			}
 
-			//TODO: test for streaming
 			val := writer.String()
 
 			if !StringsEqual(test.want, val) {
