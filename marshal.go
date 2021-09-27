@@ -5,11 +5,12 @@ package tadl
 
 import (
 	"fmt"
-	"github.com/golangee/tadl/parser"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/golangee/tadl/parser"
 )
 
 // Unmarshaler can be implemented on a struct to define custom unmarshalling behavior.
@@ -546,11 +547,6 @@ func (u *unmarshaler) doStruct(node *parser.TreeNode, value reflect.Value) error
 				if nodeForField == nil {
 					continue
 				}
-
-				err = u.doAny(nodeForField, field, tags...)
-				if err != nil {
-					return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
-				}
 			}
 		case unmarshalAttribute:
 			if node.Attributes.Has(fieldName) {
@@ -558,7 +554,7 @@ func (u *unmarshaler) doStruct(node *parser.TreeNode, value reflect.Value) error
 				// We want to handle integers and strings easily so we recurse here by creating a fake node.
 				// As this node is a string, it can *only* be parsed as a primitive type, everything else
 				// will return an error, just like we want.
-				fakeNode := parser.NewStringNode(node.Attributes[fieldName])
+				fakeNode := parser.NewStringNode(*node.Attributes.GetKey(fieldName))
 
 				err := u.doAny(fakeNode, field)
 				if err != nil {

@@ -31,6 +31,11 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "BlockNoBrackets",
+			text: "#title Chapter Two",
+			want: NewNode("root").Block(BlockNormal).AddChildren(NewNode("title").AddChildren(NewStringNode("Chapter Two"))),
+		},
+		{
 			name: "different children types",
 			text: "hello #item1 world #item2 #item3 more text",
 			want: NewNode("root").Block(BlockNormal).AddChildren(
@@ -93,14 +98,14 @@ func TestParser(t *testing.T) {
 		{
 			name: "forwarded elements",
 			text: `#A
-					##B
-					##C
-					#D {
-						##E
-						#F
-					}
-					#G
-				`,
+						##B
+						##C
+						#D {
+							##E
+							#F
+						}
+						#G
+					`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A"),
 				NewNode("D").Block(BlockNormal).AddChildren(
@@ -121,12 +126,12 @@ func TestParser(t *testing.T) {
 		{
 			name: "forwarded attributes",
 			text: `#A
-					@simple{attribute}
-					@@forwarded{attribute}
-					@@another{forwarded}
-					#B
-					@simple{attribute}
-					#C`,
+										@simple{attribute}
+										@@forwarded{attribute}
+										@@another{forwarded}
+										#B
+										@simple{attribute}
+										#C`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("A").
 					AddAttribute("simple", "attribute"),
@@ -458,11 +463,15 @@ func TestParser(t *testing.T) {
 			text:    `#!(item)`,
 			wantErr: true,
 		},
+
+		// TODO: modified Test, unsure if it was valid. "," before "A comment" closed node "item",
+		// adding the comment to the parent of the wanted node
 		{
 			name: "g2 comment",
 			text: `#!{
 						// First comment
-						item, // A comment
+						item // A comment
+						,
 						item
 						// Another comment
 						item
@@ -481,6 +490,7 @@ func TestParser(t *testing.T) {
 				),
 			),
 		},
+
 		{
 			name: "g2 return arrow",
 			text: `#!{
@@ -574,6 +584,35 @@ func TestParser(t *testing.T) {
 					),
 			),
 		},
+		{
+			name: "equivalent example grammar1.2",
+			text: `#!{
+						list{
+							item1 key "value",
+							@@id="1"
+							item2,
+							item3 @key="value",
+						}
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("list").Block(BlockNormal).AddChildren(
+					NewNode("item1").
+						AddChildren(
+							NewNode("key").
+								AddChildren(
+									NewStringNode("value"))),
+					NewNode("item2").AddAttribute("id", "1"),
+					NewNode("item3").AddAttribute("key", "value"),
+				)),
+		},
+		/*{
+			name: "escape quotationmarks",
+			text: `#Strange"Identifier @another{w31rd}
+						@@forwarded{a"ttribute}
+						#Anoth"erIdentifier"
+						#? And wh"at" about comments?`,
+			want: NewNode("root").Block(BlockNormal),
+		},*/
 	}
 
 	for _, tt := range tests {
@@ -595,6 +634,16 @@ func TestParser(t *testing.T) {
 				// We wanted an error and got it, comparing trees would
 				// make no sense, so we end this test here.
 				return
+			}
+
+			fmt.Printf("%+v\n", tree)
+			for _, child := range tree.Children {
+				fmt.Printf("%+v\n", child)
+			}
+
+			fmt.Printf("\n%+v\n", tt.want)
+			for _, child := range tt.want.Children {
+				fmt.Printf("%+v\n", child)
 			}
 
 			differences, err := diff.Diff(tt.want, tree)
