@@ -6,6 +6,7 @@ package token
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 )
@@ -15,6 +16,10 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 	startPos := l.Pos()
 
 	var tmp bytes.Buffer
+
+	// Keep track of whether the last read char is a '\' to properly escape backslashes
+	// and the stopAt characters.
+	isEscaping := false
 
 	for {
 		r, err := l.nextR()
@@ -30,27 +35,30 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 			return nil, err
 		}
 
-		if strings.ContainsRune(stopAt, r) {
-			if l.gIsEscaped() {
-
-				// Remove previous '\'
-				tmp.Truncate(tmp.Len() - 1)
-				//l.prevR()
-				//break
+		if isEscaping {
+			// The last character was a backslash, only backslashes and stopAt characters may follow.
+			if strings.ContainsRune(stopAt, r) || r == '\\' {
+				// The character was correctly escaped and should be emitted as-is.
+				tmp.WriteRune(r)
+				isEscaping = false
 			} else {
-				l.prevR() // reset last read char
-
-				break
+				// Escaping happened, but nothing valid to escape was found!
+				return nil, NewPosError(l.node(), fmt.Sprintf("'%c' may not be escaped here", r))
 			}
 		} else {
-			if l.gIsEscaped() {
-				if r != '\\' {
-					return nil, NewPosError(l.node(), "unexpected rune")
-				}
+			// We are not currently expecting an escaped char, proceed normally.
+			if strings.ContainsRune(stopAt, r) {
+				// That character is no longer supposed to be in our string, revert the read and stop.
+				l.prevR()
+				break
+			} else if r == '\\' {
+				// Enter escape mode and not emit this backslash.
+				isEscaping = true
+			} else {
+				// Any other normal character
+				tmp.WriteRune(r)
 			}
 		}
-
-		tmp.WriteRune(r)
 	}
 
 	text := &CharData{}

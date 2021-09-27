@@ -178,15 +178,6 @@ func (l *Lexer) gDefineElement() (*DefineElement, error) {
 	return define, nil
 }
 
-// gIsEscaped checks if the last read rune is a '\'.
-func (l *Lexer) gIsEscaped() bool {
-	if r, ok := l.lastRune(-2); ok {
-		return r == '\\'
-	}
-
-	return false
-}
-
 // gCommentLine reads arbitrary text for the rest of the line.
 func (l *Lexer) gCommentLine() (*CharData, error) {
 	startPos := l.Pos()

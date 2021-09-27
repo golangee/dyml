@@ -44,9 +44,15 @@ func TestLexer(t *testing.T) {
 
 		{
 			name: "escaped simple text",
-			text: `hello \wo\#rl\}d`,
+			text: `hello \\wo\#rl\}d`,
 			want: NewTestSet().
 				CharData(`hello \wo#rl}d`),
+		},
+
+		{
+			name:    "Whitespace after backslash",
+			text:    `#book @id{my-book\ } @author{Torben\}`,
+			wantErr: true,
 		},
 
 		{
@@ -234,7 +240,7 @@ func TestLexer(t *testing.T) {
 
 		{
 			name: "g2 with a string",
-			text: `#!{"hello\"\n"}`,
+			text: `#!{"hello\"\\n"}`,
 			want: NewTestSet().
 				G2Preamble().
 				BlockStart().

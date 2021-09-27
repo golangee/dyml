@@ -4,7 +4,6 @@
 package token
 
 import (
-	"bytes"
 	"errors"
 	"io"
 )
@@ -59,30 +58,21 @@ func (l *Lexer) g2CharData() (*CharData, error) {
 		return nil, NewPosError(l.node(), "expected '\"'")
 	}
 
-	var tmp bytes.Buffer
+	text, err := l.g1Text("\"")
+	if err != nil {
+		return nil, err
+	}
 
-	for {
-		r, err := l.nextR()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		if r == '"' {
-			if l.gIsEscaped() {
-				// Remove previous '\'
-				tmp.Truncate(tmp.Len() - 1)
-			} else {
-				break
-			}
-		}
-
-		tmp.WriteRune(r)
+	// Eat closing '"'
+	r, _ = l.nextR()
+	if r != '"' {
+		return nil, NewPosError(l.node(), "expected '\"'")
 	}
 
 	chardata := &CharData{}
 	chardata.Position.BeginPos = startPos
 	chardata.Position.EndPos = l.pos
-	chardata.Value = tmp.String()
+	chardata.Value = text.Value
 
 	return chardata, nil
 }

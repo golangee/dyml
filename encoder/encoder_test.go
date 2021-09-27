@@ -284,16 +284,11 @@ func TestEncoderStream(t *testing.T) {
 					</root>`,
 		},
 		{
-			name:    "Escaped backslash",
-			text:    `#book @id{my-book\\} @author{Torben\\}`,
+			name: "Escaped backslash",
+			text: `#book @id{my-book\\} @author{Torben\\}`,
 			// TODO This is invalid XML, backslashes need to be escaped
 			want:    `<root><book id="my-book\" author="Torben\"></book></root>`,
 			wantErr: false,
-		},
-		{
-			name:    "Whitespace after backslash",
-			text:    `#book @id{my-book\ } @author{Torben\}`,
-			wantErr: true,
 		},
 	}
 	for _, test := range tests {
@@ -353,8 +348,6 @@ func TestEncoderStream(t *testing.T) {
 // StringsEqual compares two given strings
 // ignores differences in Whitespaces, Tabs and newlines
 func StringsEqual(in1, in2 string) bool {
-	// TOOD use strings.Replacer
-	var cleanIn1 string = strings.Replace(strings.Replace(strings.Replace(in1, "\n", "", -1), " ", "", -1), "\t", "", -1)
-	var cleanIn2 string = strings.Replace(strings.Replace(strings.Replace(in2, "\n", "", -1), " ", "", -1), "\t", "", -1)
-	return cleanIn1 == cleanIn2
+	r := strings.NewReplacer("\n", "", "\t", "", " ", "")
+	return r.Replace(in1) == r.Replace(in2)
 }

@@ -78,12 +78,12 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "attributes",
-			text: `#item @id{5} @hello{world} @complex{attribute "with" #special 'chars}`,
+			text: `#item @id{5} @hello{world} @complex{attribute "with" #special\} 'chars}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item").
 					AddAttribute("id", "5").
 					AddAttribute("hello", "world").
-					AddAttribute("complex", `attribute "with" #special 'chars`),
+					AddAttribute("complex", `attribute "with" #special} 'chars`),
 			),
 		},
 		{
