@@ -51,9 +51,7 @@ type Visitable interface {
 	MergeNodesForwarded() error
 
 	// Adds a comment node to the list of forwarded G2Comments
-	G2AddComments(cd *token.CharData) error
-	// Appends all forwarded G2Comments to the currently watched Node.
-	G2AppendComments() error
+	G2AddComment(cd *token.CharData) error
 
 	// swap the main Tree with the forwarding Tree
 	// enables usage of all the methods for both, the main and the forwarding tree.
@@ -517,6 +515,10 @@ func (v *Visitor) g1LineNodes() error {
 
 // g2Node recursively parses a G2 node and all its children from tokens.
 func (v *Visitor) g2Node() error {
+	if err := v.g2EatComments(); err != nil {
+		return err
+	}
+
 	err := v.setStartPos(v.lexer.Pos())
 	if err != nil {
 		return err
@@ -704,6 +706,10 @@ func (v *Visitor) g2Node() error {
 		}
 	}
 
+	if err := v.g2EatComments(); err != nil {
+		return err
+	}
+
 	tok, err = v.peek()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -748,8 +754,7 @@ func (v *Visitor) g2Node() error {
 	return nil
 }
 
-// g2EatComments will read all G2 comments from the current lexer position and store them in
-// p.g2Comments so that the can be placed in a sensible node with g2AppendComments.
+// g2EatComments will read all G2 comments from the lexer.
 func (v *Visitor) g2EatComments() error {
 	for {
 		tok, err := v.peek()
@@ -775,7 +780,7 @@ func (v *Visitor) g2EatComments() error {
 
 		// Expect CharData as comment
 		if cd, ok := tok.(*token.CharData); ok {
-			err = v.visitMe.G2AddComments(cd)
+			err = v.visitMe.G2AddComment(cd)
 			if err != nil {
 				return err
 			}
@@ -785,10 +790,6 @@ func (v *Visitor) g2EatComments() error {
 				"empty comment is not valid",
 			).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
 		}
-	}
-	err := v.visitMe.G2AppendComments()
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -832,7 +833,6 @@ func (v *Visitor) g2ParseBlock() error {
 			return err
 		}
 
-		err = v.visitMe.G2AppendComments()
 		if err != nil {
 			return err
 		}
@@ -1066,7 +1066,6 @@ func (v *Visitor) setStartPos(pos token.Pos) error {
 			return err
 		}
 		v.forwardRanges = append(v.forwardRanges, &token.Position{BeginPos: pos})
-
 	} else {
 		v.Ranges = append(v.Ranges, &token.Position{BeginPos: pos})
 	}

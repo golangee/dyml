@@ -4,7 +4,6 @@
 package parser
 
 import (
-	"errors"
 	"io"
 
 	"github.com/golangee/dyml/token"
@@ -373,22 +372,10 @@ func (p *Parser) MergeNodesForwarded() error {
 	return nil
 }
 
-// G2AppendComments will append all comments that were parsed with g2EatComments as children
-// into the parent node.
-func (p *Parser) G2AppendComments() error {
-	if p.parent != nil {
-		p.parent.Children = append(p.parent.Children, p.g2Comments...)
-		p.g2Comments = nil
-	} else if p.g2Comments != nil {
-		return errors.New("could not append comments, parent is nil")
-	}
-	return nil
-}
-
 // G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
 // to be added to the tree later
-func (p *Parser) G2AddComments(cd *token.CharData) error {
-	p.g2Comments = append(p.g2Comments, NewCommentNode(cd))
+func (p *Parser) G2AddComment(cd *token.CharData) error {
+	p.parent.AddChildren(NewCommentNode(cd))
 	return nil
 }
 

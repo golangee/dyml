@@ -38,13 +38,6 @@ func escapeDoubleQuotes(in string) string {
 	return out.String()
 }
 
-func escapeDoubleQuotesChar(c *token.CharData) *token.CharData {
-	return &token.CharData{
-		Position: c.Position,
-		Value:    escapeDoubleQuotes(c.Value),
-	}
-}
-
 // Node defines a Node representing a to-be-encoded Element of the dyml-text.
 type Node struct {
 	name       string
@@ -338,8 +331,7 @@ func (e *Encoder) AddNodeForward(name string) error {
 // MergeAttributes merges the list of forwarded Attributes to the current parent Nodes Attributes
 func (e *Encoder) MergeAttributes() error {
 	if e.forwardedAttributes.Len() != 0 {
-		len := e.forwardedAttributes.Len()
-		for i := 0; i < len; i++ {
+		for i := 0; i < e.forwardedAttributes.Len(); i++ {
 			key, value := e.forwardedAttributes.Get(i)
 			err := e.writeString(whitespace, *key, equals, dquotes, *value, dquotes)
 			if err != nil {
@@ -355,8 +347,7 @@ func (e *Encoder) MergeAttributes() error {
 // MergeAttributesForwarded adds the buffered forwarding AttributeMap to the latest forwarded Node
 func (e *Encoder) MergeAttributesForwarded() error {
 	if e.forwardedAttributes.Len() != 0 {
-		len := e.forwardedAttributes.Len()
-		for i := 0; i < len; i++ {
+		for i := 0; i < e.forwardedAttributes.Len(); i++ {
 			key, value := e.forwardedAttributes.Get(i)
 			e.forward[i].attributes.Push(key, value)
 		}
@@ -391,22 +382,11 @@ func (e *Encoder) MergeNodesForwarded() error {
 	return nil
 }
 
-// G2AppendComments will append all comments that were parsed with g2EatComments as children
-// into the given node.
-func (e *Encoder) G2AppendComments() error {
-	for _, comment := range e.g2Comments {
-		err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, comment.name, whitespace, hyphen, hyphen, gt)
-		if err != nil {
-			return err
-		}
+func (e *Encoder) G2AddComment(cd *token.CharData) error {
+	err := e.writeString(lt, exclammark, hyphen, hyphen, whitespace, cd.Value, whitespace, hyphen, hyphen, gt)
+	if err != nil {
+		return err
 	}
-	return nil
-}
-
-// G2AddComments adds a new Comment Node based on given CharData to the g2Comments List,
-// to be added to the tree later
-func (e *Encoder) G2AddComments(cd *token.CharData) error {
-	e.g2Comments = append(e.g2Comments, NewNode(string(escapeDoubleQuotesChar(cd).Value)))
 	return nil
 }
 

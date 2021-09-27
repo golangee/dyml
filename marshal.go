@@ -547,6 +547,11 @@ func (u *unmarshaler) doStruct(node *parser.TreeNode, value reflect.Value) error
 				if nodeForField == nil {
 					continue
 				}
+
+				err = u.doAny(nodeForField, field, tags...)
+				if err != nil {
+					return NewUnmarshalError(node, fmt.Sprintf("while processing field '%s'", fieldType.Name), err)
+				}
 			}
 		case unmarshalAttribute:
 			if node.Attributes.Has(fieldName) {

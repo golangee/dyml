@@ -464,8 +464,6 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 
-		// TODO: modified Test, unsure if it was valid. "," before "A comment" closed node "item",
-		// adding the comment to the parent of the wanted node
 		{
 			name: "g2 comment",
 			text: `#!{
