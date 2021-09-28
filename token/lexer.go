@@ -16,9 +16,14 @@ import (
 type GrammarMode int
 
 const (
+	// G1 is the default text-first mode.
 	G1 GrammarMode = iota
+	// G2 ist the node-first mode.
 	G2
+	// G1Line is a single G1 line in G2.
 	G1Line
+	// G1LineForward is the same as G1Line, but the elements should be forwarded.
+	G1LineForward
 )
 
 // WantMode is used to make sure the next token is lexed as a specific thing.

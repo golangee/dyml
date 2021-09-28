@@ -3,7 +3,7 @@
 Package dyml contains a technical architecture language.
 
 Packages link:parser[] and link:token[] are used to handle the dyml language that is (mostly) formally defined in
-link:dyml.ebnf[]. For motivation, explanation and examples for this language, please see link:markup.adoc[].
+link:docs/dyml.ebnf[]. For motivation, explanation and examples for this language, please see link:docs/markup.adoc[].
 
 Example:
 

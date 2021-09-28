@@ -554,12 +554,13 @@ func (u *unmarshaler) doStruct(node *parser.TreeNode, value reflect.Value) error
 				}
 			}
 		case unmarshalAttribute:
-			if node.Attributes.Has(fieldName) {
+			attr := node.Attributes.Get(fieldName)
+			if attr != nil {
 				// We have everything ready to set the attribute.
 				// We want to handle integers and strings easily so we recurse here by creating a fake node.
 				// As this node is a string, it can *only* be parsed as a primitive type, everything else
 				// will return an error, just like we want.
-				fakeNode := parser.NewStringNode(*node.Attributes.GetKey(fieldName))
+				fakeNode := parser.NewStringNode(attr.Value)
 
 				err := u.doAny(fakeNode, field)
 				if err != nil {

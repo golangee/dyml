@@ -5,6 +5,7 @@ package parser
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -383,6 +384,26 @@ func TestParser(t *testing.T) {
 			want: NewNode("root").Block(BlockNormal),
 		},
 		{
+			name: "forwarding node in forwarding line is forbidden",
+			text: `#!{
+						## ##A #B
+						C
+					}`,
+			wantErr: true,
+		},
+		{
+			name: "forward attributes in forward line",
+			text: `#!{
+						## @@key{value} #item
+						parent
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("parent").AddChildren(
+					NewNode("item").AddAttribute("key", "value"),
+				),
+			),
+		},
+		{
 			name: "invalid forward G1 line",
 			text: `#!{
 						## where would this text be forwarded to?
@@ -603,14 +624,6 @@ func TestParser(t *testing.T) {
 					NewNode("item3").AddAttribute("key", "value"),
 				)),
 		},
-		/*{
-			name: "escape quotationmarks",
-			text: `#Strange"Identifier @another{w31rd}
-						@@forwarded{a"ttribute}
-						#Anoth"erIdentifier"
-						#? And wh"at" about comments?`,
-			want: NewNode("root").Block(BlockNormal),
-		},*/
 	}
 
 	for _, tt := range tests {
@@ -634,17 +647,10 @@ func TestParser(t *testing.T) {
 				return
 			}
 
-			fmt.Printf("%+v\n", tree)
-			for _, child := range tree.Children {
-				fmt.Printf("%+v\n", child)
-			}
-
-			fmt.Printf("\n%+v\n", tt.want)
-			for _, child := range tt.want.Children {
-				fmt.Printf("%+v\n", child)
-			}
-
-			differences, err := diff.Diff(tt.want, tree)
+			differences, err := diff.Diff(tt.want, tree, diff.Filter(func(path []string, parent reflect.Type, field reflect.StructField) bool {
+				// Skip any unexported fields when comparing
+				return field.IsExported()
+			}))
 			if err != nil {
 				t.Error(err)
 				return

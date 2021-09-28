@@ -105,7 +105,7 @@ type Encoder struct {
 	isForwarding bool
 }
 
-// NewEncoder creades a new XMLEncoder
+// NewEncoder creates a new XMLEncoder
 // dyml-input is given as an io.Reader instance
 func NewEncoder(filename string, r io.Reader, w io.Writer, buffsize int) Encoder {
 	encoder := Encoder{
@@ -123,7 +123,7 @@ func (e *Encoder) openOptional() (bool, error) {
 		return false, nil
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
-		err := e.writeString(">")
+		err := e.write(">")
 		if err != nil {
 			return false, err
 		}
@@ -133,8 +133,8 @@ func (e *Encoder) openOptional() (bool, error) {
 	return false, nil
 }
 
-// writeString writes the given string to the encoders io.Writer.
-func (e *Encoder) writeString(s string) error {
+// write the given string to the encoder's io.Writer.
+func (e *Encoder) write(s string) error {
 	if e.isForwarding {
 		if _, err := e.forwardBuilder.Write([]byte(s)); err != nil {
 			return err
@@ -151,7 +151,7 @@ func (e *Encoder) writeString(s string) error {
 
 // writeForwardToWriter writes the contents of the forward encoding-buffer to the overlying io.Writer
 func (e *Encoder) writeForwardToWriter() error {
-	err := e.writeString(e.forwardBuilder.String())
+	err := e.write(e.forwardBuilder.String())
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (e *Encoder) Encode() error {
 		return err
 	}
 
-	err = e.writeString("</root>")
+	err = e.write("</root>")
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (e *Encoder) Close() error {
 		return nil
 	}
 	if opened, err := e.stack.IsOpened(); err == nil && !opened {
-		err = e.writeString(">")
+		err = e.write(">")
 		if err != nil {
 			return err
 		}
@@ -196,7 +196,7 @@ func (e *Encoder) Close() error {
 	if err != nil {
 		return err
 	}
-	err = e.writeString(fmt.Sprintf("</%s>", escapeDoubleQuotes(node.name)))
+	err = e.write(fmt.Sprintf("</%s>", escapeDoubleQuotes(node.name)))
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func (e *Encoder) NewNode(name string) error {
 		return err
 	}
 
-	err = e.writeString(fmt.Sprintf("<%s", name))
+	err = e.write(fmt.Sprintf("<%s", name))
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (e *Encoder) NewTextNode(cd *token.CharData) error {
 			return err
 		}
 
-		err = e.writeString(escapeDoubleQuotes(cd.Value))
+		err = e.write(escapeDoubleQuotes(cd.Value))
 		if err != nil {
 			return err
 		}
@@ -249,7 +249,7 @@ func (e *Encoder) NewCommentNode(cd *token.CharData) error {
 	if err != nil {
 		return err
 	}
-	err = e.writeString(fmt.Sprintf("<!-- %s -->", escapeDoubleQuotes(cd.Value)))
+	err = e.write(fmt.Sprintf("<!-- %s -->", escapeDoubleQuotes(cd.Value)))
 	if err != nil {
 		return err
 	}
@@ -292,8 +292,8 @@ func (e *Encoder) GetForwardingAttributesLength() (int, error) {
 
 // AddAttribute adds a given Attribute to the current parent Node
 func (e *Encoder) AddAttribute(key, value string) error {
-	//err := e.writeString(fmt.Sprintf(" ", key, "=\"", escapeDoubleQuotes(value), "\""))
-	err := e.writeString(fmt.Sprintf(` %s="%s"`, key, escapeDoubleQuotes(value)))
+	//err := e.write(fmt.Sprintf(" ", key, "=\"", escapeDoubleQuotes(value), "\""))
+	err := e.write(fmt.Sprintf(` %s="%s"`, key, escapeDoubleQuotes(value)))
 	if err != nil {
 		return err
 	}
@@ -318,7 +318,7 @@ func (e *Encoder) MergeAttributes() error {
 	if e.forwardedAttributes.Len() != 0 {
 		for i := 0; i < e.forwardedAttributes.Len(); i++ {
 			key, value := e.forwardedAttributes.Get(i)
-			err := e.writeString(fmt.Sprintf(`%s="%s"`, *key, escapeDoubleQuotes(*value)))
+			err := e.write(fmt.Sprintf(`%s="%s"`, *key, escapeDoubleQuotes(*value)))
 			if err != nil {
 				return err
 			}
@@ -368,7 +368,7 @@ func (e *Encoder) MergeNodesForwarded() error {
 }
 
 func (e *Encoder) G2AddComment(cd *token.CharData) error {
-	err := e.writeString(fmt.Sprintf("<!-- %s -->", cd.Value))
+	err := e.write(fmt.Sprintf("<!-- %s -->", cd.Value))
 	if err != nil {
 		return err
 	}
@@ -389,7 +389,7 @@ func (e *Encoder) SwitchActiveTree() error {
 // NewStringNode creates a Node with Text and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
 func (e *Encoder) NewStringNode(text string) error {
-	err := e.writeString(text)
+	err := e.write(text)
 	if err != nil {
 		return err
 	}
@@ -399,7 +399,7 @@ func (e *Encoder) NewStringNode(text string) error {
 // NewStringCommentNode creates a new Node with Text as Comment, based on string and adds it as a child to the current parent Node
 // Opens the new Node, used for testing purposes only
 func (e *Encoder) NewStringCommentNode(text string) error {
-	err := e.writeString(fmt.Sprintf("<!-- %s -->", text))
+	err := e.write(fmt.Sprintf("<!-- %s -->", text))
 	if err != nil {
 		return err
 	}
