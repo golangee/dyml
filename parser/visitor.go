@@ -505,11 +505,6 @@ func (v *Visitor) g2Node() error {
 	// true if an arrow following this node is allowed.
 	arrowAllowed := true
 
-	//err := v.setStartPos(v.lexer.Pos())
-	//if err != nil {
-	//	return err
-	//}
-
 	// Read forward attributes
 	err := v.parseAttributes(true)
 	if err != nil {
@@ -616,11 +611,6 @@ func (v *Visitor) g2Node() error {
 			return err
 		}
 	}
-
-	////err = v.setEndPos(v.lexer.Pos())
-	////if err != nil {
-	////	return err
-	////}
 
 	return nil
 }

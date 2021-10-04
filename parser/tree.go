@@ -216,10 +216,7 @@ func (p *Parser) applyForwardedAttributes(node *TreeNode) error {
 	return nil
 }
 
-// TODO Remove all print methods in the callbacks
-
 func (p *Parser) Open(name token.Identifier) error {
-	fmt.Printf("[Parser] Open(%s)\n", name.Value)
 	return p.openNode(name.Value)
 }
 
@@ -240,8 +237,6 @@ func (p *Parser) openNode(name string) error {
 }
 
 func (p *Parser) Comment(comment token.CharData) error {
-	fmt.Printf("[Parser] Comment(%s)\n", comment.Value)
-
 	top, err := p.getStackTop()
 	if err != nil {
 		return err
@@ -252,8 +247,6 @@ func (p *Parser) Comment(comment token.CharData) error {
 }
 
 func (p *Parser) Text(text token.CharData) error {
-	fmt.Printf("[Parser] Text(%s)\n", text.Value)
-
 	top, err := p.getStackTop()
 	if err != nil {
 		return err
@@ -276,8 +269,6 @@ func (p *Parser) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) er
 }
 
 func (p *Parser) CloseReturnArrow() error {
-	fmt.Printf("[Parser] CloseReturnArrow()\n")
-
 	child, err := p.popStack()
 	if err != nil {
 		return err
@@ -290,8 +281,6 @@ func (p *Parser) CloseReturnArrow() error {
 }
 
 func (p *Parser) OpenForward(name token.Identifier) error {
-	fmt.Printf("[Parser] OpenForward(%s)\n", name.Value)
-
 	node := NewNode(name.Value)
 	node.forwarded = true
 	p.pushStack(node)
@@ -304,8 +293,6 @@ func (p *Parser) OpenForward(name token.Identifier) error {
 }
 
 func (p *Parser) TextForward(text token.CharData) error {
-	fmt.Printf("[Parser] TextForward(%s)\n", text.Value)
-
 	node := NewTextNode(&text)
 	node.forwarded = true
 	p.forwardedNodes = append(p.forwardedNodes, node)
@@ -314,8 +301,6 @@ func (p *Parser) TextForward(text token.CharData) error {
 }
 
 func (p *Parser) SetBlockType(blockType BlockType) error {
-	fmt.Printf("[Parser] SetBlockType(%s)\n", blockType)
-
 	top, err := p.getStackTop()
 	if err != nil {
 		return err
@@ -327,12 +312,9 @@ func (p *Parser) SetBlockType(blockType BlockType) error {
 }
 
 func (p *Parser) Close() error {
-	fmt.Printf("[Parser] Close()\n")
-
-	// TODO This method needs more length checks.
-
 	// Make the topmost node of the stack a child to the one before it,
 	// or set it as the finalTree if there is no parent.
+
 	child, err := p.popStack()
 	if err != nil {
 		return err
@@ -383,9 +365,6 @@ func (p *Parser) AttributeForward(key token.Identifier, value token.CharData) er
 }
 
 func (p *Parser) Finalize() error {
-	// TODO Make sure that all forwarding attributes and nodes have been processed.
-	fmt.Printf("[Parser] Finalize()\n")
-
 	if len(p.forwardedNodes) > 0 {
 		return errors.New("there are forwarding nodes left")
 	}
