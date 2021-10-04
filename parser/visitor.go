@@ -14,21 +14,17 @@ type Visitable interface {
 	// Open marks the beginning of a new node with a given name. The BlockType will be set later
 	// by a call to SetBlockType.
 	// Its end will be marked by a call to Close.
-	// There are two special cases where name can be nil:
-	//  * At the beginning of a file the unnamed root element will have nil as a name.
-	//  * There may be an unnamed block after a return arrow.
+	// There are special cases for return arrows which will be handled by OpenReturnArrow.
 	Open(name token.Identifier) error
 	// Comment marks the occurrence of a comment.
 	Comment(comment token.CharData) error
 	// Text marks the occurrence of a text.
 	Text(text token.CharData) error
 
-	// OpenReturnArrow marks the occurrence of a return arrow. This implies that the next
-	// call will be to Open and may or may not have a name set. In addition to the call to
-	// Close corresponding to that Open, a call to CloseReturnArrow will follow to mark the end of
-	// all elements that are semantically "inside the return".
-	OpenReturnArrow(arrow token.G2Arrow) error
-	// CloseReturnArrow will be called after all elements "in this return" have been handled.
+	// OpenReturnArrow marks the occurrence of a block after a return arrow, analogous to Open().
+	OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) error
+	// CloseReturnArrow will be called after all elements "in this return" have been handled,
+	// analogous to Close().
 	CloseReturnArrow() error
 
 	// SetBlockType sets the BlockType of the node that was most recently Open-ed.
@@ -52,6 +48,30 @@ type Visitable interface {
 	// You may do additional validation here.
 	Finalize() error
 }
+
+// tokenWithError is a struct that wraps a Token and an error that may
+// have occurred while reading that Token.
+// This type simplifies storing tokens in the parser.
+type tokenWithError struct {
+	tok token.Token
+	err error
+}
+
+// BlockType is an addition for nodes that describes with what brackets their children were surrounded.
+type BlockType string
+
+const (
+	// BlockNone represents no BlockType
+	BlockNone BlockType = ""
+	// BlockNormal represents curly brackets
+	BlockNormal BlockType = "{}"
+	// BlockGroup represents round brackets
+	BlockGroup BlockType = "()"
+	// BlockGeneric represents pointed brackets
+	BlockGeneric BlockType = "<>"
+	// blockSpecial puts closeNode() in a special mode. See that method for more details.
+	blockSpecial BlockType = "*"
+)
 
 // Visitor defines a visitor traversing a Syntaxtree based on Lexer output.
 // Visitor calls the Methods defined in the Visitable interface to allow the
@@ -158,9 +178,17 @@ func (v *Visitor) Run() error {
 }
 
 // closeNode closes the currently processed node.
+// It will remove the top element from the openNodes stack, and will call Close() on our callback.
+// BUT If there is a blockSpecial under the topmost element of the stack, then the callback will
+// not be called, which is useful for handling the G2Arrow.
 func (v *Visitor) closeNode() error {
 	v.openNodes = v.openNodes[:len(v.openNodes)-1]
-	return v.visitMe.Close()
+
+	if !v.isCurrentNodeSpecial() {
+		return v.visitMe.Close()
+	}
+
+	return nil
 }
 
 // openNode opens a new node for processing.
@@ -177,7 +205,9 @@ func (v *Visitor) openForwardNode(name token.Identifier) error {
 
 // setBlockType set the BlockType of the currently processed node.
 func (v *Visitor) setBlockType(blockType BlockType) error {
-	v.openNodes[len(v.openNodes)-1] = blockType
+	if v.openNodes[len(v.openNodes)-1] != blockSpecial {
+		v.openNodes[len(v.openNodes)-1] = blockType
+	}
 	return v.visitMe.SetBlockType(blockType)
 }
 
@@ -543,52 +573,9 @@ func (v *Visitor) g2Node() error {
 		}
 
 	case *token.BlockStart, *token.GenericStart, *token.GroupStart:
-		_, err = v.next()
+		err = v.g2ParseBlock()
 		if err != nil {
 			return err
-		}
-
-		// Set BlockType
-		switch t.(type) {
-		case *token.BlockStart:
-			if err := v.setBlockType(BlockNormal); err != nil {
-				return err
-			}
-		case *token.GroupStart:
-			if err := v.setBlockType(BlockGroup); err != nil {
-				return err
-			}
-		case *token.GenericStart:
-			if err := v.setBlockType(BlockGeneric); err != nil {
-				return err
-			}
-		}
-
-		// Parse children
-		for {
-			tok, err = v.peek()
-			if err != nil {
-				return err
-			}
-
-			if v.currentNodeIsClosedBy(tok) {
-				_, err = v.next() // pop closing token
-				if err != nil {
-					return err
-				}
-
-				break
-			} else if tok.TokenType() == token.TokenDefineElement {
-				err := v.g1LineNodes()
-				if err != nil {
-					return err
-				}
-			} else {
-				err := v.g2Node()
-				if err != nil {
-					return err
-				}
-			}
 		}
 
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
@@ -601,9 +588,8 @@ func (v *Visitor) g2Node() error {
 		if err != nil {
 			return err
 		}
-
-		return v.closeNode()
 	case *token.G2Arrow:
+		// This is a G2Arrow after an identifier
 		if err := v.g2ParseArrow(); err != nil {
 			return err
 		}
@@ -618,6 +604,10 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
+	if err := v.closeNode(); err != nil {
+		return err
+	}
+
 	tok, err = v.peek()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -627,19 +617,16 @@ func (v *Visitor) g2Node() error {
 	}
 
 	if tok.TokenType() == token.TokenG2Arrow {
+		// This is a G2Arrow after a block
 		if err := v.g2ParseArrow(); err != nil {
 			return err
 		}
 	}
 
-	//err = v.setEndPos(v.lexer.Pos())
-	//if err != nil {
-	//	return err
-	//}
-
-	if err := v.closeNode(); err != nil {
-		return err
-	}
+	////err = v.setEndPos(v.lexer.Pos())
+	////if err != nil {
+	////	return err
+	////}
 
 	return nil
 }
@@ -693,22 +680,27 @@ func (v *Visitor) g2ParseBlock() error {
 		return err
 	}
 
+	var blockType BlockType
+
 	// Set BlockType
 	switch tok.(type) {
 	case *token.BlockStart:
-		err = v.visitMe.SetBlockType(BlockNormal)
+		blockType = BlockNormal
+		err = v.setBlockType(BlockNormal)
 		if err != nil {
 			return err
 		}
 
 	case *token.GroupStart:
-		err = v.visitMe.SetBlockType(BlockGroup)
+		blockType = BlockGroup
+		err = v.setBlockType(BlockGroup)
 		if err != nil {
 			return err
 		}
 
 	case *token.GenericStart:
-		err = v.visitMe.SetBlockType(BlockGeneric)
+		blockType = BlockGeneric
+		err = v.setBlockType(BlockGeneric)
 		if err != nil {
 			return err
 		}
@@ -732,17 +724,13 @@ func (v *Visitor) g2ParseBlock() error {
 			return err
 		}
 
-		if v.currentNodeIsClosedBy(tok) {
+		if correctClosingToken(blockType, tok) {
 			_, err = v.next() // pop closing token
 			if err != nil {
 				return err
 			}
 
-			if err := v.closeNode(); err != nil {
-				return err
-			}
-
-			break
+			break // Stop parsing the block, closing the current node will be handled by the caller
 		} else if tok.TokenType() == token.TokenDefineElement {
 			err := v.g1LineNodes()
 			if err != nil {
@@ -759,15 +747,30 @@ func (v *Visitor) g2ParseBlock() error {
 	return nil
 }
 
+// correctClosingToken returns true if the token is a closing token for the given BlockType.
+func correctClosingToken(blockType BlockType, tok token.Token) bool {
+	switch tok.(type) {
+	case *token.BlockEnd:
+		return blockType == BlockNormal
+	case *token.GenericEnd:
+		return blockType == BlockGeneric
+	case *token.GroupEnd:
+		return blockType == BlockGroup
+	default:
+		return false
+	}
+}
+
 // g2ParseArrow is used to parse the return arrow, which has special semantics.
 // It is used to append a "ret" element containing function return values to a
 // function definition. For this to work, the function must be defined as:
-//     name(...) -> (...)
-// or
-//     name -> (...)
+//     name(...) -> [opt](...)
 // The "name" element will get a new child named "ret" appended that contains
-// all children in the block after "->".
-// The block "(...)" is required after the arrow, but can be any valid block.
+// all children in the block after "->". The block after name is optional.
+// The block "(...)" is required after the arrow, but can be any valid block with
+// or without a name.
+// After this method has been called the topmost element in openNodes will be a blockSpecial,
+// which you need to handle.
 func (v *Visitor) g2ParseArrow() error {
 	// Expect arrow
 	tok, err := v.next()
@@ -777,7 +780,24 @@ func (v *Visitor) g2ParseArrow() error {
 
 	switch t := tok.(type) {
 	case *token.G2Arrow:
-		err = v.visitMe.OpenReturnArrow(*t)
+		// There can be an optional identifier as a name for the block.
+		var name *token.Identifier
+
+		tok, err := v.peek()
+
+		switch tokName := tok.(type) {
+		case *token.Identifier:
+			// Use the identifier as a name, pop the token
+			if _, err := v.next(); err != nil {
+				return err
+			}
+			name = tokName
+		}
+
+		// closeNode has a special mode, when blockSpecial is on the stack, see that method
+		// for more details.
+		v.openNodes = append(v.openNodes, blockSpecial, BlockNone)
+		err = v.visitMe.OpenReturnArrow(*t, name)
 		if err != nil {
 			return err
 		}
@@ -786,7 +806,8 @@ func (v *Visitor) g2ParseArrow() error {
 			return err
 		}
 
-		//err = v.close() TODO
+		v.openNodes = v.openNodes[:len(v.openNodes)-1]
+		err = v.visitMe.CloseReturnArrow()
 		if err != nil {
 			return err
 		}
@@ -916,23 +937,6 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 	return nil
 }
 
-// currentNodeIsClosedBy returns true if the token is a closing token that
-// matches the currently open node.
-func (v *Visitor) currentNodeIsClosedBy(tok token.Token) bool {
-	if len(v.openNodes) > 0 {
-		currentNodeBlockType := v.openNodes[len(v.openNodes)-1]
-
-		switch tok.(type) {
-		case *token.BlockEnd:
-			return currentNodeBlockType == BlockNormal
-		case *token.GroupEnd:
-			return currentNodeBlockType == BlockGroup
-		case *token.GenericEnd:
-			return currentNodeBlockType == BlockGeneric
-		default:
-			return false
-		}
-	} else {
-		return false
-	}
+func (v *Visitor) isCurrentNodeSpecial() bool {
+	return len(v.openNodes) > 0 && v.openNodes[len(v.openNodes)-1] == blockSpecial
 }

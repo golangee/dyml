@@ -137,28 +137,6 @@ func (t *TreeNode) IsNode() bool {
 	return !t.IsText() && !t.IsComment()
 }
 
-// tokenWithError is a struct that wraps a Token and an error that may
-// have occurred while reading that Token.
-// This type simplifies storing tokens in the parser.
-type tokenWithError struct {
-	tok token.Token
-	err error
-}
-
-// BlockType is an addition for nodes that describes with what brackets their children were surrounded.
-type BlockType string
-
-const (
-	// BlockNone represents no BlockType
-	BlockNone BlockType = ""
-	// BlockNormal represents curly brackets
-	BlockNormal BlockType = "{}"
-	// BlockGroup represents round brackets
-	BlockGroup BlockType = "()"
-	// BlockGeneric represents pointed brackets
-	BlockGeneric BlockType = "<>"
-)
-
 // Parser is used to get a tree representation from dyml input.
 type Parser struct {
 	// finalTree is created when Close is called on the last TreeNode in the workingStack.
@@ -174,6 +152,10 @@ type Parser struct {
 	// They will be constructed on the workingStack and moved into this list once
 	// they have been closed.
 	forwardedNodes []*TreeNode
+	// lastClosedElement will always be a reference to the last element that was just closed.
+	lastClosedElement *TreeNode
+	// putReturnInto is the node that the node that got parsed from a return arrow should be placed into.
+	putReturnInto *TreeNode
 }
 
 // NewParser creates and returns a new Parser with corresponding Visitor
@@ -191,7 +173,6 @@ func (p *Parser) Parse() (*TreeNode, error) {
 		return nil, err
 	}
 
-	// TODO Make a last check here or in Finalize
 	return p.finalTree, nil
 }
 
@@ -239,8 +220,11 @@ func (p *Parser) applyForwardedAttributes(node *TreeNode) error {
 
 func (p *Parser) Open(name token.Identifier) error {
 	fmt.Printf("[Parser] Open(%s)\n", name.Value)
+	return p.openNode(name.Value)
+}
 
-	node := NewNode(name.Value)
+func (p *Parser) openNode(name string) error {
+	node := NewNode(name)
 
 	if err := p.applyForwardedAttributes(node); err != nil {
 		return err
@@ -279,13 +263,29 @@ func (p *Parser) Text(text token.CharData) error {
 	return nil
 }
 
-func (p *Parser) OpenReturnArrow(arrow token.G2Arrow) error {
-	fmt.Printf("[Parser] OpenReturnArrow\n")
-	return nil
+func (p *Parser) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) error {
+	p.putReturnInto = p.lastClosedElement
+
+	nodeName := "ret"
+	if name != nil {
+		nodeName = name.Value
+	}
+
+	fmt.Printf("[Parser] OpenReturnArrow() calling open...\n")
+	return p.openNode(nodeName)
 }
 
 func (p *Parser) CloseReturnArrow() error {
-	fmt.Printf("[Parser] CloseReturnArrow\n")
+	fmt.Printf("[Parser] CloseReturnArrow()\n")
+
+	child, err := p.popStack()
+	if err != nil {
+		return err
+	}
+
+	p.putReturnInto.AddChildren(child)
+	p.putReturnInto = nil
+
 	return nil
 }
 
@@ -329,7 +329,7 @@ func (p *Parser) SetBlockType(blockType BlockType) error {
 func (p *Parser) Close() error {
 	fmt.Printf("[Parser] Close()\n")
 
-	// TODO This method needs more more length checks.
+	// TODO This method needs more length checks.
 
 	// Make the topmost node of the stack a child to the one before it,
 	// or set it as the finalTree if there is no parent.
@@ -337,6 +337,7 @@ func (p *Parser) Close() error {
 	if err != nil {
 		return err
 	}
+	p.lastClosedElement = child
 
 	if child.forwarded {
 		p.forwardedNodes = append(p.forwardedNodes, child)
@@ -391,6 +392,10 @@ func (p *Parser) Finalize() error {
 
 	if p.forwardedAttributes.Len() > 0 {
 		return errors.New("there are forwarded attributes left")
+	}
+
+	if p.finalTree.BlockType != BlockNormal {
+		return errors.New("root element must have curly brackets")
 	}
 
 	return nil
