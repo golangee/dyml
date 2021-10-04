@@ -604,7 +604,7 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
-			name: "equivalent example grammar1.2",
+			name: "trailing commas",
 			text: `#!{
 						list{
 							item1 key "value",

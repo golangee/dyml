@@ -502,6 +502,9 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
+	// true if an arrow following this node is allowed.
+	arrowAllowed := true
+
 	//err := v.setStartPos(v.lexer.Pos())
 	//if err != nil {
 	//	return err
@@ -524,14 +527,17 @@ func (v *Visitor) g2Node() error {
 	}
 
 	switch t := tok.(type) {
-	case *token.Comma:
-		return errors.New("unexpected Comma token")
 	case *token.Identifier:
 		if err := v.openNode(*t); err != nil {
 			return err
 		}
 	case *token.CharData:
-		return v.visitMe.Text(*t)
+		err := v.visitMe.Text(*t)
+		if err != nil {
+			return err
+		}
+		v.maybeEatComma()
+		return nil
 	default:
 		return token.NewPosError(
 			tok.Pos(),
@@ -555,17 +561,7 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
-	switch t := tok.(type) {
-	case *token.CharData:
-		_, err = v.next()
-		if err != nil {
-			return err
-		}
-
-		err = v.visitMe.Text(*t)
-		if err != nil {
-			return err
-		}
+	switch tok.(type) {
 	case *token.DefineElement:
 		err := v.g1LineNodes()
 		if err != nil {
@@ -581,18 +577,17 @@ func (v *Visitor) g2Node() error {
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
 		// Close the current node but leave the token so that the parent of this node
 		// can be closed too.
-		return v.closeNode()
 	case *token.Comma:
 		// Comma ends a node definition
 		_, err = v.next() // Pop the Comma
 		if err != nil {
 			return err
 		}
+		arrowAllowed = false
 	case *token.G2Arrow:
 		// This is a G2Arrow after an identifier
-		if err := v.g2ParseArrow(); err != nil {
-			return err
-		}
+		// It ends the current element, but will not pop the token so that it can
+		// be parsed correctly later.
 	default:
 		err := v.g2Node()
 		if err != nil {
@@ -616,8 +611,7 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
-	if tok.TokenType() == token.TokenG2Arrow {
-		// This is a G2Arrow after a block
+	if arrowAllowed && tok.TokenType() == token.TokenG2Arrow {
 		if err := v.g2ParseArrow(); err != nil {
 			return err
 		}
@@ -806,7 +800,7 @@ func (v *Visitor) g2ParseArrow() error {
 			return err
 		}
 
-		v.openNodes = v.openNodes[:len(v.openNodes)-1]
+		v.openNodes = v.openNodes[:len(v.openNodes)-2]
 		err = v.visitMe.CloseReturnArrow()
 		if err != nil {
 			return err
@@ -939,4 +933,17 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 
 func (v *Visitor) isCurrentNodeSpecial() bool {
 	return len(v.openNodes) > 0 && v.openNodes[len(v.openNodes)-1] == blockSpecial
+}
+
+// maybeEatComma will pop the next token from the lexer, if it is a token.Comma.
+// This is useful for allowing trailing commas.
+func (v *Visitor) maybeEatComma() {
+	tok, err := v.peek()
+	if err != nil {
+		return
+	}
+
+	if tok.TokenType() == token.TokenComma {
+		_, _ = v.next()
+	}
 }
