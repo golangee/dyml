@@ -431,6 +431,17 @@ func TestLexer(t *testing.T) {
 				G2Arrow().
 				BlockEnd(),
 		},
+
+		{
+			name: "semicolon",
+			text: `#!{ a; }`,
+			want: NewTestSet().
+				G2Preamble().
+				BlockStart().
+				Identifier("a").
+				Semicolon().
+				BlockEnd(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -693,6 +704,18 @@ func (ts *TestSet) Comma() *TestSet {
 		}
 
 		return fmt.Errorf("Comma: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
+	})
+
+	return ts
+}
+
+func (ts *TestSet) Semicolon() *TestSet {
+	ts.checker = append(ts.checker, func(t Token) error {
+		if _, ok := t.(*Semicolon); ok {
+			return nil
+		}
+
+		return fmt.Errorf("Semicolon: unexpected type '%v': %s", reflect.TypeOf(t), toString(t))
 	})
 
 	return ts

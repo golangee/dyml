@@ -117,6 +117,26 @@ func (l *Lexer) g2Comma() (*Comma, error) {
 	return comma, nil
 }
 
+// g2Semicolon reads ';' which separates elements.
+func (l *Lexer) g2Semicolon() (*Semicolon, error) {
+	startPos := l.Pos()
+
+	r, err := l.nextR()
+	if err != nil {
+		return nil, err
+	}
+
+	if r != ';' {
+		return nil, NewPosError(l.node(), "expected ','")
+	}
+
+	semicolon := &Semicolon{}
+	semicolon.Position.BeginPos = startPos
+	semicolon.Position.EndPos = l.pos
+
+	return semicolon, nil
+}
+
 // g2GroupStart reads the '(' that marks the start of a group.
 func (l *Lexer) g2GroupStart() (*GroupStart, error) {
 	startPos := l.Pos()

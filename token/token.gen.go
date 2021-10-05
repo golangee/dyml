@@ -16,6 +16,7 @@ const (
 	TokenAssign          TokenType = "TokenAssign"
 	TokenG1LineEnd       TokenType = "TokenG1LineEnd"
 	TokenComma           TokenType = "TokenComma"
+	TokenSemicolon       TokenType = "TokenSemicolon"
 	TokenG1Comment       TokenType = "TokenG1Comment"
 	TokenG2Comment       TokenType = "TokenG2Comment"
 	TokenG2Arrow         TokenType = "TokenG2Arrow"
@@ -130,6 +131,14 @@ func (t *Comma) TokenType() TokenType {
 }
 
 func (t *Comma) Pos() *Position {
+	return &t.Position
+}
+
+func (t *Semicolon) TokenType() TokenType {
+	return TokenSemicolon
+}
+
+func (t *Semicolon) Pos() *Position {
 	return &t.Position
 }
 

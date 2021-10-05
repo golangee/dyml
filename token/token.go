@@ -83,6 +83,11 @@ type Comma struct {
 	Position
 }
 
+// Semicolon ';' is used as a separator in G2 and is interchangeable with Comma.
+type Semicolon struct {
+	Position
+}
+
 // G1Comment is a '#?' that indicates a comment in G1.
 type G1Comment struct {
 	Position

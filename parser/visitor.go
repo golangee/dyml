@@ -572,9 +572,9 @@ func (v *Visitor) g2Node() error {
 	case *token.BlockEnd, *token.GroupEnd, *token.GenericEnd:
 		// Close the current node but leave the token so that the parent of this node
 		// can be closed too.
-	case *token.Comma:
-		// Comma ends a node definition
-		_, err = v.next() // Pop the Comma
+	case *token.Comma, *token.Semicolon:
+		// Comma/Semicolon ends a node definition
+		_, err = v.next() // Pop the Comma/Semicolon
 		if err != nil {
 			return err
 		}
@@ -930,7 +930,7 @@ func (v *Visitor) isCurrentNodeSpecial() bool {
 	return len(v.openNodes) > 0 && v.openNodes[len(v.openNodes)-1] == blockSpecial
 }
 
-// maybeEatComma will pop the next token from the lexer, if it is a token.Comma.
+// maybeEatComma will pop the next token from the lexer, if it is a token.Comma (or token.Semicolon).
 // This is useful for allowing trailing commas.
 func (v *Visitor) maybeEatComma() {
 	tok, err := v.peek()

@@ -653,6 +653,17 @@ func TestParser(t *testing.T) {
 					}`,
 			wantErr: true,
 		},
+		{
+			name: "semicolon as separator",
+			text: `#!{
+						a; b; c;
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("a"),
+				NewNode("b"),
+				NewNode("c"),
+			),
+		},
 	}
 
 	for _, tt := range tests {

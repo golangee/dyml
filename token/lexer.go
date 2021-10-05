@@ -264,6 +264,9 @@ func (l *Lexer) Token() (Token, error) {
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
 			l.gSkipWhitespace()
+		} else if r1 == ';' {
+			tok, err = l.g2Semicolon()
+			l.gSkipWhitespace()
 		} else if r1 == '/' {
 			tok, err = l.g2CommentStart()
 			l.want = WantCommentLine
