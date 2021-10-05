@@ -5,7 +5,7 @@ package parser
 
 import (
 	"errors"
-	"fmt"
+	"github.com/golangee/dyml/util"
 	"io"
 
 	"github.com/golangee/dyml/token"
@@ -19,7 +19,7 @@ type TreeNode struct {
 	Name       string
 	Text       *string
 	Comment    *string
-	Attributes AttributeList
+	Attributes util.AttributeList
 	Children   []*TreeNode
 	// BlockType describes the type of brackets the children were surrounded with.
 	// This may be BlockNone in which case this node either has no or one children.
@@ -28,13 +28,15 @@ type TreeNode struct {
 	Range token.Position
 	// forwarded is set to true when this node was/should be forwarded.
 	forwarded bool
+	// isNamedReturnArrow is true if this node is the node that was added from a named return arrow.
+	isNamedReturnArrow bool
 }
 
 // NewNode creates a new node for the parse tree.
 func NewNode(name string) *TreeNode {
 	return &TreeNode{
 		Name:       name,
-		Attributes: NewAttributeList(),
+		Attributes: util.NewAttributeList(),
 		BlockType:  BlockNone,
 	}
 }
@@ -147,15 +149,11 @@ type Parser struct {
 	// visitor is the visitor that will call this parser's callback methods for constructing the tree.
 	visitor *Visitor
 	// forwardedAttributes are all attributes that were forwarded and need to be placed in the next node.
-	forwardedAttributes AttributeList
+	forwardedAttributes util.AttributeList
 	// forwardedNodes is a list of all nodes that should be forwarded into the next normal node.
 	// They will be constructed on the workingStack and moved into this list once
 	// they have been closed.
 	forwardedNodes []*TreeNode
-	// lastClosedElement will always be a reference to the last element that was just closed.
-	lastClosedElement *TreeNode
-	// putReturnInto is the node that the node that got parsed from a return arrow should be placed into.
-	putReturnInto *TreeNode
 }
 
 // NewParser creates and returns a new Parser with corresponding Visitor
@@ -257,27 +255,34 @@ func (p *Parser) Text(text token.CharData) error {
 }
 
 func (p *Parser) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) error {
-	p.putReturnInto = p.lastClosedElement
-
-	nodeName := "ret"
-	if name != nil {
-		nodeName = name.Value
-	}
-
-	fmt.Printf("[Parser] OpenReturnArrow() calling open...\n")
-	return p.openNode(nodeName)
-}
-
-func (p *Parser) CloseReturnArrow() error {
-	child, err := p.popStack()
-	if err != nil {
+	if err := p.openNode("ret"); err != nil {
 		return err
 	}
 
-	p.putReturnInto.AddChildren(child)
-	p.putReturnInto = nil
+	// A named return will have an additional node.
+	if name != nil {
+		if err := p.openNode(name.Value); err != nil {
+			return err
+		}
+		top, _ := p.getStackTop()
+		top.isNamedReturnArrow = true
+	}
 
 	return nil
+}
+
+func (p *Parser) CloseReturnArrow() error {
+	// First pop the named return, if any
+	top, _ := p.getStackTop()
+	if top.isNamedReturnArrow {
+		err := p.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Pop the "ret" element
+	return p.Close()
 }
 
 func (p *Parser) OpenForward(name token.Identifier) error {
@@ -319,7 +324,6 @@ func (p *Parser) Close() error {
 	if err != nil {
 		return err
 	}
-	p.lastClosedElement = child
 
 	if child.forwarded {
 		p.forwardedNodes = append(p.forwardedNodes, child)
@@ -331,7 +335,6 @@ func (p *Parser) Close() error {
 	} else {
 		if p.finalTree == nil {
 			p.finalTree = child
-			fmt.Println("[Parser] Tree was marked as final!")
 		} else {
 			return errors.New("you found a bug: finalTree already exists")
 		}
@@ -341,8 +344,6 @@ func (p *Parser) Close() error {
 }
 
 func (p *Parser) Attribute(key token.Identifier, value token.CharData) error {
-	fmt.Printf("[Parser] Attribute(%s, %s)\n", key.Value, value.Value)
-
 	top, err := p.getStackTop()
 	if err != nil {
 		return err
@@ -357,8 +358,6 @@ func (p *Parser) Attribute(key token.Identifier, value token.CharData) error {
 }
 
 func (p *Parser) AttributeForward(key token.Identifier, value token.CharData) error {
-	fmt.Printf("[Parser] AttributeForward(%s, %s)\n", key.Value, value.Value)
-
 	p.forwardedAttributes.Add(key.Value, value.Value)
 
 	return nil

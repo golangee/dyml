@@ -1,4 +1,4 @@
-package parser
+package util
 
 // Attribute represents single attribute.
 type Attribute struct {

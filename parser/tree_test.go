@@ -545,6 +545,24 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "arrow without blocks",
+			text: `#!{
+						x -> y
+					}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("x").
+					AddChildren(NewNode("ret").
+						AddChildren(NewNode("y"))),
+			),
+		},
+		{
+			name: "multiple arrows",
+			text: `#!{
+						x -> y -> z
+					}`,
+			wantErr: true,
+		},
+		{
 			name: "g2 invalid return arrow after comma",
 			text: `#!{
 						x, -> (y)
@@ -623,6 +641,17 @@ func TestParser(t *testing.T) {
 					NewNode("item2").AddAttribute("id", "1"),
 					NewNode("item3").AddAttribute("key", "value"),
 				)),
+		},
+		{
+			name: "invalid consecutive commas",
+			text: `#!{
+						item,
+						@@key="value"
+						@@another="one"
+						item @not="forwarded",
+						parent @@for="child" child,,
+					}`,
+			wantErr: true,
 		},
 	}
 

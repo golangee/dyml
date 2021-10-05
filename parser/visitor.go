@@ -594,25 +594,23 @@ func (v *Visitor) g2Node() error {
 		return err
 	}
 
-	if err := v.closeNode(); err != nil {
-		return err
-	}
-
 	tok, err = v.peek()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil
+			// There is no more input, close this node.
+			return v.closeNode()
 		}
 		return err
 	}
 
+	// We have to handle the arrow before closing the node.
 	if arrowAllowed && tok.TokenType() == token.TokenG2Arrow {
 		if err := v.g2ParseArrow(); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return v.closeNode()
 }
 
 // g2EatComments will read all G2 comments from the lexer.
@@ -786,8 +784,15 @@ func (v *Visitor) g2ParseArrow() error {
 			return err
 		}
 
-		if err := v.g2ParseBlock(); err != nil {
-			return err
+		// Try parsing a block if there is one
+		tok, err = v.peek()
+		if err == nil {
+			switch tok.(type) {
+			case *token.BlockStart, *token.GroupStart, *token.GenericStart:
+				if err := v.g2ParseBlock(); err != nil {
+					return err
+				}
+			}
 		}
 
 		v.openNodes = v.openNodes[:len(v.openNodes)-2]
