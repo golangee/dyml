@@ -446,7 +446,7 @@ func TestLexer(t *testing.T) {
 
 		{
 			name: "multiple g2s",
-			text: `#!{} hello #!{}`,
+			text: `#!{} hello #!{} hello #!; hello #!, hello`,
 			want: NewTestSet().
 				G2Preamble().
 				BlockStart().
@@ -454,7 +454,14 @@ func TestLexer(t *testing.T) {
 				CharData("hello ").
 				G2Preamble().
 				BlockStart().
-				BlockEnd(),
+				BlockEnd().
+				CharData("hello ").
+				G2Preamble().
+				Semicolon().
+				CharData("hello ").
+				G2Preamble().
+				Comma().
+				CharData("hello"),
 		},
 
 		{

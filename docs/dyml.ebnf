@@ -32,7 +32,7 @@ G1ForwardAttribute: '@' G1Attribute;
 // but are easy to parse:
 // Should a '#' occur at any point in G2, the rest of the line follows rule G1Line.
 // Should a '//' occur at at any point in G2, the rest of the line follows rule G2Comment.
-G2: G2Preamble WS Identifier WS G2Block;
+G2: G2Preamble G2Elements;
 
 // G2Block can be enclosed with one of "{...}", "<...>", "(...)".
 G2Block: WS (G2BlockBrackets | G2BlockGeneric | G2BlockGroup) WS;

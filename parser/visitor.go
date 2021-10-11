@@ -386,32 +386,14 @@ func (v *Visitor) g1Node() error {
 				break collect
 			case *token.G2Preamble:
 				if v.mode == token.G1 {
-					// Parse a single G2 node after popping the preamble
-					// It consists of an identifier and a block.
+					// Parse a single G2 node
 					v.next() // pop preamble
 					v.mode = token.G2
-					ident, err := v.lexer.Token()
-					if err != nil {
-						return err
-					}
-					switch t := ident.(type) {
-					case *token.Identifier:
-						err := v.openNode(*t)
-						if err != nil {
-							return err
-						}
-					default:
-						return token.NewPosError(t.Pos(), "expected identifier")
-					}
 
-					err = v.g2ParseBlock()
-					if err != nil {
+					if err := v.g2Node(); err != nil {
 						return err
 					}
 
-					if err := v.closeNode(); err != nil {
-						return err
-					}
 					v.mode = token.G1
 				} else {
 					return token.NewPosError(tok.Pos(), "G2 node not allowed here")

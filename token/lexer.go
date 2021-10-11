@@ -275,9 +275,15 @@ func (l *Lexer) Token() (Token, error) {
 			l.gSkipWhitespace()
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
+			if l.g2BracketCounter == 0 {
+				l.mode = G1
+			}
 			l.gSkipWhitespace()
 		} else if r1 == ';' {
 			tok, err = l.g2Semicolon()
+			if l.g2BracketCounter == 0 {
+				l.mode = G1
+			}
 			l.gSkipWhitespace()
 		} else if r1 == '/' {
 			tok, err = l.g2CommentStart()

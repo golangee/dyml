@@ -199,6 +199,33 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "G2 ends with ;",
+			text: `some text #! item; more text`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringNode("some text "),
+				NewNode("item"),
+				NewStringNode("more text"),
+			),
+		},
+		{
+			name: "G2 ends with ,",
+			text: `#! item,`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item"),
+			),
+		},
+		{
+			name: "G2 with nested items",
+			text: `some text #! a b<c> more text`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringNode("some text "),
+				NewNode("a").AddChildren(
+					NewNode("b").Block(BlockGeneric).AddChildren(
+						NewNode("c"))),
+				NewStringNode("more text"),
+			),
+		},
+		{
 			name: "siblings G2",
 			text: `#!a{b, c}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
