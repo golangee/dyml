@@ -180,30 +180,32 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
-			name: "empty G2",
-			text: `#!{}`,
-			want: NewNode("root").Block(BlockNormal),
+			name:    "empty G2",
+			text:    `#!{}`,
+			wantErr: true,
 		},
 		{
 			name: "simple G2",
-			text: `#!{item}`,
+			text: `#! item {}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item"),
+				NewNode("item").Block(BlockNormal),
 			),
 		},
 		{
 			name: "siblings G2",
-			text: `#!{item, item}`,
+			text: `#!a{b, c}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item"),
-				NewNode("item"),
+				NewNode("a").Block(BlockNormal).AddChildren(
+					NewNode("b"),
+					NewNode("c"),
+				),
 			),
 		},
 		{
 			name: "nested G2",
-			text: `#!{item subitem subsubitem "text"}`,
+			text: `#! item {subitem subsubitem "text"}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").AddChildren(
+				NewNode("item").Block(BlockNormal).AddChildren(
 					NewNode("subitem").AddChildren(
 						NewNode("subsubitem").AddChildren(
 							NewStringNode("text"),
@@ -214,7 +216,7 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "complex siblings and nested G2",
-			text: `#!{
+			text: `#! g2 {
 						A B {
 							C,
 							D,
@@ -223,87 +225,97 @@ func TestParser(t *testing.T) {
 						H
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("A").AddChildren(
-					NewNode("B").Block(BlockNormal).AddChildren(
-						NewNode("C"),
-						NewNode("D"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("A").AddChildren(
+						NewNode("B").Block(BlockNormal).AddChildren(
+							NewNode("C"),
+							NewNode("D"),
+						),
 					),
+					NewNode("E").Block(BlockNormal).AddChildren(
+						NewNode("F"),
+						NewNode("G"),
+					),
+					NewNode("H"),
 				),
-				NewNode("E").Block(BlockNormal).AddChildren(
-					NewNode("F"),
-					NewNode("G"),
-				),
-				NewNode("H"),
 			),
 		},
 		{
 			name: "G2 string will stop parsing nested children",
-			text: `#!{
+			text: `#! g2 {
 						A "hello" B
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("A").AddChildren(
-					NewStringNode("hello"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("A").AddChildren(
+						NewStringNode("hello"),
+					),
+					NewNode("B"),
 				),
-				NewNode("B"),
 			),
 		},
 		{
 			name: "simple attribute G2",
-			text: `#!{
+			text: `#! g2 {
 						item @key="value" @another="key with 'special #chars\""
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").
-					AddAttribute("key", "value").
-					AddAttribute("another", `key with 'special #chars"`),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item").
+						AddAttribute("key", "value").
+						AddAttribute("another", `key with 'special #chars"`),
+				),
 			),
 		},
 		{
 			name: "attribute with siblings G2",
-			text: `#!{
+			text: `#! g2 {
 						A,
 						B C @key="value" D,
 						E,
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("A"),
-				NewNode("B").AddChildren(
-					NewNode("C").
-						AddAttribute("key", "value").
-						AddChildren(
-							NewNode("D"),
-						),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("A"),
+					NewNode("B").AddChildren(
+						NewNode("C").
+							AddAttribute("key", "value").
+							AddChildren(
+								NewNode("D"),
+							),
+					),
+					NewNode("E"),
 				),
-				NewNode("E"),
 			),
 		},
 		{
 			name:    "invalid lonely attribute G2",
-			text:    `#!{@key="value"}`,
+			text:    `#! g2 {@key="value"}`,
 			wantErr: true,
 		},
 		{
 			name: "invalid attribute defined twice G2",
-			text: `#!{
+			text: `#! g2 {
 						item @key="value" @key="value"
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "simple forwarded attribute G2",
-			text: `#!{
+			text: `#! g2 {
 						@@key="value"
 						item
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").
-					AddAttribute("key", "value"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item").
+						AddAttribute("key", "value"),
+				),
 			),
 		},
 		{
 			name: "forwarded attributes G2",
-			text: `#!{
+			text: `#! g2 {
 						item,
 						@@key="value"
 						@@another="one"
@@ -311,81 +323,89 @@ func TestParser(t *testing.T) {
 						parent @@for="child" child,
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item"),
-				NewNode("item").
-					AddAttribute("not", "forwarded").
-					AddAttribute("key", "value").
-					AddAttribute("another", "one"),
-				NewNode("parent").
-					AddChildren(
-						NewNode("child").
-							AddAttribute("for", "child"),
-					),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item"),
+					NewNode("item").
+						AddAttribute("not", "forwarded").
+						AddAttribute("key", "value").
+						AddAttribute("another", "one"),
+					NewNode("parent").
+						AddChildren(
+							NewNode("child").
+								AddAttribute("for", "child"),
+						),
+				),
 			),
 		},
 		{
 			name: "invalid dangling forward attribute G2",
-			text: `#!{
+			text: `#! g2 {
 						item @@key="value"
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "invalid forward attribute for text G2",
-			text: `#!{
+			text: `#! g2 {
 						@@key="value" "text"
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "G1 line in G2",
-			text: `#!{
+			text: `#! g2 {
 						# This is a G1 text line. #item @key{with value}
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringNode("This is a G1 text line. "),
-				NewNode("item").
-					AddAttribute("key", "with value"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewStringNode("This is a G1 text line. "),
+					NewNode("item").
+						AddAttribute("key", "with value"),
+				),
 			),
 		},
 		{
 			name: "nested G1 line",
-			text: `#!{
+			text: `#! g2 {
 						item # text child #child
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").AddChildren(
-					NewStringNode("text child "),
-					NewNode("child"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item").AddChildren(
+						NewStringNode("text child "),
+						NewNode("child"),
+					),
 				),
 			),
 		},
 		{
 			name: "forward G1 line",
-			text: `#!{
+			text: `#! g2 {
 						## forwarded #item @with{attribute}
 						parent with children
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("parent").AddChildren(
-					NewStringNode("forwarded "),
-					NewNode("item").AddAttribute("with", "attribute"),
-					NewNode("with").AddChildren(
-						NewNode("children"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("parent").AddChildren(
+						NewStringNode("forwarded "),
+						NewNode("item").AddAttribute("with", "attribute"),
+						NewNode("with").AddChildren(
+							NewNode("children"),
+						),
 					),
 				),
 			),
 		},
 		{
 			name: "empty G1 line",
-			text: `#!{
+			text: `#! g2 {
 						#
 					}`,
-			want: NewNode("root").Block(BlockNormal),
+			want: NewNode("root").Block(BlockNormal).AddChildren(NewNode("g2").Block(BlockNormal)),
 		},
 		{
 			name: "forwarding node in forwarding line is forbidden",
-			text: `#!{
+			text: `#! g2 {
 						## ##A #B
 						C
 					}`,
@@ -393,88 +413,98 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "forward attributes in forward line",
-			text: `#!{
+			text: `#! g2 {
 						## @@key{value} #item
 						parent
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("parent").AddChildren(
-					NewNode("item").AddAttribute("key", "value"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("parent").AddChildren(
+						NewNode("item").AddAttribute("key", "value"),
+					),
 				),
 			),
 		},
 		{
 			name: "invalid forward G1 line",
-			text: `#!{
+			text: `#! g2 {
 						## where would this text be forwarded to?
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "many G1 lines",
-			text: `#!{
+			text: `#! g2 {
 						# Hello!
 						# Hello!
 						# Hello!
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringNode("Hello!"),
-				NewStringNode("Hello!"),
-				NewStringNode("Hello!"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewStringNode("Hello!"),
+					NewStringNode("Hello!"),
+					NewStringNode("Hello!"),
+				),
 			),
 		},
 		{
 			name: "forward G1 line with string",
-			text: `#!{
+			text: `#! g2 {
 						## hello
 						"this is a string"
 						item
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringNode("this is a string"),
-				NewNode("item").AddChildren(
-					NewStringNode("hello"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewStringNode("this is a string"),
+					NewNode("item").AddChildren(
+						NewStringNode("hello"),
+					),
 				),
 			),
 		},
 		{
 			name: "other group types",
-			text: `#!{
+			text: `#! g2 {
 						item { X , Y}
 						item < X ,Y  >
 						item (X, Y )
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").Block(BlockNormal).AddChildren(
-					NewNode("X"),
-					NewNode("Y"),
-				),
-				NewNode("item").Block(BlockGeneric).AddChildren(
-					NewNode("X"),
-					NewNode("Y"),
-				),
-				NewNode("item").Block(BlockGroup).AddChildren(
-					NewNode("X"),
-					NewNode("Y"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item").Block(BlockNormal).AddChildren(
+						NewNode("X"),
+						NewNode("Y"),
+					),
+					NewNode("item").Block(BlockGeneric).AddChildren(
+						NewNode("X"),
+						NewNode("Y"),
+					),
+					NewNode("item").Block(BlockGroup).AddChildren(
+						NewNode("X"),
+						NewNode("Y"),
+					),
 				),
 			),
 		},
 		{
 			name: "incorrect closing type",
-			text: `#!{
+			text: `#! g2 {
 						item {>
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "nested groups",
-			text: `#!{
+			text: `#! g2 {
 						item< item( item ) >
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("item").Block(BlockGeneric).AddChildren(
-					NewNode("item").Block(BlockGroup).AddChildren(
-						NewNode("item"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("item").Block(BlockGeneric).AddChildren(
+						NewNode("item").Block(BlockGroup).AddChildren(
+							NewNode("item"),
+						),
 					),
 				),
 			),
@@ -487,7 +517,7 @@ func TestParser(t *testing.T) {
 
 		{
 			name: "g2 comment",
-			text: `#!{
+			text: `#! g2 {
 						// First comment
 						item // A comment
 						,
@@ -497,14 +527,16 @@ func TestParser(t *testing.T) {
 						// Last comment
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringCommentNode("First comment"),
-				NewNode("item").AddChildren(
-					NewStringCommentNode("A comment"),
-				),
-				NewNode("item").AddChildren(
-					NewStringCommentNode("Another comment"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewStringCommentNode("First comment"),
 					NewNode("item").AddChildren(
-						NewStringCommentNode("Last comment"),
+						NewStringCommentNode("A comment"),
+					),
+					NewNode("item").AddChildren(
+						NewStringCommentNode("Another comment"),
+						NewNode("item").AddChildren(
+							NewStringCommentNode("Last comment"),
+						),
 					),
 				),
 			),
@@ -512,74 +544,82 @@ func TestParser(t *testing.T) {
 
 		{
 			name: "g2 return arrow",
-			text: `#!{
+			text: `#! g2 {
 						hello(string) -> (int)
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("hello").Block(BlockGroup).AddChildren(
-					NewNode("string"),
-					NewNode("ret").Block(BlockGroup).AddChildren(
-						NewNode("int"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("hello").Block(BlockGroup).AddChildren(
+						NewNode("string"),
+						NewNode("ret").Block(BlockGroup).AddChildren(
+							NewNode("int"),
+						),
 					),
 				),
 			),
 		},
 		{
 			name: "g2 invalid return arrow after nothing",
-			text: `#!{
+			text: `#! g2 {
 						-> (int)
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "g2 return arrow after element without block",
-			text: `#!{
+			text: `#! g2 {
 						x -> (y)
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("x").AddChildren(
-					NewNode("ret").Block(BlockGroup).AddChildren(
-						NewNode("y"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("x").AddChildren(
+						NewNode("ret").Block(BlockGroup).AddChildren(
+							NewNode("y"),
+						),
 					),
 				),
 			),
 		},
 		{
 			name: "arrow without blocks",
-			text: `#!{
+			text: `#! g2 {
 						x -> y
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("x").
-					AddChildren(NewNode("ret").
-						AddChildren(NewNode("y"))),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("x").
+						AddChildren(NewNode("ret").
+							AddChildren(NewNode("y"))),
+				),
 			),
 		},
 		{
 			name: "multiple arrows",
-			text: `#!{
+			text: `#! g2 {
 						x -> y -> z
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "g2 invalid return arrow after comma",
-			text: `#!{
+			text: `#! g2 {
 						x, -> (y)
 					}`,
 			wantErr: true,
 		},
 		{
 			name: "g2 return arrow with generic blocks",
-			text: `#!{
+			text: `#! g2 {
 						fn x<y> -> <z>
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("fn").AddChildren(
-					NewNode("x").Block(BlockGeneric).AddChildren(
-						NewNode("y"),
-						NewNode("ret").Block(BlockGeneric).AddChildren(
-							NewNode("z"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("fn").AddChildren(
+						NewNode("x").Block(BlockGeneric).AddChildren(
+							NewNode("y"),
+							NewNode("ret").Block(BlockGeneric).AddChildren(
+								NewNode("z"),
+							),
 						),
 					),
 				),
@@ -587,7 +627,7 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "function definition example",
-			text: `#!{
+			text: `#! g2 {
 						## Greet someone.
 						@@name="The name to greet."
 						func Greet(name string)
@@ -596,34 +636,36 @@ func TestParser(t *testing.T) {
 						func Run(x int, y int, z string) -> (int, error)
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("func").
-					AddAttribute("name", "The name to greet.").
-					AddChildren(
-						NewStringNode("Greet someone."),
-						NewNode("Greet").Block(BlockGroup).AddChildren(
-							NewNode("name").AddChildren(
-								NewNode("string"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("func").
+						AddAttribute("name", "The name to greet.").
+						AddChildren(
+							NewStringNode("Greet someone."),
+							NewNode("Greet").Block(BlockGroup).AddChildren(
+								NewNode("name").AddChildren(
+									NewNode("string"),
+								),
 							),
 						),
-					),
-				NewNode("func").
-					AddChildren(
-						NewStringNode("Run complex calculations."),
-						NewNode("Run").Block(BlockGroup).AddChildren(
-							NewNode("x").AddChildren(NewNode("int")),
-							NewNode("y").AddChildren(NewNode("int")),
-							NewNode("z").AddChildren(NewNode("string")),
-							NewNode("ret").Block(BlockGroup).AddChildren(
-								NewNode("int"),
-								NewNode("error"),
+					NewNode("func").
+						AddChildren(
+							NewStringNode("Run complex calculations."),
+							NewNode("Run").Block(BlockGroup).AddChildren(
+								NewNode("x").AddChildren(NewNode("int")),
+								NewNode("y").AddChildren(NewNode("int")),
+								NewNode("z").AddChildren(NewNode("string")),
+								NewNode("ret").Block(BlockGroup).AddChildren(
+									NewNode("int"),
+									NewNode("error"),
+								),
 							),
 						),
-					),
+				),
 			),
 		},
 		{
 			name: "trailing commas",
-			text: `#!{
+			text: `#! g2 {
 						list{
 							item1 key "value",
 							@@id="1"
@@ -632,19 +674,22 @@ func TestParser(t *testing.T) {
 						}
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("list").Block(BlockNormal).AddChildren(
-					NewNode("item1").
-						AddChildren(
-							NewNode("key").
-								AddChildren(
-									NewStringNode("value"))),
-					NewNode("item2").AddAttribute("id", "1"),
-					NewNode("item3").AddAttribute("key", "value"),
-				)),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("list").Block(BlockNormal).AddChildren(
+						NewNode("item1").
+							AddChildren(
+								NewNode("key").
+									AddChildren(
+										NewStringNode("value"))),
+						NewNode("item2").AddAttribute("id", "1"),
+						NewNode("item3").AddAttribute("key", "value"),
+					),
+				),
+			),
 		},
 		{
 			name: "invalid consecutive commas",
-			text: `#!{
+			text: `#! g2 {
 						item,
 						@@key="value"
 						@@another="one"
@@ -655,13 +700,35 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "semicolon as separator",
-			text: `#!{
+			text: `#! g2 {
 						a; b; c;
 					}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewNode("a"),
-				NewNode("b"),
-				NewNode("c"),
+				NewNode("g2").Block(BlockNormal).AddChildren(
+					NewNode("a"),
+					NewNode("b"),
+					NewNode("c"),
+				),
+			),
+		},
+		{
+			name: "multiple g2s",
+			text: `#!a{} #!b{} #!c{d e} #!text{"some text"} #!attr{@@with="some" f @key="attributes"}`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("a").Block(BlockNormal),
+				NewNode("b").Block(BlockNormal),
+				NewNode("c").Block(BlockNormal).
+					Block(BlockNormal).
+					AddChildren(NewNode("d").
+						AddChildren(NewNode("e"))),
+				NewNode("text").
+					Block(BlockNormal).
+					AddChildren(NewStringNode("some text")),
+				NewNode("attr").Block(BlockNormal).AddChildren(
+					NewNode("f").
+						AddAttribute("with", "some").
+						AddAttribute("key", "attributes"),
+				),
 			),
 		},
 	}

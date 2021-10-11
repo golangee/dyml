@@ -80,19 +80,20 @@ type Visitor struct {
 	visitMe Visitable
 
 	lexer *token.Lexer
-	mode  token.GrammarMode
 	// tokenBuffer contains all tokens that need to be processed next.
 	// These could be peeked tokens or tokens that were added in the parser.
 	// When it is empty, we can call lexer.Token() to get the next token.
 	tokenBuffer []tokenWithError
 
-	Ranges        []*token.Position
-	forwardRanges []*token.Position
-
 	// tokenTailBuffer contains all tokens that need to be processed once
 	// lexer.Token() returns no more tokens. tokenTailBuffer will contain
 	// tokens that were added from parser code.
 	tokenTailBuffer []tokenWithError
+
+	mode token.GrammarMode
+
+	Ranges        []*token.Position
+	forwardRanges []*token.Position
 
 	// openNodes is a stack of all blocktypes that are currently
 	// opened. These can be used to check whether a block is closed
@@ -116,51 +117,24 @@ func (v *Visitor) SetVisitable(vis Visitable) {
 
 // Run runs the visitor, starting the traversion of the syntax tree.
 func (v *Visitor) Run() error {
-	// Peek the first token to check if we should set G2 mode.
-	// TODO G2 can appear anywhere
-	tok, err := v.peek()
+	// Prepare G1.
+	// Prepend and append tokens for the root element.
+	// This makes the root just another element, which simplifies parsing a lot.
+	v.tokenBuffer = append([]tokenWithError{
+		{tok: &token.DefineElement{}},
+		{tok: &token.Identifier{Value: "root"}},
+		{tok: &token.BlockStart{}},
+	},
+		v.tokenBuffer...,
+	)
 
-	// Edge case: When the input is empty we do not want the EOF in our buffer, as we will append tailTokens later.
-	if errors.Is(err, io.EOF) {
-		_, _ = v.next()
-	}
+	v.tokenTailBuffer = append(v.tokenTailBuffer,
+		tokenWithError{tok: &token.BlockEnd{}},
+	)
 
-	if tok != nil && tok.TokenType() == token.TokenG2Preamble {
-		// Prepare G2 by switching out the preamble for a root identifier.
-		v.mode = token.G2
-		_, err = v.next()
-		if err != nil {
-			return err
-		}
-
-		v.tokenBuffer = append(v.tokenBuffer,
-			tokenWithError{tok: &token.Identifier{Value: "root"}},
-		)
-
-		err = v.g2Node()
-		if err != nil {
-			return err
-		}
-	} else {
-		// Prepare G1.
-		// Prepend and append tokens for the root element.
-		// This makes the root just another element, which simplifies parsing a lot.
-		v.tokenBuffer = append([]tokenWithError{
-			{tok: &token.DefineElement{}},
-			{tok: &token.Identifier{Value: "root"}},
-			{tok: &token.BlockStart{}},
-		},
-			v.tokenBuffer...,
-		)
-
-		v.tokenTailBuffer = append(v.tokenTailBuffer,
-			tokenWithError{tok: &token.BlockEnd{}},
-		)
-
-		err = v.g1Node()
-		if err != nil {
-			return err
-		}
+	err := v.g1Node()
+	if err != nil {
+		return err
 	}
 
 	// Close remaining nodes
@@ -399,18 +373,52 @@ func (v *Visitor) g1Node() error {
 		}
 
 		// Append children until we encounter a TokenBlockEnd
+	collect:
 		for {
-			tok, _ = v.peek()
-			if tok == nil {
-				return errors.New("token not identified, is nil")
-			}
-			if tok.TokenType() == token.TokenBlockEnd {
-				break
-			}
-
-			err := v.g1Node()
+			tok, err = v.peek()
 			if err != nil {
 				return err
+			}
+
+			switch tok.(type) {
+			case *token.BlockEnd:
+				// The block was closed
+				break collect
+			case *token.G2Preamble:
+				if v.mode == token.G1 {
+					// Parse a single G2 node after popping the preamble
+					// It consists of an identifier and a block.
+					v.next() // pop preamble
+					v.mode = token.G2
+					ident, err := v.lexer.Token()
+					if err != nil {
+						return err
+					}
+					switch t := ident.(type) {
+					case *token.Identifier:
+						err := v.openNode(*t)
+						if err != nil {
+							return err
+						}
+					default:
+						return token.NewPosError(t.Pos(), "expected identifier")
+					}
+
+					err = v.g2ParseBlock()
+					if err != nil {
+						return err
+					}
+
+					v.closeNode()
+					v.mode = token.G1
+				} else {
+					return token.NewPosError(tok.Pos(), "G2 node not allowed here")
+				}
+			default:
+				// Anything else must be another g1Node
+				if err := v.g1Node(); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -490,7 +498,7 @@ func (v *Visitor) g1LineNodes() error {
 		}
 	}
 
-	// The G1Line was parsed, reset back to G2.
+	// Restore mode
 	v.mode = token.G2
 
 	return nil

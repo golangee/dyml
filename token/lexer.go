@@ -64,11 +64,13 @@ type Lexer struct {
 	bufPos int
 	// pos is the current lexer position.
 	// It is the position of the rune that would be read next by nextR.
-	pos Pos
-	// started is only used to detect if the first token is the G2Preamble
-	started bool
-	mode    GrammarMode
-	want    WantMode
+	pos  Pos
+	mode GrammarMode
+	want WantMode
+	// To know when we need to switch back from G2, we need to count how many open/closed
+	// brackets have occurred. For an open bracket we add one, for a closed bracket we
+	// remove one. When the counter then reaches 0 we switch back to G1.
+	g2BracketCounter uint
 }
 
 // NewLexer creates a new instance, ready to start parsing
@@ -85,6 +87,9 @@ func NewLexer(filename string, r io.Reader) *Lexer {
 
 // Token returns the next dyml token in the input stream.
 // At the end of the input stream, Token returns nil, io.EOF.
+// The lexer start of in G1 mode. Should a user of a Lexer detect a token that
+// indicates a mode change, it is THEIR responsibility to change the lexer's
+// mode accordingly.
 func (l *Lexer) Token() (Token, error) {
 	// Peek the first two runes.
 	// The second one is only used to detect the g2 grammar.
@@ -101,18 +106,6 @@ func (l *Lexer) Token() (Token, error) {
 	l.prevR()
 
 	var tok Token
-
-	if !l.started {
-		l.started = true
-		// Find out if we should switch to g2 by checking if the first two runes are '#!'
-		if r1 == '#' && r2 == '!' {
-			l.mode = G2
-			tok, err = l.g2Preamble()
-			l.gSkipWhitespace()
-
-			return tok, err
-		}
-	}
 
 	// Special handling for G1 attributes
 	switch l.want {
@@ -180,6 +173,10 @@ func (l *Lexer) Token() (Token, error) {
 		} else if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
 			l.want = WantNothing
+		} else if r1 == '#' && r2 == '!' {
+			tok, err = l.g2Preamble()
+			l.mode = G2
+			l.gSkipWhitespace()
 		} else if r1 == '#' && r2 == '?' {
 			tok, err = l.g1CommentStart()
 			l.want = WantCommentLine
@@ -203,8 +200,8 @@ func (l *Lexer) Token() (Token, error) {
 		if r1 == '\n' {
 			// Newline marks the end of this G1Line. Switch back to G2.
 			tok, err = l.g1LineEnd()
-			l.mode = G2
 			l.want = WantNothing
+			l.mode = G2
 			l.gSkipWhitespace()
 		} else if l.want == WantIdentifier {
 			tok, err = l.gIdent()
@@ -232,21 +229,36 @@ func (l *Lexer) Token() (Token, error) {
 			l.gSkipWhitespace()
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
+			l.g2BracketCounter += 1
 			l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
+			l.g2BracketCounter -= 1
+			if l.g2BracketCounter == 0 {
+				l.mode = G1
+			}
 			l.gSkipWhitespace()
 		} else if r1 == '(' {
 			tok, err = l.g2GroupStart()
+			l.g2BracketCounter += 1
 			l.gSkipWhitespace()
 		} else if r1 == ')' {
 			tok, err = l.g2GroupEnd()
+			l.g2BracketCounter -= 1
+			if l.g2BracketCounter == 0 {
+				l.mode = G1
+			}
 			l.gSkipWhitespace()
 		} else if r1 == '<' {
 			tok, err = l.g2GenericStart()
+			l.g2BracketCounter += 1
 			l.gSkipWhitespace()
 		} else if r1 == '>' {
 			tok, err = l.g2GenericEnd()
+			l.g2BracketCounter -= 1
+			if l.g2BracketCounter == 0 {
+				l.mode = G1
+			}
 			l.gSkipWhitespace()
 		} else if r1 == '"' {
 			tok, err = l.g2CharData()

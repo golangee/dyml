@@ -209,17 +209,8 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "empty g2",
-			text: "#!{}",
-			want: NewTestSet().
-				G2Preamble().
-				BlockStart().
-				BlockEnd(),
-		},
-
-		{
-			name: "basic g2 with a single element",
-			text: "#!{hello }",
+			name: "simple g2",
+			text: "#!{hello}",
 			want: NewTestSet().
 				G2Preamble().
 				BlockStart().
@@ -228,7 +219,17 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "g2 with a multiple elements",
+			name: "named g2",
+			text: "#! item {}",
+			want: NewTestSet().
+				G2Preamble().
+				Identifier("item").
+				BlockStart().
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 with multiple elements",
 			text: "#!{ list another}",
 			want: NewTestSet().
 				G2Preamble().
@@ -441,6 +442,33 @@ func TestLexer(t *testing.T) {
 				Identifier("a").
 				Semicolon().
 				BlockEnd(),
+		},
+
+		{
+			name: "multiple g2s",
+			text: `#!{} hello #!{}`,
+			want: NewTestSet().
+				G2Preamble().
+				BlockStart().
+				BlockEnd().
+				CharData("hello ").
+				G2Preamble().
+				BlockStart().
+				BlockEnd(),
+		},
+
+		{
+			name: "g2 in g1",
+			text: `#a #!b{} #c`,
+			want: NewTestSet().
+				DefineElement(false).
+				Identifier("a").
+				G2Preamble().
+				Identifier("b").
+				BlockStart().
+				BlockEnd().
+				DefineElement(false).
+				Identifier("c"),
 		},
 	}
 

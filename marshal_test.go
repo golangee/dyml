@@ -213,8 +213,8 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "int slice",
-		text: `#!{
-					Nums {1, 2, 3, 4}
+		text: `#! Nums {
+					1, 2, 3, 4
 				}`,
 		into: &IntSlice{},
 		want: &IntSlice{
@@ -224,12 +224,10 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "int slice with comments",
-		text: `#!{
-					Nums {
-						1,
-						2, 3, // This comment should be ignored.
-						4
-					}
+		text: `#! Nums {
+					1,
+					2, 3, // This comment should be ignored.
+					4
 				}`,
 		into: &IntSlice{},
 		want: &IntSlice{
@@ -243,8 +241,8 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "slice of empty structs",
-		text: `#!{
-					Things {Empty, Empty, Empty}
+		text: `#! Things {
+					Empty, Empty, Empty
 				}`,
 		into: &EmptyStructSlice{},
 		want: &EmptyStructSlice{
@@ -258,17 +256,14 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "filtered slice",
-		text: `#!{
-					i 1,
-					i 2,
-					// please ignore this comment
-					hello 123,
-					i 3,
-					someitem 456,
-					"don't mind me"
-					some nested things,
-					i 4
-				}`,
+		text: `
+				#i{1}
+				#? please ignore this comment
+				#i{2}
+				#! hello {123}
+				#i{3}
+				#i{4}
+				`,
 		into: &FilteredSlice{},
 		want: &FilteredSlice{
 			Ints: []int{1, 2, 3, 4},
@@ -425,11 +420,9 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "map[string]string",
-		text: `#!{
-					Things {
-						key1 value,
-						key2 "string value"
-					}
+		text: `#! Things {
+					key1 value,
+					key2 "string value"
 				}`,
 		into: &StringStringMap{},
 		want: &StringStringMap{Things: map[string]string{
@@ -440,14 +433,12 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "map with comments",
-		text: `#!{
-					Things {
-						// This comment should be ignored
-						key1 value,
-						// This comment should also be ignored
-						key2 "string value"
-						// This comment shall too be ignored
-					}
+		text: `#! Things {
+					// This comment should be ignored
+					key1 value,
+					// This comment should also be ignored
+					key2 "string value"
+					// This comment shall too be ignored
 				}`,
 		into: &StringStringMap{},
 		want: &StringStringMap{Things: map[string]string{
@@ -462,11 +453,9 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "map with primitive types",
-		text: `#!{
-					Things {
-						true 123,
-						false "123.456"
-					}
+		text: `#! Things {
+					true 123,
+					false "123.456"
 				}`,
 		into: &BoolFloatMap{},
 		want: &BoolFloatMap{map[bool]float64{
@@ -515,16 +504,14 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "map with custom type as value",
-		text: `#!{
-					Map {
-						thingA {
-							Name "this is thing A"
-							Value 3
-						}
-						thingB {
-							Name "this is thing B"
-							Value 5
-						}
+		text: `#! Map {
+					thingA {
+						Name "this is thing A"
+						Value 3
+					}
+					thingB {
+						Name "this is thing B"
+						Value 5
 					}
 				}`,
 		into: &MapWithCustomValue{},
@@ -553,10 +540,7 @@ func TestUnmarshal(t *testing.T) {
 
 	testCases = append(testCases, TestCase{
 		name: "type alias",
-		text: `#!{
-					StringA "hello"
-					StringB "world"
-				}`,
+		text: `#StringA{hello} #StringB{world}`,
 		into: &TypeAlias{},
 		want: &TypeAlias{
 			StringA: "hello",
