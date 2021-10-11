@@ -8,11 +8,7 @@
 
 grammar dyml;
 
-// Root is the implicit root element. It contains either a grammar G1
-// or a grammar G2, which is indicated by the preamble '#!'.
-Root: G2 | G1;
-
-// G1 is the text first grammar. Everything that is not an element is parsed as text.
+// G1 is the default text first grammar. Everything that is not an element is parsed as text.
 // An element is defined with "#element".
 // A forwarded element, defined like "##element" will be inserted as the first child of
 // the next regular element. When multiple elements are forwarded they all be forwarded
@@ -23,19 +19,20 @@ Root: G2 | G1;
 // no matter if it is regular or forwarded.
 // You can start a comment node with '#?'. All text until a new element begins or
 // the current block closes will be a comment.
-G1: (G1Element | G1Comment)*;
-G1Element: (G1ForwardAttribute WS)* ('#' | '##') Identifier WS (G1Attribute WS)* ('{' G1Element* '}' WS)? | Text;
+// You can start a G2 node with '#!', see G2 for more details.
+G1: (G1Element | G1Comment | Text | G2)*;
+G1Element: (G1ForwardAttribute WS)* ('#' | '##') Identifier WS (G1Attribute WS)* ('{' G1 '}' WS)?;
 G1Comment: '#?' Text;
 G1Attribute: '@' Identifier '{' Text '}';
 G1ForwardAttribute: '@' G1Attribute;
 
-// G2 is the node first grammar. It must be of the form "#!{...}".
+// G2 is the node first grammar. It must be of the form "#! identifier {...}".
 // Text inside G2 is parsed as nodes. See G2BlockBody for details.
 // There are two special cases in G2 which are hard to express in a grammar,
 // but are easy to parse:
 // Should a '#' occur at any point in G2, the rest of the line follows rule G1Line.
 // Should a '//' occur at at any point in G2, the rest of the line follows rule G2Comment.
-G2: G2Preamble G2BlockBrackets;
+G2: G2Preamble WS Identifier WS G2Block;
 
 // G2Block can be enclosed with one of "{...}", "<...>", "(...)".
 G2Block: WS (G2BlockBrackets | G2BlockGeneric | G2BlockGroup) WS;

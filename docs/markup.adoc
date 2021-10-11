@@ -60,7 +60,7 @@ language and enrich it with markup declarations. All white-spaces within an elem
 significant, because their rendering depends on later transformation and styling
 (see also the white-space processing model of https://drafts.csswg.org/css-text-3/#white-space-phase-1[html5/CSS]).
 
-The grammar has two modes, text first (G1) and node first (G2). By default a document is written in G1, but can be switched to G2 when it starts with `#!`. See the formal grammar in link:dyml.ebnf[] for more details or the examples below to get a feeling for the grammar.
+The grammar has two modes, text first (G1) and node first (G2). By default, a document is written in G1, but parts can be switched to G2 by using '#!'. See the formal grammar in link:dyml.ebnf[] for more details or the examples below to get a feeling for the grammar.
 The following railroad diagram was generated from the grammar.
 image:dyml.png[]
 
@@ -179,7 +179,7 @@ so a writer can decide which reads best in the current context.
 [source,dyml]
 ----
 #list{
-  #item1{#key value}
+  #item1{#key{value}}
   #item2 @id{1}
   #item3 @key{value}
 }
@@ -188,13 +188,11 @@ so a writer can decide which reads best in the current context.
 is equivalent to
 [source,dyml]
 ----
-#!{
-    list{
-        item1 key "value",
-        @@id="1"
-        item2,
-        item3 @key="value",
-    }
+#! list {
+    item1 key "value",
+    @@id="1"
+    item2,
+    item3 @key="value",
 }
 ----
 
@@ -213,13 +211,12 @@ Transforms to (some whitespace indents may vary):
 ==== Example 5
 This shows, how neat the _node first_ DSL is
 
-[source]
+[source,dyml]
 ----
-#!{
-    # just a text line
-
+just a text line
+#! type {
     ## This is a forward text node. It contains a non-recursive grammar 1, so e.g. #ref{id} is possible.
-    type Person struct {
+    Person struct {
         ## ...is the first name
         Firstname int32
 
@@ -236,8 +233,8 @@ This shows, how neat the _node first_ DSL is
 <root>
     just a text line
     <type>
-        This is a forward text node. It contains a non-recursive grammar 1, so e.g. <ref>id</ref> is possible.
         <Person>
+            This is a forward text node. It contains a non-recursive grammar 1, so e.g. <ref>id</ref> is possible.
             <struct _groupType="{}">
                 <Firstname>
                     ...is the first name

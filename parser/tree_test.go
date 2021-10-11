@@ -192,6 +192,13 @@ func TestParser(t *testing.T) {
 			),
 		},
 		{
+			name: "simple G2 alternative brackets",
+			text: `#! item ()`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("item").Block(BlockGroup),
+			),
+		},
+		{
 			name: "siblings G2",
 			text: `#!a{b, c}`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
