@@ -136,15 +136,34 @@ func (e *XMLEncoder) Close() error {
 
 func (e *XMLEncoder) Attribute(key token.Identifier, value token.CharData) error {
 	n := e.peek()
-	if n.attributes.Set(key.Value, value.Value) {
-		return token.NewPosError(key.Pos(), "key defined twice")
+	attr := util.Attribute{
+		Key:   key.Value,
+		Value: value.Value,
+		Range: token.Position{
+			BeginPos: key.Begin(),
+			EndPos:   value.End(),
+		},
 	}
+
+	if n.attributes.Set(attr) {
+		return token.NewPosError(attr.Range, "key defined twice")
+	}
+
 	return nil
 }
 
 func (e *XMLEncoder) AttributeForward(key token.Identifier, value token.CharData) error {
-	if e.forwardedAttributes.Set(key.Value, value.Value) {
-		return token.NewPosError(key.Pos(), "key defined twice")
+	attr := util.Attribute{
+		Key:   key.Value,
+		Value: value.Value,
+		Range: token.Position{
+			BeginPos: key.Begin(),
+			EndPos:   value.End(),
+		},
+	}
+
+	if e.forwardedAttributes.Set(attr) {
+		return token.NewPosError(attr.Range, "key defined twice")
 	}
 
 	return nil

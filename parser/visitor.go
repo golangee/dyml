@@ -261,7 +261,7 @@ func (v *Visitor) g1Node() error {
 		// Correctly set the forwarding mode.
 		if v.mode == token.G1LineForward || v.mode == token.G1Line {
 			if t.Forward {
-				return errors.New("cannot forward nodes in G1 lines")
+				return token.NewPosError(t.Pos(), "cannot forward nodes in G1 lines")
 			}
 		}
 		if v.mode == token.G1LineForward {
@@ -409,7 +409,9 @@ func (v *Visitor) g1Node() error {
 						return err
 					}
 
-					v.closeNode()
+					if err := v.closeNode(); err != nil {
+						return err
+					}
 					v.mode = token.G1
 				} else {
 					return token.NewPosError(tok.Pos(), "G2 node not allowed here")

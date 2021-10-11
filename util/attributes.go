@@ -1,9 +1,12 @@
 package util
 
+import "github.com/golangee/dyml/token"
+
 // Attribute represents single attribute.
 type Attribute struct {
 	Key   string
 	Value string
+	Range token.Position
 }
 
 // AttributeList is a list to hold attributes.
@@ -21,12 +24,9 @@ func (l *AttributeList) Len() int {
 	return len(l.attributes)
 }
 
-// Add the attribute to the list.
-func (l *AttributeList) Add(key, value string) {
-	l.attributes = append(l.attributes, Attribute{
-		Key:   key,
-		Value: value,
-	})
+// Add the given attribute to the list.
+func (l *AttributeList) Add(attr Attribute) {
+	l.attributes = append(l.attributes, attr)
 }
 
 // Pop returns the *first* attribute and removes it from the list.
@@ -44,31 +44,15 @@ func (l *AttributeList) Pop() *Attribute {
 
 // Set the given attribute if it already exists or create a new
 // one otherwise. Returns true if an existing attribute got overwritten.
-func (l *AttributeList) Set(key, val string) bool {
-	existing := l.Get(key)
+func (l *AttributeList) Set(attr Attribute) bool {
+	existing := l.Get(attr.Key)
 	if existing != nil {
-		existing.Value = val
+		existing = &attr
 		return true
 	} else {
-		l.Add(key, val)
+		l.Add(attr)
 		return false
 	}
-}
-
-// Merge the current list with another list.
-// Attributes in "other" will be prioritized.
-func (l AttributeList) Merge(other AttributeList) AttributeList {
-	result := NewAttributeList()
-
-	for _, a := range l.attributes {
-		result.Set(a.Key, a.Value)
-	}
-
-	for _, a := range other.attributes {
-		result.Set(a.Key, a.Value)
-	}
-
-	return result
 }
 
 // Get returns an attribute for a given key, or nil if it does not exist.

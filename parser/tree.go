@@ -94,7 +94,10 @@ func (t *TreeNode) AddChildren(children ...*TreeNode) *TreeNode {
 
 // AddAttribute adds an attribute to a node and can be used builder-style.
 func (t *TreeNode) AddAttribute(key, value string) *TreeNode {
-	t.Attributes.Set(key, value)
+	t.Attributes.Set(util.Attribute{
+		Key:   key,
+		Value: value,
+	})
 
 	return t
 }
@@ -207,7 +210,7 @@ func (p *Parser) applyForwardedAttributes(node *TreeNode) error {
 		if attr == nil {
 			break
 		} else {
-			node.Attributes.Set(attr.Key, attr.Value)
+			node.Attributes.Set(*attr)
 		}
 	}
 
@@ -349,31 +352,42 @@ func (p *Parser) Attribute(key token.Identifier, value token.CharData) error {
 		return err
 	}
 
-	if top.Attributes.Set(key.Value, value.Value) {
-		// TODO For the whole file: more positional errors
-		return errors.New("attribute already defined")
+	if top.Attributes.Set(util.Attribute{
+		Key:   key.Value,
+		Value: value.Value,
+		Range: token.Position{
+			BeginPos: key.Begin(),
+			EndPos:   value.End(),
+		},
+	}) {
+		return token.NewPosError(key.Pos(), "attribute already defined")
 	}
 
 	return nil
 }
 
 func (p *Parser) AttributeForward(key token.Identifier, value token.CharData) error {
-	p.forwardedAttributes.Add(key.Value, value.Value)
+	p.forwardedAttributes.Add(util.Attribute{
+		Key:   key.Value,
+		Value: value.Value,
+		Range: token.Position{
+			BeginPos: key.Begin(),
+			EndPos:   value.End(),
+		},
+	})
 
 	return nil
 }
 
 func (p *Parser) Finalize() error {
 	if len(p.forwardedNodes) > 0 {
-		return errors.New("there are forwarding nodes left")
+		node := p.forwardedNodes[0]
+		return token.NewPosError(node.Range, "forwarded node cannot be forwarded anywhere")
 	}
 
 	if p.forwardedAttributes.Len() > 0 {
-		return errors.New("there are forwarded attributes left")
-	}
-
-	if p.finalTree.BlockType != BlockNormal {
-		return errors.New("root element must have curly brackets")
+		attr := p.forwardedAttributes.Pop()
+		return token.NewPosError(attr.Range, "forwarded attribute cannot be forwarded anywhere")
 	}
 
 	return nil
