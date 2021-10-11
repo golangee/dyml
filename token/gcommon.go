@@ -74,9 +74,13 @@ func (l *Lexer) gSkipWhitespace(dontSkip ...rune) error {
 	}
 }
 
-// gIdent parses a text sequence until next control char # or } or EOF or whitespace.
+// gIdent parses an identifier, which is a dot separated sequence of [a-zA-Z0-9_].
 func (l *Lexer) gIdent() (*Identifier, error) {
 	startPos := l.Pos()
+
+	// When this is true we have to get and identChar, anything is an error.
+	// This is true at the start and after a '.'.
+	requireChar := true
 
 	var tmp bytes.Buffer
 
@@ -94,9 +98,20 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 			return nil, err
 		}
 
-		if !l.gIdentChar(r) {
-			l.prevR() // reset last read char
-
+		if requireChar {
+			requireChar = false
+			// Require a character
+			if !l.gIdentChar(r) {
+				return nil, NewPosError(l.node(), "expected identifier")
+			}
+		} else if r == '.' {
+			// After a dot we require another identifier.
+			requireChar = true
+		} else if l.gIdentChar(r) {
+			// Okay, will be added to the buffer later
+		} else {
+			// We reached the end of this identifier, reset the rune and stop
+			l.prevR()
 			break
 		}
 
@@ -115,7 +130,7 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 	return ident, nil
 }
 
-// gIdentChar is [a-zA-Z0-9_]
+// gIdentChar is any character of an identifier: [a-zA-Z0-9_]
 func (l *Lexer) gIdentChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || (r == '_')
 }

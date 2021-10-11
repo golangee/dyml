@@ -209,16 +209,6 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "simple g2",
-			text: "#!{hello}",
-			want: NewTestSet().
-				G2Preamble().
-				BlockStart().
-				Identifier("hello").
-				BlockEnd(),
-		},
-
-		{
 			name: "named g2",
 			text: "#! item {}",
 			want: NewTestSet().
@@ -476,6 +466,37 @@ func TestLexer(t *testing.T) {
 				BlockEnd().
 				DefineElement(false).
 				Identifier("c"),
+		},
+
+		{
+			name: "good identifiers",
+			text: `#!id{
+						abc,
+						_abc,
+						a0,
+						a.b.c,
+						x1.y2.z3,
+						123,
+						1.2.3.4,
+					}`,
+			want: NewTestSet().
+				G2Preamble().
+				Identifier("id").
+				BlockStart().
+				Identifier("abc").Comma().
+				Identifier("_abc").Comma().
+				Identifier("a0").Comma().
+				Identifier("a.b.c").Comma().
+				Identifier("x1.y2.z3").Comma().
+				Identifier("123").Comma().
+				Identifier("1.2.3.4").Comma().
+				BlockEnd(),
+		},
+
+		{
+			name:    "bad identifier double dots",
+			text:    "#abc..def",
+			wantErr: true,
 		},
 	}
 

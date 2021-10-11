@@ -86,7 +86,8 @@ G2Arrow: '->';
 
 G2Preamble: '#!';
 G1LineEnd: '\n';
-Identifier: [0-9a-zA-Z_]+;
+Identifier: IdentifierPart ('.' IdentifierPart)*;
+IdentifierPart: [0-9a-zA-Z_]+;
 // Char is any character except for unescaped '#' and '}'.
 Char: (~('#' | '}') | '\\#' | '\\}');
 Text: Char+;
