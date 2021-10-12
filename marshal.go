@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golangee/dyml/token"
+
 	"github.com/golangee/dyml/parser"
 )
 
@@ -180,21 +182,20 @@ func (u *UnmarshalError) Unwrap() error {
 // doAny will parse arbitrary contents of the dyml node into the given value.
 // tags are any field tags that may be relevant to process the current node.
 func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...string) error {
-	// Check for custom unmarshalling method
-
-	// A zero value for an invalid reflection method.
-	zeroMethod := *new(reflect.Value)
-
+	// Check for custom unmarshalling method.
 	customUnmarshalMethod := value.MethodByName("UnmarshalDyml")
 
-	if customUnmarshalMethod == zeroMethod && value.CanAddr() {
+	// Handy zero value for comparison.
+	zero := reflect.Value{}
+
+	if customUnmarshalMethod == zero && value.CanAddr() {
 		// We got no method because we might have been checking for a receiver method on a by-value-reference.
 		// Create a pointer to the value and try to find the method on that.
 		valuePtr := value.Addr()
 		customUnmarshalMethod = valuePtr.MethodByName("UnmarshalDyml")
 	}
 
-	if customUnmarshalMethod != zeroMethod {
+	if customUnmarshalMethod != zero {
 		params := []reflect.Value{reflect.ValueOf(node)}
 
 		// UnmarshalDyml might return an error.
@@ -253,7 +254,9 @@ func (u *unmarshaler) doAny(node *parser.TreeNode, value reflect.Value, tags ...
 			return err
 		}
 	default:
-		return NewUnmarshalError(node, fmt.Sprintf("with unsupported type '%s' for '%s'", value.Type(), value.Type().Name()), nil)
+		return NewUnmarshalError(
+			node,
+			fmt.Sprintf("with unsupported type '%s' for '%s'", value.Type(), value.Type().Name()), nil)
 	}
 
 	return nil
@@ -315,9 +318,9 @@ func (u *unmarshaler) doMap(node *parser.TreeNode, value reflect.Value, tags []s
 		if !keyNode.IsNode() {
 			if u.strict {
 				return NewUnmarshalError(node, "map key must be a node", nil)
-			} else {
-				continue
 			}
+
+			continue
 		}
 
 		// Make mapKey be a zero value of the maps key type
@@ -372,7 +375,8 @@ func (u *unmarshaler) doMap(node *parser.TreeNode, value reflect.Value, tags []s
 				return NewUnmarshalError(node, "value is incompatible with map type", err)
 			}
 		default:
-			return NewUnmarshalError(node, fmt.Sprintf("unmarshal has invalid map value mode (%d). this is a bug", valueMode), nil)
+			return NewUnmarshalError(node,
+				fmt.Sprintf("unmarshal has invalid map value mode (%d). this is a bug", valueMode), nil)
 		}
 
 		value.SetMapIndex(mapKey, mapValue)
@@ -407,6 +411,8 @@ func (u *unmarshaler) doFloat(node *parser.TreeNode, value reflect.Value) error 
 		bitSize = 32
 	case reflect.Float64:
 		bitSize = 64
+	default:
+		return token.NewPosError(node.Range, "you found a bug: trying to get float bit size for "+value.String())
 	}
 
 	f, err := strconv.ParseFloat(strings.TrimSpace(text), bitSize)
@@ -590,9 +596,9 @@ func (u *unmarshaler) isPrimitive(t reflect.Type) bool {
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Bool, reflect.Float32, reflect.Float64, reflect.String:
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // nonCommentChildren returns all children of the given node that are not comments.

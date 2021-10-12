@@ -3,6 +3,7 @@
 
 // Generate token identifiers for all structs in parser2/token.go and
 // place them in parser2/token.gen.go.
+//nolint
 package main
 
 import (
@@ -22,11 +23,11 @@ package token
 
 `
 
-const TypeTemplate = `	Token%[1]s TokenType = "Token%[1]s"
+const TypeTemplate = `	Token%[1]s Type = "Token%[1]s"
 `
 
 const ReceiverTemplate = `
-func (t *%[1]s) TokenType() TokenType {
+func (t *%[1]s) Type() Type {
 	return Token%[1]s
 }
 

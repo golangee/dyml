@@ -15,7 +15,7 @@ func (t *CharData) String() string {
 	return t.Value
 }
 
-// Identifier is an identifier as you would expect from a programming language: [0-9a-zA-Z_]+
+// Identifier is an identifier as you would expect from a programming language: [0-9a-zA-Z_]+.
 type Identifier struct {
 	Position
 	Value string

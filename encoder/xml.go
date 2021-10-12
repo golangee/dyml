@@ -3,11 +3,12 @@ package encoder
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"strings"
+
 	"github.com/golangee/dyml/parser"
 	"github.com/golangee/dyml/token"
 	"github.com/golangee/dyml/util"
-	"io"
-	"strings"
 )
 
 type XMLEncoder struct {
@@ -55,6 +56,7 @@ func NewXMLEncoder(filename string, r io.Reader, w io.Writer) *XMLEncoder {
 func (e *XMLEncoder) Encode() error {
 	v := parser.NewVisitor(e.filename, e.reader)
 	v.SetVisitable(e)
+
 	return v.Run()
 }
 
@@ -117,6 +119,7 @@ func (e *XMLEncoder) Close() error {
 	// they are already inside e.forwardedNodes
 	if e.peek().isForwarded {
 		e.pop()
+
 		return nil
 	}
 
@@ -170,12 +173,17 @@ func (e *XMLEncoder) AttributeForward(key token.Identifier, value token.CharData
 }
 
 func (e *XMLEncoder) Finalize() error {
-	return e.writer.Flush()
+	if e.writer.Flush() != nil {
+		return fmt.Errorf("failed to flush written XML: %w", e.writer.Flush())
+	}
+
+	return nil
 }
 
 // writeString is a convenience method to write strings to the underlying writer.
 func (e *XMLEncoder) writeString(s string) error {
 	_, err := e.writer.WriteString(s)
+
 	return err
 }
 
@@ -207,13 +215,16 @@ func (e *XMLEncoder) writeTopNodeOpen() error {
 
 		// Build the opening tag with all attributes
 		var tag strings.Builder
+
 		tag.WriteString("<")
 		tag.WriteString(top.name)
+
 		for {
 			attr := top.attributes.Pop()
 			if attr == nil {
 				break
 			}
+
 			tag.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, escapeXMLSafe(attr.Value)))
 		}
 		tag.WriteString(">")
@@ -247,6 +258,7 @@ func (e *XMLEncoder) push(n *node) {
 func (e *XMLEncoder) peek() *node {
 	if len(e.openNodes) > 0 {
 		n := e.openNodes[len(e.openNodes)-1]
+
 		return n
 	}
 
@@ -258,14 +270,16 @@ func (e *XMLEncoder) pop() *node {
 	if len(e.openNodes) > 0 {
 		n := e.openNodes[len(e.openNodes)-1]
 		e.openNodes = e.openNodes[:len(e.openNodes)-1]
+
 		return n
 	}
 
 	return nil
 }
 
-// escapeXMLSafe replaces all occurrences of reserved characters in XML: <>&"
+// escapeXMLSafe replaces all occurrences of reserved characters in XML: <>&".
 func escapeXMLSafe(s string) string {
 	replacer := strings.NewReplacer("<", "&lt;", ">", "&gt;", "&", "&amp;", `"`, "&quot;")
+
 	return replacer.Replace(s)
 }

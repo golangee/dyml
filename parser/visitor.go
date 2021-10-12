@@ -61,13 +61,13 @@ type tokenWithError struct {
 type BlockType string
 
 const (
-	// BlockNone represents no BlockType
+	// BlockNone represents no BlockType.
 	BlockNone BlockType = ""
-	// BlockNormal represents curly brackets
+	// BlockNormal represents curly brackets.
 	BlockNormal BlockType = "{}"
-	// BlockGroup represents round brackets
+	// BlockGroup represents round brackets.
 	BlockGroup BlockType = "()"
-	// BlockGeneric represents pointed brackets
+	// BlockGeneric represents pointed brackets.
 	BlockGeneric BlockType = "<>"
 	// blockSpecial puts closeNode() in a special mode. See that method for more details.
 	blockSpecial BlockType = "*"
@@ -91,9 +91,6 @@ type Visitor struct {
 	tokenTailBuffer []tokenWithError
 
 	mode token.GrammarMode
-
-	Ranges        []*token.Position
-	forwardRanges []*token.Position
 
 	// openNodes is a stack of all blocktypes that are currently
 	// opened. These can be used to check whether a block is closed
@@ -168,12 +165,14 @@ func (v *Visitor) closeNode() error {
 // openNode opens a new node for processing.
 func (v *Visitor) openNode(name token.Identifier) error {
 	v.openNodes = append(v.openNodes, BlockNone)
+
 	return v.visitMe.Open(name)
 }
 
 // openForwardNode opens a new forwarding node for processing.
 func (v *Visitor) openForwardNode(name token.Identifier) error {
 	v.openNodes = append(v.openNodes, BlockNone)
+
 	return v.visitMe.OpenForward(name)
 }
 
@@ -182,6 +181,7 @@ func (v *Visitor) setBlockType(blockType BlockType) error {
 	if v.openNodes[len(v.openNodes)-1] != blockSpecial {
 		v.openNodes[len(v.openNodes)-1] = blockType
 	}
+
 	return v.visitMe.SetBlockType(blockType)
 }
 
@@ -226,6 +226,7 @@ func (v *Visitor) peek() (token.Token, error) {
 	// Check the buffer for tokens
 	if len(v.tokenBuffer) > 0 {
 		twe := v.tokenBuffer[0]
+
 		return twe.tok, twe.err
 	}
 
@@ -242,7 +243,7 @@ func (v *Visitor) peek() (token.Token, error) {
 
 // g1Node recursively parses a G1 node and all its children from tokens.
 func (v *Visitor) g1Node() error {
-	isForwardingNode := false
+	var isForwardingNode bool
 
 	// Parse forwarding attributes
 	err := v.parseAttributes(true)
@@ -264,6 +265,7 @@ func (v *Visitor) g1Node() error {
 				return token.NewPosError(t.Pos(), "cannot forward nodes in G1 lines")
 			}
 		}
+
 		if v.mode == token.G1LineForward {
 			isForwardingNode = true
 		} else {
@@ -280,11 +282,6 @@ func (v *Visitor) g1Node() error {
 			}
 		}
 
-		//err = v.setStartPos(v.lexer.Pos())
-		//if err != nil {
-		//	return err
-		//}
-
 		return nil
 	case *token.G1Comment:
 		// Expect CharData as comment
@@ -299,28 +296,19 @@ func (v *Visitor) g1Node() error {
 				return err
 			}
 
-			//err = v.setStartPos(v.lexer.Pos())
-			//if err != nil {
-			//	return err
-			//}
-
 			return nil
 		}
+
 		return token.NewPosError(
 			tok.Pos(),
 			"expected a comment",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenCharData))
-
 	default:
 		return token.NewPosError(
 			tok.Pos(),
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenDefineElement, token.TokenCharData))
 	}
-	//err = v.setStartPos(v.lexer.Pos())
-	//if err != nil {
-	//	return err
-	//}
 
 	// Expect identifier for new element
 	tok, err = v.next()
@@ -344,10 +332,6 @@ func (v *Visitor) g1Node() error {
 			"this token is not valid here",
 		).SetCause(NewUnexpectedTokenError(tok, token.TokenIdentifier))
 	}
-	//err = v.setStartPos(v.lexer.Pos())
-	//if err != nil {
-	//	return err
-	//}
 
 	// Process non-forwarding attributes.
 	err = v.parseAttributes(false)
@@ -387,7 +371,7 @@ func (v *Visitor) g1Node() error {
 			case *token.G2Preamble:
 				if v.mode == token.G1 {
 					// Parse a single G2 node
-					v.next() // pop preamble
+					_, _ = v.next() // pop preamble
 					v.mode = token.G2
 
 					if err := v.g2Node(); err != nil {
@@ -412,7 +396,7 @@ func (v *Visitor) g1Node() error {
 			return err
 		}
 
-		if tok.TokenType() != token.TokenBlockEnd {
+		if tok.Type() != token.TokenBlockEnd {
 			return token.NewPosError(
 				tok.Pos(),
 				"use a '}' here to close the element",
@@ -434,10 +418,6 @@ func (v *Visitor) g1Node() error {
 		return err
 	}
 
-	//err = v.setEndPos(v.lexer.Pos())
-	//if err != nil {
-	//	return err
-	//}
 	return nil
 }
 
@@ -466,7 +446,7 @@ func (v *Visitor) g1LineNodes() error {
 
 	for {
 		tok, _ := v.peek()
-		if tok != nil && tok.TokenType() == token.TokenG1LineEnd {
+		if tok != nil && tok.Type() == token.TokenG1LineEnd {
 			_, err = v.next()
 			if err != nil {
 				return err
@@ -495,7 +475,7 @@ func (v *Visitor) g2Node() error {
 	}
 
 	// true if an arrow following this node is allowed.
-	arrowAllowed := true
+	arrowAllowed := true //nolint:ifshort
 
 	// Read forward attributes
 	err := v.parseAttributes(true)
@@ -523,7 +503,9 @@ func (v *Visitor) g2Node() error {
 		if err != nil {
 			return err
 		}
+
 		v.maybeEatComma()
+
 		return nil
 	default:
 		return token.NewPosError(
@@ -570,6 +552,7 @@ func (v *Visitor) g2Node() error {
 		if err != nil {
 			return err
 		}
+
 		arrowAllowed = false
 	case *token.G2Arrow:
 		// This is a G2Arrow after an identifier
@@ -592,11 +575,12 @@ func (v *Visitor) g2Node() error {
 			// There is no more input, close this node.
 			return v.closeNode()
 		}
+
 		return err
 	}
 
 	// We have to handle the arrow before closing the node.
-	if arrowAllowed && tok.TokenType() == token.TokenG2Arrow {
+	if arrowAllowed && tok.Type() == token.TokenG2Arrow {
 		if err := v.g2ParseArrow(); err != nil {
 			return err
 		}
@@ -614,7 +598,7 @@ func (v *Visitor) g2EatComments() error {
 			break
 		}
 
-		if tok.TokenType() != token.TokenG2Comment {
+		if tok.Type() != token.TokenG2Comment {
 			// The next thing is not a comment, which means that we are done.
 			break
 		}
@@ -660,6 +644,7 @@ func (v *Visitor) g2ParseBlock() error {
 	switch tok.(type) {
 	case *token.BlockStart:
 		blockType = BlockNormal
+
 		err = v.setBlockType(BlockNormal)
 		if err != nil {
 			return err
@@ -667,6 +652,7 @@ func (v *Visitor) g2ParseBlock() error {
 
 	case *token.GroupStart:
 		blockType = BlockGroup
+
 		err = v.setBlockType(BlockGroup)
 		if err != nil {
 			return err
@@ -674,11 +660,11 @@ func (v *Visitor) g2ParseBlock() error {
 
 	case *token.GenericStart:
 		blockType = BlockGeneric
+
 		err = v.setBlockType(BlockGeneric)
 		if err != nil {
 			return err
 		}
-
 	default:
 		return token.NewPosError(tok.Pos(), "expected a BlockStart")
 	}
@@ -705,7 +691,7 @@ func (v *Visitor) g2ParseBlock() error {
 			}
 
 			break // Stop parsing the block, closing the current node will be handled by the caller
-		} else if tok.TokenType() == token.TokenDefineElement {
+		} else if tok.Type() == token.TokenDefineElement {
 			err := v.g1LineNodes()
 			if err != nil {
 				return err
@@ -758,6 +744,9 @@ func (v *Visitor) g2ParseArrow() error {
 		var name *token.Identifier
 
 		tok, err := v.peek()
+		if err != nil {
+			return err
+		}
 
 		switch tokName := tok.(type) {
 		case *token.Identifier:
@@ -765,12 +754,14 @@ func (v *Visitor) g2ParseArrow() error {
 			if _, err := v.next(); err != nil {
 				return err
 			}
+
 			name = tokName
 		}
 
 		// closeNode has a special mode, when blockSpecial is on the stack, see that method
 		// for more details.
 		v.openNodes = append(v.openNodes, blockSpecial, BlockNone)
+
 		err = v.visitMe.OpenReturnArrow(*t, name)
 		if err != nil {
 			return err
@@ -788,6 +779,7 @@ func (v *Visitor) g2ParseArrow() error {
 		}
 
 		v.openNodes = v.openNodes[:len(v.openNodes)-2]
+
 		err = v.visitMe.CloseReturnArrow()
 		if err != nil {
 			return err
@@ -836,13 +828,13 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 			if err != nil {
 				return err
 			}
-
 		} else {
 			// The next token is not a DefineAttribute
 			break
 		}
 
 		var attrKey token.Identifier
+
 		var attrValue token.CharData
 
 		// Read attribute key
@@ -865,14 +857,14 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 
 		tok, _ = v.next()
 		if isG1 {
-			if tok.TokenType() != token.TokenBlockStart {
+			if tok.Type() != token.TokenBlockStart {
 				return token.NewPosError(
 					tok.Pos(),
 					"attribute value must be enclosed in '{}'",
 				).SetCause(NewUnexpectedTokenError(tok, token.TokenBlockStart))
 			}
 		} else {
-			if tok.TokenType() != token.TokenAssign {
+			if tok.Type() != token.TokenAssign {
 				return token.NewPosError(
 					tok.Pos(),
 					"'=' is expected here",
@@ -905,8 +897,8 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 		}
 
 		if isG1 {
-			tok, _ = v.next()
-			if tok.TokenType() != token.TokenBlockEnd {
+			tok, err = v.next()
+			if err == nil && tok.Type() != token.TokenBlockEnd {
 				return token.NewPosError(
 					tok.Pos(),
 					"attribute value needs to be closed with '}'",
@@ -930,7 +922,7 @@ func (v *Visitor) maybeEatComma() {
 		return
 	}
 
-	if tok.TokenType() == token.TokenComma {
+	if tok.Type() == token.TokenComma {
 		_, _ = v.next()
 	}
 }

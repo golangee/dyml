@@ -45,11 +45,11 @@ const (
 
 // A Token is an interface for all possible token types.
 type Token interface {
-	TokenType() TokenType
+	Type() Type
 	Pos() *Position
 }
 
-type TokenType string
+type Type string
 
 type runeWithPos struct {
 	r    rune
@@ -60,7 +60,7 @@ type runeWithPos struct {
 // Lexer can be used to get individual tokens.
 type Lexer struct {
 	r      *bufio.Reader
-	buf    []runeWithPos //TODO truncate to avoid streaming memory leak
+	buf    []runeWithPos // TODO truncate to avoid streaming memory leak
 	bufPos int
 	// pos is the current lexer position.
 	// It is the position of the rune that would be read next by nextR.
@@ -73,7 +73,7 @@ type Lexer struct {
 	g2BracketCounter uint
 }
 
-// NewLexer creates a new instance, ready to start parsing
+// NewLexer creates a new instance, ready to start parsing.
 func NewLexer(filename string, r io.Reader) *Lexer {
 	l := &Lexer{}
 	l.r = bufio.NewReader(r)
@@ -108,6 +108,7 @@ func (l *Lexer) Token() (Token, error) {
 	var tok Token
 
 	// Special handling for G1 attributes
+	//nolint:exhaustive
 	switch l.want {
 	case WantG1AttributeIdent:
 		tok, err = l.gIdent()
@@ -116,9 +117,9 @@ func (l *Lexer) Token() (Token, error) {
 		}
 
 		if l.mode == G1Line {
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else {
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		}
 
 		l.want = WantG1AttributeStart
@@ -156,9 +157,9 @@ func (l *Lexer) Token() (Token, error) {
 		l.want = WantNothing
 
 		if l.mode == G1Line {
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else {
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		}
 
 		return tok, err
@@ -168,7 +169,7 @@ func (l *Lexer) Token() (Token, error) {
 	case G1:
 		if l.want == WantIdentifier {
 			tok, err = l.gIdent()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 			l.want = WantNothing
 		} else if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
@@ -176,11 +177,11 @@ func (l *Lexer) Token() (Token, error) {
 		} else if r1 == '#' && r2 == '!' {
 			tok, err = l.g2Preamble()
 			l.mode = G2
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '#' && r2 == '?' {
 			tok, err = l.g1CommentStart()
 			l.want = WantCommentLine
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '#' {
 			tok, err = l.gDefineElement()
 			l.want = WantIdentifier
@@ -189,10 +190,10 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else {
 			tok, err = l.g1Text("#}")
 		}
@@ -202,11 +203,11 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.g1LineEnd()
 			l.want = WantNothing
 			l.mode = G2
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if l.want == WantIdentifier {
 			tok, err = l.gIdent()
 			l.want = WantNothing
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else if r1 == '#' {
 			tok, err = l.gDefineElement()
 			l.want = WantIdentifier
@@ -215,10 +216,10 @@ func (l *Lexer) Token() (Token, error) {
 			l.want = WantG1AttributeIdent
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else {
 			tok, err = l.g1Text("#}\n")
 		}
@@ -226,75 +227,66 @@ func (l *Lexer) Token() (Token, error) {
 		if l.want == WantCommentLine {
 			tok, err = l.gCommentLine()
 			l.want = WantNothing
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
-			l.g2BracketCounter += 1
-			l.gSkipWhitespace()
+			l.g2BracketCounter++
+			_ = l.gSkipWhitespace()
 		} else if r1 == '}' {
 			tok, err = l.gBlockEnd()
-			l.g2BracketCounter -= 1
-			if l.g2BracketCounter == 0 {
-				l.mode = G1
-			}
-			l.gSkipWhitespace()
+			l.g2BracketCounter--
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '(' {
 			tok, err = l.g2GroupStart()
-			l.g2BracketCounter += 1
-			l.gSkipWhitespace()
+			l.g2BracketCounter++
+			_ = l.gSkipWhitespace()
 		} else if r1 == ')' {
 			tok, err = l.g2GroupEnd()
-			l.g2BracketCounter -= 1
-			if l.g2BracketCounter == 0 {
-				l.mode = G1
-			}
-			l.gSkipWhitespace()
+			l.g2BracketCounter--
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '<' {
 			tok, err = l.g2GenericStart()
-			l.g2BracketCounter += 1
-			l.gSkipWhitespace()
+			l.g2BracketCounter++
+			_ = l.gSkipWhitespace()
 		} else if r1 == '>' {
 			tok, err = l.g2GenericEnd()
-			l.g2BracketCounter -= 1
-			if l.g2BracketCounter == 0 {
-				l.mode = G1
-			}
-			l.gSkipWhitespace()
+			l.g2BracketCounter--
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '"' {
 			tok, err = l.g2CharData()
-			l.gSkipWhitespace()
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '@' {
 			tok, err = l.gDefineAttribute()
 		} else if r1 == '#' {
 			// A '#' marks the start of a G1 line.
 			tok, err = l.gDefineElement()
 			l.mode = G1Line
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else if r1 == '=' {
 			tok, err = l.g2Assign()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
-			if l.g2BracketCounter == 0 {
-				l.mode = G1
-			}
-			l.gSkipWhitespace()
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == ';' {
 			tok, err = l.g2Semicolon()
-			if l.g2BracketCounter == 0 {
-				l.mode = G1
-			}
-			l.gSkipWhitespace()
+			l.checkSwitchToG1()
+			_ = l.gSkipWhitespace()
 		} else if r1 == '/' {
 			tok, err = l.g2CommentStart()
 			l.want = WantCommentLine
-			l.gSkipWhitespace('\n')
+			_ = l.gSkipWhitespace('\n')
 		} else if r1 == '-' && r2 == '>' {
 			tok, err = l.g2Arrow()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else if l.gIdentChar(r1) {
 			tok, err = l.gIdent()
-			l.gSkipWhitespace()
+			_ = l.gSkipWhitespace()
 		} else {
 			return nil, NewPosError(l.node(), fmt.Sprintf("unexpected char '%c'", r1))
 		}
@@ -316,6 +308,13 @@ func (l *Lexer) Token() (Token, error) {
 	}
 
 	return tok, nil
+}
+
+// checkSwitchToG1 will check the bracketCounter and, if it is 0, set the lexer's mode to G1.
+func (l *Lexer) checkSwitchToG1() {
+	if l.g2BracketCounter == 0 {
+		l.mode = G1
+	}
 }
 
 // nextR reads the next rune and updates the position.
@@ -362,23 +361,12 @@ func (l *Lexer) nextR() (rune, error) {
 	return r, err
 }
 
-// prevR unreads the current rune. panics if out of balance with nextR
-func (l *Lexer) prevR() rune {
+// prevR unreads the current rune. panics if out of balance with nextR.
+func (l *Lexer) prevR() {
 	l.bufPos--
 	r := l.buf[l.bufPos]
 	l.pos.Line = int(r.line)
 	l.pos.Col = int(r.col)
-
-	return r.r
-}
-
-// lastRune returns the last read rune without un-read or false.
-func (l *Lexer) lastRune(offset int) (rune, bool) {
-	if len(l.buf) < -offset {
-		return unicode.ReplacementChar, false
-	}
-
-	return l.buf[len(l.buf)+offset].r, true
 }
 
 // node returns a fake node for positional errors.

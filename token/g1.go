@@ -40,6 +40,7 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 			if strings.ContainsRune(stopAt, r) || r == '\\' {
 				// The character was correctly escaped and should be emitted as-is.
 				tmp.WriteRune(r)
+
 				isEscaping = false
 			} else {
 				// Escaping happened, but nothing valid to escape was found!
@@ -50,6 +51,7 @@ func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
 			if strings.ContainsRune(stopAt, r) {
 				// That character is no longer supposed to be in our string, revert the read and stop.
 				l.prevR()
+
 				break
 			} else if r == '\\' {
 				// Enter escape mode and not emit this backslash.

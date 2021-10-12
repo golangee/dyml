@@ -2,27 +2,27 @@
 package token
 
 const (
-	TokenCharData        TokenType = "TokenCharData"
-	TokenIdentifier      TokenType = "TokenIdentifier"
-	TokenBlockStart      TokenType = "TokenBlockStart"
-	TokenBlockEnd        TokenType = "TokenBlockEnd"
-	TokenGroupStart      TokenType = "TokenGroupStart"
-	TokenGroupEnd        TokenType = "TokenGroupEnd"
-	TokenGenericStart    TokenType = "TokenGenericStart"
-	TokenGenericEnd      TokenType = "TokenGenericEnd"
-	TokenG2Preamble      TokenType = "TokenG2Preamble"
-	TokenDefineElement   TokenType = "TokenDefineElement"
-	TokenDefineAttribute TokenType = "TokenDefineAttribute"
-	TokenAssign          TokenType = "TokenAssign"
-	TokenG1LineEnd       TokenType = "TokenG1LineEnd"
-	TokenComma           TokenType = "TokenComma"
-	TokenSemicolon       TokenType = "TokenSemicolon"
-	TokenG1Comment       TokenType = "TokenG1Comment"
-	TokenG2Comment       TokenType = "TokenG2Comment"
-	TokenG2Arrow         TokenType = "TokenG2Arrow"
+	TokenCharData        Type = "TokenCharData"
+	TokenIdentifier      Type = "TokenIdentifier"
+	TokenBlockStart      Type = "TokenBlockStart"
+	TokenBlockEnd        Type = "TokenBlockEnd"
+	TokenGroupStart      Type = "TokenGroupStart"
+	TokenGroupEnd        Type = "TokenGroupEnd"
+	TokenGenericStart    Type = "TokenGenericStart"
+	TokenGenericEnd      Type = "TokenGenericEnd"
+	TokenG2Preamble      Type = "TokenG2Preamble"
+	TokenDefineElement   Type = "TokenDefineElement"
+	TokenDefineAttribute Type = "TokenDefineAttribute"
+	TokenAssign          Type = "TokenAssign"
+	TokenG1LineEnd       Type = "TokenG1LineEnd"
+	TokenComma           Type = "TokenComma"
+	TokenSemicolon       Type = "TokenSemicolon"
+	TokenG1Comment       Type = "TokenG1Comment"
+	TokenG2Comment       Type = "TokenG2Comment"
+	TokenG2Arrow         Type = "TokenG2Arrow"
 )
 
-func (t *CharData) TokenType() TokenType {
+func (t *CharData) Type() Type {
 	return TokenCharData
 }
 
@@ -30,7 +30,7 @@ func (t *CharData) Pos() *Position {
 	return &t.Position
 }
 
-func (t *Identifier) TokenType() TokenType {
+func (t *Identifier) Type() Type {
 	return TokenIdentifier
 }
 
@@ -38,7 +38,7 @@ func (t *Identifier) Pos() *Position {
 	return &t.Position
 }
 
-func (t *BlockStart) TokenType() TokenType {
+func (t *BlockStart) Type() Type {
 	return TokenBlockStart
 }
 
@@ -46,7 +46,7 @@ func (t *BlockStart) Pos() *Position {
 	return &t.Position
 }
 
-func (t *BlockEnd) TokenType() TokenType {
+func (t *BlockEnd) Type() Type {
 	return TokenBlockEnd
 }
 
@@ -54,7 +54,7 @@ func (t *BlockEnd) Pos() *Position {
 	return &t.Position
 }
 
-func (t *GroupStart) TokenType() TokenType {
+func (t *GroupStart) Type() Type {
 	return TokenGroupStart
 }
 
@@ -62,7 +62,7 @@ func (t *GroupStart) Pos() *Position {
 	return &t.Position
 }
 
-func (t *GroupEnd) TokenType() TokenType {
+func (t *GroupEnd) Type() Type {
 	return TokenGroupEnd
 }
 
@@ -70,7 +70,7 @@ func (t *GroupEnd) Pos() *Position {
 	return &t.Position
 }
 
-func (t *GenericStart) TokenType() TokenType {
+func (t *GenericStart) Type() Type {
 	return TokenGenericStart
 }
 
@@ -78,7 +78,7 @@ func (t *GenericStart) Pos() *Position {
 	return &t.Position
 }
 
-func (t *GenericEnd) TokenType() TokenType {
+func (t *GenericEnd) Type() Type {
 	return TokenGenericEnd
 }
 
@@ -86,7 +86,7 @@ func (t *GenericEnd) Pos() *Position {
 	return &t.Position
 }
 
-func (t *G2Preamble) TokenType() TokenType {
+func (t *G2Preamble) Type() Type {
 	return TokenG2Preamble
 }
 
@@ -94,7 +94,7 @@ func (t *G2Preamble) Pos() *Position {
 	return &t.Position
 }
 
-func (t *DefineElement) TokenType() TokenType {
+func (t *DefineElement) Type() Type {
 	return TokenDefineElement
 }
 
@@ -102,7 +102,7 @@ func (t *DefineElement) Pos() *Position {
 	return &t.Position
 }
 
-func (t *DefineAttribute) TokenType() TokenType {
+func (t *DefineAttribute) Type() Type {
 	return TokenDefineAttribute
 }
 
@@ -110,7 +110,7 @@ func (t *DefineAttribute) Pos() *Position {
 	return &t.Position
 }
 
-func (t *Assign) TokenType() TokenType {
+func (t *Assign) Type() Type {
 	return TokenAssign
 }
 
@@ -118,7 +118,7 @@ func (t *Assign) Pos() *Position {
 	return &t.Position
 }
 
-func (t *G1LineEnd) TokenType() TokenType {
+func (t *G1LineEnd) Type() Type {
 	return TokenG1LineEnd
 }
 
@@ -126,7 +126,7 @@ func (t *G1LineEnd) Pos() *Position {
 	return &t.Position
 }
 
-func (t *Comma) TokenType() TokenType {
+func (t *Comma) Type() Type {
 	return TokenComma
 }
 
@@ -134,7 +134,7 @@ func (t *Comma) Pos() *Position {
 	return &t.Position
 }
 
-func (t *Semicolon) TokenType() TokenType {
+func (t *Semicolon) Type() Type {
 	return TokenSemicolon
 }
 
@@ -142,7 +142,7 @@ func (t *Semicolon) Pos() *Position {
 	return &t.Position
 }
 
-func (t *G1Comment) TokenType() TokenType {
+func (t *G1Comment) Type() Type {
 	return TokenG1Comment
 }
 
@@ -150,7 +150,7 @@ func (t *G1Comment) Pos() *Position {
 	return &t.Position
 }
 
-func (t *G2Comment) TokenType() TokenType {
+func (t *G2Comment) Type() Type {
 	return TokenG2Comment
 }
 
@@ -158,7 +158,7 @@ func (t *G2Comment) Pos() *Position {
 	return &t.Position
 }
 
-func (t *G2Arrow) TokenType() TokenType {
+func (t *G2Arrow) Type() Type {
 	return TokenG2Arrow
 }
 

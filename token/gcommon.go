@@ -112,6 +112,7 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 		} else {
 			// We reached the end of this identifier, reset the rune and stop
 			l.prevR()
+
 			break
 		}
 
@@ -130,7 +131,7 @@ func (l *Lexer) gIdent() (*Identifier, error) {
 	return ident, nil
 }
 
-// gIdentChar is any character of an identifier: [a-zA-Z0-9_]
+// gIdentChar is any character of an identifier: [a-zA-Z0-9_].
 func (l *Lexer) gIdentChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || (r == '_')
 }

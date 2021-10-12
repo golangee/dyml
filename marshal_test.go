@@ -1,16 +1,19 @@
 // SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-package dyml
+package dyml_test
 
 import (
 	"fmt"
-	"github.com/golangee/dyml/parser"
-	"github.com/r3labs/diff/v2"
 	"log"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/golangee/dyml/parser"
+	"github.com/r3labs/diff/v2"
+
+	. "github.com/golangee/dyml"
 )
 
 func ExampleUnmarshal() {
@@ -29,15 +32,14 @@ func ExampleUnmarshal() {
 	// Output: Hello 3 year old Gopher !
 }
 
+//nolint:govet
 func ExampleUnmarshal_Slice() {
 	type SimpleSlice struct {
 		Nums []int
 	}
 
-	input := strings.NewReader(`#!{
-		Nums {
-			1, 2, 3
-		}
+	input := strings.NewReader(`#! Nums {
+		1, 2, 3
 	}`)
 
 	var result SimpleSlice
@@ -51,6 +53,7 @@ func ExampleUnmarshal_Slice() {
 // ExampleComplexSlice demonstrates more complex slice usage.
 // Values will be placed in the correct slices because they
 // have a rename tag set.
+//nolint:govet
 func ExampleUnmarshal_ComplexSlice() {
 	type Animal struct {
 		Name string `dyml:"name,attr"`
@@ -62,17 +65,17 @@ func ExampleUnmarshal_ComplexSlice() {
 		Planets []string `dyml:"planet"`
 	}
 
-	input := strings.NewReader(`#!{
-		animal @name="Dog" {
+	input := strings.NewReader(`
+		#! animal @name="Dog" {
 			age 6
 		}
-		planet "Earth"
-		animal @name="Cat",
-		animal @name="Gopher" {
+		#! planet "Earth"
+		#! animal @name="Cat",
+		#! animal @name="Gopher" {
 			age 3
 		}
-		planet "Venus"
-		planet "Mars"
+		#! planet "Venus"
+		#! planet "Mars"
 	}`)
 
 	var result ComplexArray
@@ -556,17 +559,23 @@ func TestUnmarshal(t *testing.T) {
 	})
 
 	// Run all test cases
-	for _, tc := range testCases {
+	t.Parallel()
+
+	for _, testCase := range testCases {
+		tc := testCase
+
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := Unmarshal(strings.NewReader(tc.text), tc.into, tc.strict)
 
 			if err != nil {
 				if tc.wantErr {
 					// We got an expected error.
 					return
-				} else {
-					t.Fatal(err)
 				}
+
+				t.Fatal(err)
 			} else {
 				if tc.wantErr {
 					t.Fatal("expected an error, but got none")
@@ -577,6 +586,7 @@ func TestUnmarshal(t *testing.T) {
 			if err != nil {
 				log.Println(fmt.Errorf("cannot compare test result: %w", err))
 				t.SkipNow()
+
 				return
 			}
 

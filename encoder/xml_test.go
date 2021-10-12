@@ -1,13 +1,13 @@
-package encoder
+package encoder_test
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/golangee/dyml/encoder"
 )
 
-//test stream encoding
 func TestXMLEncode(t *testing.T) {
 	tests := []struct {
 		name string
@@ -111,14 +111,12 @@ func TestXMLEncode(t *testing.T) {
 		},
 		{
 			name: "equivalent example grammar1.2",
-			text: `#!{
-							list{
-								item1 key "value",
-								@@id="1"
-								item2,
-								item3 @key="value",
-							}
-						}`,
+			text: `#! list {
+						item1 key "value",
+						@@id="1"
+						item2,
+						item3 @key="value",
+					}`,
 			want: `<root>
 							<list>
 								<item1><key>value</key></item1>
@@ -129,17 +127,19 @@ func TestXMLEncode(t *testing.T) {
 		},
 		{
 			name: "simple forwarded attribute G2",
-			text: `#!{
+			text: `#! parent {
 							@@key="value"
 							item
 						}`,
 			want: `<root>
+						<parent>
 							<item key="value"></item>
-						</root>`,
+						</parent>
+					</root>`,
 		},
 		{
 			name: "forwarded attributes G2",
-			text: `#!{
+			text: `#! g2 {
 							item,
 							@@key="value"
 							@@another="one"
@@ -147,41 +147,47 @@ func TestXMLEncode(t *testing.T) {
 							parent @@for="child" child,
 						}`,
 			want: `<root>
+						<g2>
 							<item></item>
 							<item key="value" another="one" not="forwarded"></item>
 							<parent>
 								<child for="child"></child>
 							</parent>
-						</root>`,
+						</g2>
+					</root>`,
 		},
 		{
 			name: "simple G2 return arrow",
-			text: `#!{
+			text: `#! g2 {
 						hello(string) -> (int)
 					}`,
 			want: `<root>
-						<hello>
-							<string></string>
-							<ret>
-								<int></int>
-							</ret>
-						</hello>
+						<g2>
+							<hello>
+								<string></string>
+								<ret>
+									<int></int>
+								</ret>
+							</hello>
+						</g2>
 					</root>`,
 		},
 		{
 			name: "g2 return arrow with generic blocks",
-			text: `#!{
-							fn x<y> -> <z>
-						}`,
+			text: `#! g2 {
+						fn x<y> -> <z>
+					}`,
 			want: `<root>
-						<fn>
-							<x>
-								<y></y>
-								<ret>
-									<z></z>
-								</ret>
-							</x>
-						</fn>
+						<g2>
+							<fn>
+								<x>
+									<y></y>
+									<ret>
+										<z></z>
+									</ret>
+								</x>
+							</fn>
+						</g2>
 					</root>`,
 		},
 		{
@@ -196,41 +202,43 @@ func TestXMLEncode(t *testing.T) {
 		},
 		{
 			name: "function definition example",
-			text: `#!{
-							## Greet someone.
-							@@name="The name to greet."
-							func Greet(name string)
+			text: `#! g2 {
+						## Greet someone.
+						@@name="The name to greet."
+						func Greet(name string)
 
-							## Run complex calculations.
-							func Run(x int, y int, z string) -> (int, error)
-						}`,
+						## Run complex calculations.
+						func Run(x int, y int, z string) -> (int, error)
+					}`,
 			want: `<root>
-						<func name="The name to greet.">
-							Greet someone.
-							<Greet>
-								<name>
-									<string></string>
-								</name>
-							</Greet>
-						</func>
-						<func>
-							Run complex calculations.
-							<Run>
-								<x>
-									<int></int>
-								</x>
-								<y>
-									<int></int>
-								</y>
-								<z>
-									<string></string>
-								</z>
-								<ret>
-									<int></int>
-									<error></error>
-								</ret>
-							</Run>
-						</func>
+						<g2>
+							<func name="The name to greet.">
+								Greet someone.
+								<Greet>
+									<name>
+										<string></string>
+									</name>
+								</Greet>
+							</func>
+							<func>
+								Run complex calculations.
+								<Run>
+									<x>
+										<int></int>
+									</x>
+									<y>
+										<int></int>
+									</y>
+									<z>
+										<string></string>
+									</z>
+									<ret>
+										<int></int>
+										<error></error>
+									</ret>
+								</Run>
+							</func>
+						</g2>
 					</root>`,
 		},
 		{
@@ -252,14 +260,21 @@ func TestXMLEncode(t *testing.T) {
 			want: "<root>&lt;tag&gt;&lt;/tag&gt;&amp;&quot;hello&quot;</root>",
 		},
 	}
-	for _, test := range tests {
+
+	t.Parallel()
+
+	for _, tt := range tests {
+		test := tt
+
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			var writer bytes.Buffer
 			reader := bytes.NewBuffer([]byte(test.text))
-			encoder := NewXMLEncoder(test.name, reader, &writer)
-			err := encoder.Encode()
+			enc := encoder.NewXMLEncoder(test.name, reader, &writer)
+			err := enc.Encode()
 			if err != nil {
-				fmt.Println(err)
+				t.Error(err)
+
 				return
 			}
 
@@ -268,14 +283,13 @@ func TestXMLEncode(t *testing.T) {
 			if !StringsEqual(test.want, val) {
 				t.Errorf("Test '%s' failed. Wanted '%s', got '%s'", test.name, test.want, val)
 			}
-
 		})
 	}
 }
 
-// StringsEqual compares two given strings
-// ignores differences in Whitespaces, Tabs and newlines
+// StringsEqual compares two given strings but ignores differences in whitespaces, tabs and newlines.
 func StringsEqual(in1, in2 string) bool {
 	r := strings.NewReplacer("\n", "", "\t", "", " ", "")
+
 	return r.Replace(in1) == r.Replace(in2)
 }

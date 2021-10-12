@@ -14,11 +14,11 @@ import (
 // It provides alternatives for tokens that were expected instead.
 type UnexpectedTokenError struct {
 	tok      token.Token
-	expected []token.TokenType
+	expected []token.Type
 }
 
-// NewUnexpectedTokenError creates a new UnexpectedTokenError
-func NewUnexpectedTokenError(tok token.Token, expected ...token.TokenType) error {
+// NewUnexpectedTokenError creates a new UnexpectedTokenError.
+func NewUnexpectedTokenError(tok token.Token, expected ...token.Type) error {
 	return UnexpectedTokenError{
 		tok:      tok,
 		expected: expected,
@@ -35,13 +35,12 @@ func (u UnexpectedTokenError) Error() string {
 	}
 
 	// Join the last two elements with an "or" to have a nice looking string.
-	count := len(expectedTokens)
-	if count >= 2 {
+	if len(expectedTokens) >= 2 {
 		joined := fmt.Sprintf("%s or %s",
-			expectedTokens[count-2],
-			expectedTokens[count-1],
+			expectedTokens[len(expectedTokens)-2],
+			expectedTokens[len(expectedTokens)-1],
 		)
-		expectedTokens = expectedTokens[:count-1]
+		expectedTokens = expectedTokens[:len(expectedTokens)-1]
 		expectedTokens[len(expectedTokens)-1] = joined
 	}
 
@@ -49,7 +48,7 @@ func (u UnexpectedTokenError) Error() string {
 
 	return fmt.Sprintf(
 		"unexpected %s, expected %s",
-		strings.TrimPrefix(string(u.tok.TokenType()), "Token"),
+		strings.TrimPrefix(string(u.tok.Type()), "Token"),
 		expected)
 }
 
@@ -61,7 +60,7 @@ func (e ForwardAttrError) Error() string {
 	return "expected a forward attribute"
 }
 
-// NewForwardAttrError creates a new ForwardAttrError
+// NewForwardAttrError creates a new ForwardAttrError.
 func NewForwardAttrError() error {
 	return ForwardAttrError{}
 }

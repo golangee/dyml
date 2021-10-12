@@ -5,8 +5,9 @@ package parser
 
 import (
 	"errors"
-	"github.com/golangee/dyml/util"
 	"io"
+
+	"github.com/golangee/dyml/util"
 
 	"github.com/golangee/dyml/token"
 )
@@ -159,7 +160,7 @@ type Parser struct {
 	forwardedNodes []*TreeNode
 }
 
-// NewParser creates and returns a new Parser with corresponding Visitor
+// NewParser creates and returns a new Parser with corresponding Visitor.
 func NewParser(filename string, r io.Reader) *Parser {
 	return &Parser{
 		visitor: NewVisitor(filename, r),
@@ -169,9 +170,9 @@ func NewParser(filename string, r io.Reader) *Parser {
 // Parse returns a parsed tree.
 func (p *Parser) Parse() (*TreeNode, error) {
 	p.visitor.SetVisitable(p)
-	err := p.visitor.Run()
-	if err != nil {
-		return nil, err
+
+	if p.visitor.Run() != nil {
+		return nil, p.visitor.Run()
 	}
 
 	return p.finalTree, nil
@@ -181,9 +182,9 @@ func (p *Parser) Parse() (*TreeNode, error) {
 func (p *Parser) getStackTop() (*TreeNode, error) {
 	if len(p.workingStack) > 0 {
 		return p.workingStack[len(p.workingStack)-1], nil
-	} else {
-		return nil, errors.New("you found a bug: could not get top of stack in parser")
 	}
+
+	return nil, errors.New("you found a bug: could not get top of stack in parser")
 }
 
 // popStack removes the topmost element from the working stack.
@@ -191,10 +192,11 @@ func (p *Parser) popStack() (*TreeNode, error) {
 	if len(p.workingStack) > 0 {
 		node := p.workingStack[len(p.workingStack)-1]
 		p.workingStack = p.workingStack[:len(p.workingStack)-1]
+
 		return node, nil
-	} else {
-		return nil, errors.New("you found a bug: could not pop stack in parser")
 	}
+
+	return nil, errors.New("you found a bug: could not pop stack in parser")
 }
 
 // pushStack adds an element to the top of the stack.
@@ -204,13 +206,12 @@ func (p *Parser) pushStack(node *TreeNode) {
 
 // applyForwardedAttributes applies all forwarded attributes to the node.
 func (p *Parser) applyForwardedAttributes(node *TreeNode) error {
-	// TODO Check for duplicates
 	for {
 		attr := p.forwardedAttributes.Pop()
 		if attr == nil {
 			break
-		} else {
-			node.Attributes.Set(*attr)
+		} else if node.Attributes.Set(*attr) {
+			return token.NewPosError(attr.Range, "attribute defined multiple times")
 		}
 	}
 
@@ -242,6 +243,7 @@ func (p *Parser) Comment(comment token.CharData) error {
 	if err != nil {
 		return err
 	}
+
 	top.AddChildren(NewCommentNode(&comment))
 
 	return nil
@@ -252,6 +254,7 @@ func (p *Parser) Text(text token.CharData) error {
 	if err != nil {
 		return err
 	}
+
 	top.AddChildren(NewTextNode(&text))
 
 	return nil
@@ -267,7 +270,9 @@ func (p *Parser) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) er
 		if err := p.openNode(name.Value); err != nil {
 			return err
 		}
+
 		top, _ := p.getStackTop()
+
 		top.isNamedReturnArrow = true
 	}
 
@@ -322,7 +327,6 @@ func (p *Parser) SetBlockType(blockType BlockType) error {
 func (p *Parser) Close() error {
 	// Make the topmost node of the stack a child to the one before it,
 	// or set it as the finalTree if there is no parent.
-
 	child, err := p.popStack()
 	if err != nil {
 		return err
@@ -330,6 +334,7 @@ func (p *Parser) Close() error {
 
 	if child.forwarded {
 		p.forwardedNodes = append(p.forwardedNodes, child)
+
 		return nil
 	}
 
@@ -382,11 +387,13 @@ func (p *Parser) AttributeForward(key token.Identifier, value token.CharData) er
 func (p *Parser) Finalize() error {
 	if len(p.forwardedNodes) > 0 {
 		node := p.forwardedNodes[0]
+
 		return token.NewPosError(node.Range, "forwarded node cannot be forwarded anywhere")
 	}
 
 	if p.forwardedAttributes.Len() > 0 {
 		attr := p.forwardedAttributes.Pop()
+
 		return token.NewPosError(attr.Range, "forwarded attribute cannot be forwarded anywhere")
 	}
 

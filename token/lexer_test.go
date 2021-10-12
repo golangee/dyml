@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-package token
+package token_test
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"io"
 	"reflect"
 	"testing"
+
+	. "github.com/golangee/dyml/token"
 )
 
 func TestLexer(t *testing.T) {
@@ -500,21 +502,24 @@ func TestLexer(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	t.Parallel()
+
+	for _, test := range tests {
+		tt := test
+
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tokens, err := parseTokens(tt.text)
 
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error")
-				} else {
-					// we wanted and got an error, that's okay
 				}
 			} else {
 				if err != nil {
 					t.Error(err)
 				} else {
-					tt.want.Assert(tokens, t)
+					tt.want.Assert(t, tokens)
 				}
 			}
 
@@ -529,7 +534,7 @@ func TestLexer(t *testing.T) {
 					actual := *tokens[i].Pos()
 
 					if !comparePos(expected, actual) {
-						t.Errorf("token positions for %s differ, expected: %v, actual: %v", tokens[i].TokenType(), expected, actual)
+						t.Errorf("token positions for %s differ, expected: %v, actual: %v", tokens[i].Type(), expected, actual)
 					}
 				}
 			}
@@ -705,6 +710,7 @@ func (ts *TestSet) DefineElement(forward bool) *TestSet {
 			if def.Forward != forward {
 				return fmt.Errorf("DefineElement: expected forward=%v but got %v", forward, def.Forward)
 			}
+
 			return nil
 		}
 
@@ -720,6 +726,7 @@ func (ts *TestSet) DefineAttribute(forward bool) *TestSet {
 			if attr.Forward != forward {
 				return fmt.Errorf("DefineAttribute: expected forward=%v but got %v", forward, attr.Forward)
 			}
+
 			return nil
 		}
 
@@ -777,7 +784,7 @@ func (ts *TestSet) Semicolon() *TestSet {
 	return ts
 }
 
-func (ts *TestSet) Assert(tokens []Token, t *testing.T) {
+func (ts *TestSet) Assert(t *testing.T, tokens []Token) {
 	t.Helper()
 
 	if len(ts.checker) != len(tokens) {

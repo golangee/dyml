@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2021 The dyml authors <https://github.com/golangee/dyml/blob/main/AUTHORS>
 // SPDX-License-Identifier: Apache-2.0
 
-package parser
+package parser_test
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	. "github.com/golangee/dyml/parser"
 	"github.com/r3labs/diff/v2"
 )
 
@@ -212,6 +213,16 @@ func TestParser(t *testing.T) {
 			text: `#! item,`,
 			want: NewNode("root").Block(BlockNormal).AddChildren(
 				NewNode("item"),
+			),
+		},
+		{
+			name: "G2 ends with string",
+			text: `some text #! item "hello" more text`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewStringNode("some text "),
+				NewNode("item").AddChildren(
+					NewStringNode("hello")),
+				NewStringNode("more text"),
 			),
 		},
 		{
@@ -767,18 +778,25 @@ func TestParser(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
+
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ttt := tt
+		t.Run(ttt.name, func(t *testing.T) {
+			t.Parallel()
+
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
 
 			if !tt.wantErr && err != nil {
 				t.Error(err)
+
 				return
 			}
 
 			if tt.wantErr && err == nil {
 				t.Errorf("expected error, but did not get one")
+
 				return
 			}
 
@@ -788,12 +806,14 @@ func TestParser(t *testing.T) {
 				return
 			}
 
-			differences, err := diff.Diff(tt.want, tree, diff.Filter(func(path []string, parent reflect.Type, field reflect.StructField) bool {
-				// Skip any unexported fields when comparing
-				return field.IsExported()
-			}))
+			differences, err := diff.Diff(tt.want, tree,
+				diff.Filter(func(path []string, parent reflect.Type, field reflect.StructField) bool {
+					// Skip any unexported fields when comparing
+					return field.IsExported()
+				}))
 			if err != nil {
 				t.Error(err)
+
 				return
 			}
 

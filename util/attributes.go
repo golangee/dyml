@@ -19,7 +19,7 @@ func NewAttributeList() AttributeList {
 	return AttributeList{}
 }
 
-// Len returns the number of attributes in the list
+// Len returns the number of attributes in the list.
 func (l *AttributeList) Len() int {
 	return len(l.attributes)
 }
@@ -45,14 +45,18 @@ func (l *AttributeList) Pop() *Attribute {
 // Set the given attribute if it already exists or create a new
 // one otherwise. Returns true if an existing attribute got overwritten.
 func (l *AttributeList) Set(attr Attribute) bool {
+	//nolint:ifshort
 	existing := l.Get(attr.Key)
 	if existing != nil {
-		existing = &attr
+		existing.Key = attr.Key
+		existing.Value = attr.Value
+
 		return true
-	} else {
-		l.Add(attr)
-		return false
 	}
+
+	l.Add(attr)
+
+	return false
 }
 
 // Get returns an attribute for a given key, or nil if it does not exist.

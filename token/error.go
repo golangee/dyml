@@ -46,11 +46,13 @@ func NewPosError(node Node, msg string, details ...ErrDetail) *PosError {
 
 func (p *PosError) SetCause(err error) *PosError {
 	p.Cause = err
+
 	return p
 }
 
 func (p *PosError) SetHint(str string) *PosError {
 	p.Hint = str
+
 	return p
 }
 
