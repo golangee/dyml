@@ -11,6 +11,10 @@ import (
 	"unicode"
 )
 
+// maxBufferSize is the maximum number of runes in our buffer. This limits how often prevR can be called.
+// Since prevR does not get called that often, a small number is enough here.
+const maxBufferSize = 8
+
 // GrammarMode is used to identify if the lexer is
 // in grammar 1, grammar 2, or lexing a single line in grammar 1.
 type GrammarMode int
@@ -60,7 +64,7 @@ type runeWithPos struct {
 // Lexer can be used to get individual tokens.
 type Lexer struct {
 	r      *bufio.Reader
-	buf    []runeWithPos // TODO truncate to avoid streaming memory leak
+	buf    []runeWithPos
 	bufPos int
 	// pos is the current lexer position.
 	// It is the position of the rune that would be read next by nextR.
@@ -350,6 +354,12 @@ func (l *Lexer) nextR() (rune, error) {
 	})
 	l.bufPos++
 
+	// Should the buffer get longer than maxBufferSize we will remove the first element from it.
+	if len(l.buf) > maxBufferSize {
+		l.buf = l.buf[1:]
+		l.bufPos = len(l.buf)
+	}
+
 	l.pos.Offset += size
 	l.pos.Col++
 
@@ -361,7 +371,8 @@ func (l *Lexer) nextR() (rune, error) {
 	return r, err
 }
 
-// prevR unreads the current rune. panics if out of balance with nextR.
+// prevR unreads the current rune. panics if out of balance with nextR or if it was called
+// more than maxBufferSize times in succession.
 func (l *Lexer) prevR() {
 	l.bufPos--
 	r := l.buf[l.bufPos]
