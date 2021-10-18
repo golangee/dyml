@@ -171,8 +171,8 @@ func NewParser(filename string, r io.Reader) *Parser {
 func (p *Parser) Parse() (*TreeNode, error) {
 	p.visitor.SetVisitable(p)
 
-	if p.visitor.Run() != nil {
-		return nil, p.visitor.Run()
+	if err := p.visitor.Run(); err != nil {
+		return nil, err
 	}
 
 	return p.finalTree, nil

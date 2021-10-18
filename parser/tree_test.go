@@ -182,7 +182,7 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name:    "empty G2",
-			text:    `#!{}`,
+			text:    `#!`,
 			wantErr: true,
 		},
 		{
@@ -653,6 +653,22 @@ func TestParser(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "g2 arrow directly after preamble",
+			text: `#! x -> y`,
+			want: NewNode("root").Block(BlockNormal).AddChildren(
+				NewNode("x").AddChildren(
+					NewNode("ret").AddChildren(
+						NewNode("y"),
+					),
+				),
+			),
+		},
+		{
+			name:    "g2 arrow with nothing",
+			text:    "#! x -> ;",
+			wantErr: true,
+		},
+		{
 			name: "g2 return arrow with generic blocks",
 			text: `#! g2 {
 						fn x<y> -> <z>
@@ -780,30 +796,38 @@ func TestParser(t *testing.T) {
 
 	t.Parallel()
 
-	for _, tt := range tests {
-		ttt := tt
-		t.Run(ttt.name, func(t *testing.T) {
+	for _, ttt := range tests {
+		tt := ttt
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			parser := NewParser("parser_test.go", strings.NewReader(tt.text))
 			tree, err := parser.Parse()
 
-			if !tt.wantErr && err != nil {
-				t.Error(err)
-
-				return
-			}
-
-			if tt.wantErr && err == nil {
-				t.Errorf("expected error, but did not get one")
-
-				return
-			}
-
+			//nolint
 			if tt.wantErr {
-				// We wanted an error and got it, comparing trees would
-				// make no sense, so we end this test here.
-				return
+				// We wanted an error...
+				if err != nil {
+					// ...and got one.
+					// Comparing trees is nonsense in this case, so we skip that.
+					return
+				} else {
+					// ...but did not get one!
+					t.Errorf("expected error, but did not get one")
+
+					return
+				}
+			} else {
+				// We did not want an error...
+				if err != nil {
+					// ...but got one!
+					t.Error(err)
+
+					return
+				} else {
+					// ...and we did not get one.
+					// Everything went fine and we will start comparing trees.
+				}
 			}
 
 			differences, err := diff.Diff(tt.want, tree,
