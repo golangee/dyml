@@ -855,7 +855,11 @@ func (v *Visitor) parseAttributes(wantForward bool) error {
 		// Read CharData enclosed in brackets as attribute value in G1.
 		// Read CharData after Assign in G2.
 
-		tok, _ = v.next()
+		tok, err = v.next()
+		if err != nil {
+			return err
+		}
+
 		if isG1 {
 			if tok.Type() != token.TokenBlockStart {
 				return token.NewPosError(

@@ -500,6 +500,19 @@ func TestLexer(t *testing.T) {
 			text:    "#abc..def",
 			wantErr: true,
 		},
+
+		{
+			name: "multiple attributes G2",
+			text: `#! @@color="green" @@color="green" house @color="green" @color="green";`,
+			want: NewTestSet().
+				G2Preamble().
+				DefineAttribute(true).Identifier("color").Assign().CharData("green").
+				DefineAttribute(true).Identifier("color").Assign().CharData("green").
+				Identifier("house").
+				DefineAttribute(false).Identifier("color").Assign().CharData("green").
+				DefineAttribute(false).Identifier("color").Assign().CharData("green").
+				Semicolon(),
+		},
 	}
 
 	t.Parallel()

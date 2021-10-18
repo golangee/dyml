@@ -45,6 +45,8 @@ const (
 	WantG1AttributeStart    WantMode = "G1AttributeStart"
 	WantG1AttributeCharData WantMode = "G1AttributeCharData"
 	WantG1AttributeEnd      WantMode = "G1AttributeEnd"
+	// WantG2AttributeValue is used when we parsed a '=' in G2 and now expect chardata.
+	WantG2AttributeValue WantMode = "WantG2AttributeValue"
 )
 
 // A Token is an interface for all possible token types.
@@ -232,6 +234,10 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.gCommentLine()
 			l.want = WantNothing
 			_ = l.gSkipWhitespace()
+		} else if l.want == WantG2AttributeValue {
+			tok, err = l.g2CharData()
+			l.want = WantNothing
+			_ = l.gSkipWhitespace()
 		} else if r1 == '{' {
 			tok, err = l.gBlockStart()
 			l.g2BracketCounter++
@@ -272,6 +278,7 @@ func (l *Lexer) Token() (Token, error) {
 			_ = l.gSkipWhitespace('\n')
 		} else if r1 == '=' {
 			tok, err = l.g2Assign()
+			l.want = WantG2AttributeValue
 			_ = l.gSkipWhitespace()
 		} else if r1 == ',' {
 			tok, err = l.g2Comma()
