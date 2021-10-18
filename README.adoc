@@ -130,9 +130,12 @@ NOTE: Text mode is also referred to as G1 and node mode as G2.
 
 == Packages
 
-Packages link:parser[] and link:token[] are used to handle the dyml language that is (mostly) formally defined in
-link:docs/dyml.ebnf[].
-For motivation, explanation and examples for this language, please see link:docs/markup.adoc[].
+* link:token[] contains the lexer that can convert an input stream into tokens.
+* link:parser[] contains logic to turn an input stream into a tree representation.
+You will also find the types `+Visitor+` and `+Visitable+` here, which you must use if you want to create your own parser.
+* link:encoder[] contains an XMLEncoder that can directly convert an input stream into an XML representation.
+It serves as an example as to how implement your own parser.
+In most cases you do not want to create your own parser, but instead use the `+Unmarshal+` method (defined in link:marshal.go[]) which can parse an input stream into a struct.
 
 == Testing
 
