@@ -242,6 +242,11 @@ func TestXMLEncode(t *testing.T) {
 					</root>`,
 		},
 		{
+			name: "g2 named return arrow",
+			text: `#! x -> y`,
+			want: "<root><x><y></y></x></root>",
+		},
+		{
 			name: "forward node",
 			text: `
 					##a

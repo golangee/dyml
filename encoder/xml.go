@@ -81,6 +81,10 @@ func (e *XMLEncoder) Text(text token.CharData) error {
 }
 
 func (e *XMLEncoder) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) error {
+	if name != nil {
+		return e.openNode(name.Value)
+	}
+
 	return e.openNode("ret")
 }
 
