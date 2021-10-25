@@ -116,6 +116,11 @@ func Unmarshal(r io.Reader, into interface{}, strict bool) error {
 		return err
 	}
 
+	return UnmarshalTree(tree, into, strict)
+}
+
+// UnmarshalTree works like Unmarshal, but processes an already parsed tree.
+func UnmarshalTree(tree *parser.TreeNode, into interface{}, strict bool) error {
 	value := reflect.ValueOf(into)
 	unmarshal := unmarshaler{strict: strict}
 
