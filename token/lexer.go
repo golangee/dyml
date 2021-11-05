@@ -61,6 +61,7 @@ type runeWithPos struct {
 	r    rune
 	line int32
 	col  int32
+	off  int32
 }
 
 // Lexer can be used to get individual tokens.
@@ -336,6 +337,7 @@ func (l *Lexer) nextR() (rune, error) {
 		l.pos.Line = int(r.line)
 		// col needs to be incremented so that the lexer points to the next rune.
 		l.pos.Col = int(r.col) + 1
+		l.pos.Offset = int(r.off) + 1
 
 		if r.r == '\n' {
 			l.pos.Line++
@@ -358,6 +360,7 @@ func (l *Lexer) nextR() (rune, error) {
 		r:    r,
 		line: int32(l.pos.Line),
 		col:  int32(l.pos.Col),
+		off:  int32(l.pos.Offset),
 	})
 	l.bufPos++
 
@@ -385,6 +388,7 @@ func (l *Lexer) prevR() {
 	r := l.buf[l.bufPos]
 	l.pos.Line = int(r.line)
 	l.pos.Col = int(r.col)
+	l.pos.Offset = int(r.off)
 }
 
 // node returns a fake node for positional errors.
