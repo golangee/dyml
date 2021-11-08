@@ -24,6 +24,8 @@ type XMLEncoder struct {
 	// forwardedNodes are all (text-) nodes that are being forwarded into this node.
 	// It is important to note that these nodes are either just text or nodes with no attributes.
 	forwardedNodes []*node
+	// indent is the current level of indentation for emitting XML.
+	indent uint
 }
 
 // node is a node that we are currently working on.
@@ -69,7 +71,7 @@ func (e *XMLEncoder) Comment(comment token.CharData) error {
 		return err
 	}
 
-	return e.writeString(fmt.Sprintf("<!-- %s -->", escapeXMLSafe(comment.Value)))
+	return e.writeString(fmt.Sprintf("%s<!-- %s -->\n", e.indentString(), escapeXMLSafe(comment.Value)))
 }
 
 func (e *XMLEncoder) Text(text token.CharData) error {
@@ -77,7 +79,7 @@ func (e *XMLEncoder) Text(text token.CharData) error {
 		return err
 	}
 
-	return e.writeString(escapeXMLSafe(text.Value))
+	return e.writeString(fmt.Sprintf("%s%s\n", e.indentString(), strings.TrimSpace(escapeXMLSafe(text.Value))))
 }
 
 func (e *XMLEncoder) OpenReturnArrow(arrow token.G2Arrow, name *token.Identifier) error {
@@ -131,9 +133,11 @@ func (e *XMLEncoder) Close() error {
 		return err
 	}
 
+	e.indent--
+
 	top := e.pop()
 
-	err := e.writeString(fmt.Sprintf("</%s>", top.name))
+	err := e.writeString(fmt.Sprintf("%s</%s>\n", e.indentString(), top.name))
 	if err != nil {
 		return err
 	}
@@ -220,6 +224,7 @@ func (e *XMLEncoder) writeTopNodeOpen() error {
 		// Build the opening tag with all attributes
 		var tag strings.Builder
 
+		tag.WriteString(e.indentString())
 		tag.WriteString("<")
 		tag.WriteString(top.name)
 
@@ -231,14 +236,16 @@ func (e *XMLEncoder) writeTopNodeOpen() error {
 
 			tag.WriteString(fmt.Sprintf(` %s="%s"`, attr.Key, escapeXMLSafe(attr.Value)))
 		}
-		tag.WriteString(">")
+		tag.WriteString(">\n")
+
+		e.indent++
 
 		// Place all forwarded nodes here
 		for _, forwardedNode := range top.forwardedNodes {
 			if len(forwardedNode.name) > 0 {
-				tag.WriteString(fmt.Sprintf("<%[1]s></%[1]s>", forwardedNode.name))
+				tag.WriteString(fmt.Sprintf("%[1]s<%[2]s></%[2]s>\n", e.indentString(), forwardedNode.name))
 			} else if len(forwardedNode.text) > 0 {
-				tag.WriteString(escapeXMLSafe(forwardedNode.text))
+				tag.WriteString(fmt.Sprintf("%s%s\n", e.indentString(), escapeXMLSafe(forwardedNode.text)))
 			}
 		}
 
@@ -279,6 +286,16 @@ func (e *XMLEncoder) pop() *node {
 	}
 
 	return nil
+}
+
+// indentString returns a string with a number of spaces that matches the
+// current indentation level.
+func (e *XMLEncoder) indentString() string {
+	var tmp strings.Builder
+	for i := uint(0); i < e.indent; i++ {
+		tmp.WriteString("    ")
+	}
+	return tmp.String()
 }
 
 // escapeXMLSafe replaces all occurrences of reserved characters in XML: <>&".
