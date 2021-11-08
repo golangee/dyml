@@ -174,10 +174,9 @@ func TestParser(t *testing.T) {
 		},
 		{
 			name: "comment",
-			text: "#? this is a comment\nThis is not.",
+			text: "#? This is a comment.\nThis is more comment.",
 			want: NewNode("root").Block(BlockNormal).AddChildren(
-				NewStringCommentNode("this is a comment"),
-				NewStringNode("This is not."),
+				NewStringCommentNode("This is a comment.\nThis is more comment."),
 			),
 		},
 		{

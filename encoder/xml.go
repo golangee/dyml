@@ -295,6 +295,7 @@ func (e *XMLEncoder) indentString() string {
 	for i := uint(0); i < e.indent; i++ {
 		tmp.WriteString("    ")
 	}
+
 	return tmp.String()
 }
 

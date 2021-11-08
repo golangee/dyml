@@ -3,6 +3,8 @@
 
 package token
 
+import "strings"
+
 //go:generate go run gen/gen.go
 
 // A CharData token represents a run of text.
@@ -13,6 +15,47 @@ type CharData struct {
 
 func (t *CharData) String() string {
 	return t.Value
+}
+
+// SplitLines splits this token into one or more, one for each line.
+// This will return empty tokens for empty lines, as the newline-characters
+// are not included in the new tokens.
+func (t CharData) SplitLines() []*CharData {
+	var result []*CharData
+
+	// Keep track of the offset and advance it properly
+	offset := t.Begin().Offset
+
+	for i, line := range strings.Split(t.Value, "\n") {
+		// The column will be 1, except for the first line.
+		col := 1
+		if i == 0 {
+			col = t.Begin().Col
+		}
+
+		result = append(result, &CharData{
+			Position: Position{
+				BeginPos: Pos{
+					File:   t.Begin().File,
+					Line:   t.Begin().Line + i,
+					Col:    col,
+					Offset: offset,
+				},
+				EndPos: Pos{
+					File:   t.EndPos.File,
+					Line:   t.Begin().Line + i,
+					Col:    col + len(line),
+					Offset: offset + len(line),
+				},
+			},
+			Value: line,
+		})
+
+		// Add one to the line length for the newline char.
+		offset += len(line) + 1
+	}
+
+	return result
 }
 
 // Identifier is an identifier as you would expect from a programming language: [0-9a-zA-Z_]+.

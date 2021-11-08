@@ -143,9 +143,9 @@ func (l *Lexer) Token() (Token, error) {
 		return tok, err
 	case WantG1AttributeCharData:
 		if l.mode == G1Line {
-			tok, err = l.g1Text("}\n")
+			tok, err = l.gText("}\n")
 		} else {
-			tok, err = l.g1Text("}")
+			tok, err = l.gText("}")
 		}
 
 		if err != nil {
@@ -179,7 +179,7 @@ func (l *Lexer) Token() (Token, error) {
 			_ = l.gSkipWhitespace()
 			l.want = WantNothing
 		} else if l.want == WantCommentLine {
-			tok, err = l.gCommentLine()
+			tok, err = l.gText("#")
 			l.want = WantNothing
 		} else if r1 == '#' && r2 == '!' {
 			tok, err = l.g2Preamble()
@@ -202,7 +202,7 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.gBlockEnd()
 			_ = l.gSkipWhitespace()
 		} else {
-			tok, err = l.g1Text("#}")
+			tok, err = l.gText("#}")
 		}
 	case G1Line:
 		if r1 == '\n' {
@@ -228,11 +228,11 @@ func (l *Lexer) Token() (Token, error) {
 			tok, err = l.gBlockEnd()
 			_ = l.gSkipWhitespace('\n')
 		} else {
-			tok, err = l.g1Text("#}\n")
+			tok, err = l.gText("#}\n")
 		}
 	case G2:
 		if l.want == WantCommentLine {
-			tok, err = l.gCommentLine()
+			tok, err = l.gText("\n")
 			l.want = WantNothing
 			_ = l.gSkipWhitespace()
 		} else if l.want == WantG2AttributeValue {

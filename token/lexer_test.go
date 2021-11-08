@@ -196,12 +196,11 @@ func TestLexer(t *testing.T) {
 		},
 
 		{
-			name: "g1 line comment",
-			text: "#? This is a comment.\nThis is not.",
+			name: "g1 comment",
+			text: "#? This is a comment.\nThis is more comment.",
 			want: NewTestSet().
 				G1Comment().
-				CharData("This is a comment.").
-				CharData("This is not."),
+				CharData("This is a comment.\nThis is more comment."),
 		},
 
 		{

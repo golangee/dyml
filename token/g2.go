@@ -58,7 +58,7 @@ func (l *Lexer) g2CharData() (*CharData, error) {
 		return nil, NewPosError(l.node(), "expected '\"'")
 	}
 
-	text, err := l.g1Text("\"")
+	text, err := l.gText("\"")
 	if err != nil {
 		return nil, err
 	}

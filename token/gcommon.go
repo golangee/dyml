@@ -193,38 +193,3 @@ func (l *Lexer) gDefineElement() (*DefineElement, error) {
 
 	return define, nil
 }
-
-// gCommentLine reads arbitrary text for the rest of the line.
-func (l *Lexer) gCommentLine() (*CharData, error) {
-	startPos := l.Pos()
-
-	var tmp bytes.Buffer
-
-	for {
-		r, err := l.nextR()
-		if errors.Is(err, io.EOF) {
-			if tmp.Len() == 0 {
-				return nil, io.EOF
-			}
-
-			break
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		if r == '\n' {
-			break
-		}
-
-		tmp.WriteRune(r)
-	}
-
-	text := &CharData{}
-	text.Value = tmp.String()
-	text.Position.BeginPos = startPos
-	text.Position.EndPos = l.pos
-
-	return text, nil
-}

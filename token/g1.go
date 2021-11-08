@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// g1Text parses a text sequence until next rune is in stopAt or EOF.
-func (l *Lexer) g1Text(stopAt string) (*CharData, error) {
+// gText parses a text sequence until next rune is in stopAt or EOF.
+func (l *Lexer) gText(stopAt string) (*CharData, error) {
 	startPos := l.Pos()
 
 	var tmp bytes.Buffer
