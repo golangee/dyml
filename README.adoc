@@ -1,4 +1,9 @@
-= DYML
+++++
+<div align="center">
+  <img width="128" height="128" src="assets/icon.png">
+  <h1>DYML</h1>
+</div>
+++++
 
 The Double Yielding Markup Language (DYML) aims to be a lightweight alternative to JSON/YAML while being more friendly to write text in, like AsciiDoc or Markdown, but without the weirdness and parsing complexity.
 
